@@ -22,6 +22,8 @@
 
 ### 随包依赖
 
+本分支的独立 `ysm_runtime` 前置另行打包 Apache Commons Compress/IO/Codec/Lang、XZ for Java、Bouncy Castle、Aircompressor、TwelveMonkeys、Chicory/ASM、Concentus 与 JOrbis。AVIF WASM 制品内含 libavif/libaom/WASI runtime；版本、来源与许可见 [runtime/README.md](runtime/README.md)。重定位类、WASM 及独立许可证随前置 JAR 提供，不随本体重复打包。JOrbis 的对应源码随包提供；自建可选 native 的 BLAKE3/zstd 许可保留在 `runtime/native/licenses/`。
+
 构建会将 QuickBuffers runtime relocate 后打入最终制品，其 Apache-2.0 文本位于 `licenses/quickbuffers`。
 
 `licenses/` 还包含随 Java 制品分发的 native 与其他第三方组件的许可证文本。

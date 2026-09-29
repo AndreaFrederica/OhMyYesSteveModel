@@ -1,0 +1,30 @@
+rootProject.name = 'ysm-runtime'
+include 'ysm-runtime-native-render'
+project(':ysm-runtime-native-render').projectDir = file('native-render')
+include 'ysm-runtime-v3d', 'ysm-runtime-tools'
+project(':ysm-runtime-v3d').projectDir = file('v3d')
+project(':ysm-runtime-tools').projectDir = file('tools')
+include 'ysm-runtime-java-v3'
+project(':ysm-runtime-java-v3').projectDir = file('java-v3')
+include 'ysm-runtime-render-api', 'ysm-runtime-java-bake', 'ysm-runtime-java-render'
+project(':ysm-runtime-render-api').projectDir = file('render-api')
+project(':ysm-runtime-java-bake').projectDir = file('java-bake')
+project(':ysm-runtime-java-render').projectDir = file('java-render')
+include 'ysm-runtime-api', 'ysm-runtime-java-archive', 'ysm-runtime-core', 'ysm-runtime-forge'
+include 'portable-integration-tests'
+include 'ysm-runtime-java-codec'
+include 'ysm-runtime-java-image'
+include 'ysm-runtime-native-codec'
+include 'ysm-runtime-wasm-avif'
+include 'ysm-runtime-java-audio', 'ysm-runtime-concentus'
+project(':ysm-runtime-api').projectDir = file('api')
+project(':ysm-runtime-java-archive').projectDir = file('java-archive')
+project(':ysm-runtime-core').projectDir = file('core')
+project(':ysm-runtime-forge').projectDir = file('forge')
+project(':portable-integration-tests').projectDir = file('integration-tests')
+project(':ysm-runtime-java-codec').projectDir = file('java-codec')
+project(':ysm-runtime-java-image').projectDir = file('java-image')
+project(':ysm-runtime-native-codec').projectDir = file('native-codec')
+project(':ysm-runtime-wasm-avif').projectDir = file('wasm-avif')
+project(':ysm-runtime-java-audio').projectDir = file('java-audio')
+project(':ysm-runtime-concentus').projectDir = file('concentus')

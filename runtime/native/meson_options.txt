@@ -1,0 +1,1 @@
+option('jdk_home', type: 'string', description: 'JDK containing include/jni.h')

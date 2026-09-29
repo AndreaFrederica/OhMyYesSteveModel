@@ -1,0 +1,5 @@
+.pixi/
+subprojects/.wraplock
+build*/
+subprojects/*/
+!subprojects/packagefiles/

@@ -1,0 +1,5 @@
+dependencies {
+    api project(':ysm-runtime-render-api')
+    api 'org.joml:joml:1.10.5'
+    testImplementation project(':ysm-runtime-java-bake')
+}

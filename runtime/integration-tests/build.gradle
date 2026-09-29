@@ -1,0 +1,38 @@
+// Compile the real mod adapters in isolation, without Forge or a YSM native library.
+dependencies {
+    implementation project(':ysm-runtime-core')
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'io.netty:netty-buffer:4.1.82.Final'
+    implementation 'org.lwjgl:lwjgl:3.3.1'
+    implementation 'org.jetbrains:annotations:26.0.2'
+    def os = System.getProperty('os.name').toLowerCase()
+    def arch = System.getProperty('os.arch').toLowerCase()
+    def classifier = os.contains('win') ? 'natives-windows' : os.contains('mac') ? 'natives-macos' : 'natives-linux'
+    if (arch.contains('aarch64') || arch.contains('arm64')) classifier += '-arm64'
+    runtimeOnly "org.lwjgl:lwjgl:3.3.1:${classifier}"
+}
+sourceSets.main.java {
+    srcDir rootProject.file('../src/main/java')
+    include 'com/elfmcys/ysm/buffer/**'
+    include 'com/elfmcys/ysm/natives/buffer/**'
+    include 'com/elfmcys/ysm/natives/Blake3.java'
+    include 'com/elfmcys/ysm/natives/Zstd.java'
+    include 'com/elfmcys/ysm/util/CleanerUtil.java'
+    include 'com/elfmcys/ysm/util/ScopeGuard.java'
+    include 'com/elfmcys/ysm/util/UnsafeUtil.java'
+    include 'com/elfmcys/ysm/util/Closeable.java'
+    include 'com/elfmcys/ysm/format/vfs/**'
+    include 'com/elfmcys/ysm/format/parser/CaptureData.java'
+    include 'com/elfmcys/ysm/format/legacy/LegacyYsmHeader.java'
+    include 'com/elfmcys/ysm/format/legacy/LegacyV3Decoder.java'
+    include 'com/elfmcys/ysm/format/legacy/JavaLegacyV3Decoder.java'
+    include 'com/elfmcys/ysm/format/legacy/V3d*.java'
+}
+sourceSets.test.java {
+    srcDir rootProject.file('../src/test/java')
+    include 'com/elfmcys/ysm/format/parser/PortableCaptureTest.java'
+    include 'com/elfmcys/ysm/natives/ZstdTest.java'
+    include 'com/elfmcys/ysm/buffer/UniBufferOwnershipTest.java'
+}
+sourceSets.test.resources { srcDir rootProject.file('java-v3/src/test/resources'); include 'historical/**' }
+test { systemProperty 'ysm.runtime.javaOnly', 'true' }

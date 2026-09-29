@@ -1,0 +1,9 @@
+dependencies {
+    api project(':ysm-runtime-api')
+    implementation project(':ysm-runtime-concentus')
+    implementation 'org.jcraft:jorbis:0.0.17'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+}
+test {
+    systemProperty 'ysm.test.builtinRoot', rootProject.file('../src/main/resources/assets/ysm/builtin').absolutePath
+}

@@ -1,0 +1,19 @@
+dependencies {
+    api project(':ysm-runtime-api')
+    testImplementation project(':ysm-runtime-java-codec')
+}
+
+// Explicit opt-in integration task; ordinary Java builds do not need a native toolchain.
+tasks.register('nativeTest', Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty 'ysm.test.codecLibrary', providers.gradleProperty('codecLibrary').getOrElse('')
+    if (providers.gradleProperty('codecLibrary').isPresent()) {
+        inputs.file(providers.gradleProperty('codecLibrary'))
+    }
+    doFirst {
+        if (!providers.gradleProperty('codecLibrary').isPresent())
+            throw new GradleException('Pass -PcodecLibrary=<absolute path to our ysmlib_codec library>')
+    }
+}

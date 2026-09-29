@@ -1,0 +1,10 @@
+dependencies {
+    api project(':ysm-runtime-api')
+    implementation 'com.dylibso.chicory:runtime:1.7.5'
+    implementation 'com.dylibso.chicory:compiler:1.7.5'
+    implementation 'com.dylibso.chicory:wasi:1.7.5'
+}
+test {
+    maxHeapSize = '2g'
+    systemProperty 'ysm.test.builtinRoot', rootProject.file('../src/main/resources/assets/ysm/builtin').absolutePath
+}

@@ -1,0 +1,19 @@
+dependencies {
+    api project(':ysm-runtime-render-api')
+    implementation project(':ysm-runtime-java-render')
+    testImplementation project(':ysm-runtime-java-bake')
+}
+
+tasks.register('nativeTest', Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty 'ysm.test.renderLibrary', providers.gradleProperty('renderLibrary').getOrElse('')
+    if (providers.gradleProperty('renderLibrary').isPresent()) {
+        inputs.file(providers.gradleProperty('renderLibrary'))
+    }
+    doFirst {
+        if (!providers.gradleProperty('renderLibrary').isPresent())
+            throw new GradleException('Pass -PrenderLibrary=<absolute path to ysmlib_render>')
+    }
+}

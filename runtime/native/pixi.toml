@@ -1,0 +1,26 @@
+[workspace]
+name = "ysmlib-native"
+version = "0.1.0"
+description = "Optional native accelerators for cc.sirrus.ysmlib"
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-arm64"]
+
+[dependencies]
+python = "3.12.*"
+meson = ">=1.9,<2"
+ninja = ">=1.12,<2"
+pkg-config = ">=0.29,<1"
+openjdk = "17.*"
+
+[target.linux-64.dependencies]
+c-compiler = ">=1.9,<2"
+cxx-compiler = ">=1.9,<2"
+
+[target.osx-arm64.dependencies]
+c-compiler = ">=1.9,<2"
+cxx-compiler = ">=1.9,<2"
+
+[tasks]
+configure = "python tools/build.py configure"
+build = { cmd = "meson compile -C build", depends-on = ["configure"] }
+test = { cmd = "meson test -C build --print-errorlogs", depends-on = ["build"] }

@@ -3,3 +3,7 @@
 # are changed when only line endings change.
 src/generated/**/.cache/cache text eol=lf
 src/generated/**/*.json text eol=lf
+
+# Preserve whitespace in unmodified upstream source and license snapshots.
+runtime/concentus/src/main/java/** whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+runtime/forge/src/main/resources/licenses/** whitespace=-blank-at-eol,-blank-at-eof

@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[46,)"
+license="Apache-2.0"
+
+[[mods]]
+modId="ysm_runtime"
+version="${runtime_version}"
+displayName="Oh my ysm lib"
+authors="AndreaFrederica"
+description="Modular YSM runtime with mandatory Java implementations and optional native acceleration."
+
+[[dependencies.ysm_runtime]]
+modId="forge"
+mandatory=true
+versionRange="[46,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ysm_runtime]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20,1.20.2)"
+ordering="NONE"
+side="BOTH"

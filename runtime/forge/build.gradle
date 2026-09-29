@@ -1,0 +1,77 @@
+plugins { id 'com.github.johnrengelman.shadow' version '8.1.1' }
+
+repositories { maven { url = 'https://maven.minecraftforge.net' } }
+configurations { distributionHostMath }
+
+dependencies {
+    distributionHostMath 'org.joml:joml:1.10.5'
+    implementation project(':ysm-runtime-core')
+    implementation project(':ysm-runtime-tools')
+    // Only the loader annotation is needed. This module has no mapped game classes.
+    compileOnly('net.minecraftforge:javafmllanguage:1.20.1-47.4.3') { transitive = false }
+}
+
+processResources {
+    inputs.property 'runtime_version', project.version
+    filesMatching('META-INF/mods.toml') { expand runtime_version: project.version }
+    from(rootProject.file('../LICENSE'))
+    from(rootProject.file('third-party/jorbis-0.0.17-sources.jar')) {
+        into 'third-party-sources'
+        rename { 'jorbis-0.0.17-sources.zip' } // Preserve the archive; Shadow expands .jar resources.
+    }
+    from(rootProject.file('third-party/README.md')) { into 'third-party-sources' }
+}
+
+jar { archiveClassifier = 'thin' }
+shadowJar {
+    archiveClassifier = ''
+    manifest { attributes 'Main-Class': 'cc.sirrus.ysmlib.tools.V3dTool' }
+    mergeServiceFiles()
+    relocate 'com.google.gson', 'cc.sirrus.ysmlib.internal.gson'
+    relocate 'org.apache.commons', 'cc.sirrus.ysmlib.internal.apache.commons'
+    relocate 'org.tukaani.xz', 'cc.sirrus.ysmlib.internal.xz'
+    relocate 'org.bouncycastle', 'cc.sirrus.ysmlib.internal.bouncycastle'
+    relocate 'io.airlift.compress', 'cc.sirrus.ysmlib.internal.aircompressor'
+    relocate 'com.twelvemonkeys', 'cc.sirrus.ysmlib.internal.twelvemonkeys'
+    relocate 'com.dylibso.chicory', 'cc.sirrus.ysmlib.internal.chicory'
+    relocate 'org.objectweb.asm', 'cc.sirrus.ysmlib.internal.asm'
+    relocate 'org.concentus', 'cc.sirrus.ysmlib.internal.concentus'
+    relocate 'com.jcraft', 'cc.sirrus.ysmlib.internal.jcraft'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+    // Java 17 baseline uses base classes; BC also ships Java 21+ multi-release entries.
+    exclude 'module-info.class', 'META-INF/versions/**'
+    // Minecraft provides this exact API; avoid a duplicate module in Forge's layer.
+    exclude 'org/joml/**'
+}
+assemble.dependsOn shadowJar
+
+// Both distribution and composite-build consumers receive the complete prerequisite.
+// Its dependencies are already shaded; do not leak their unrelocated jars to the mod.
+configurations.apiElements.outgoing.artifacts.clear()
+configurations.runtimeElements.outgoing.artifacts.clear()
+artifacts {
+    apiElements tasks.shadowJar
+    runtimeElements tasks.shadowJar
+}
+
+sourceSets {
+    distributionTest {
+        compileClasspath += sourceSets.main.compileClasspath
+        resources.srcDir rootProject.file('wasm-avif/src/test/resources')
+        resources.srcDir rootProject.file('java-v3/src/test/resources')
+        resources {
+            srcDir rootProject.file('java-audio/src/test/resources')
+            exclude '*.py', 'README.md'
+        }
+    }
+}
+tasks.register('distributionTest', JavaExec) {
+    dependsOn shadowJar, tasks.named('distributionTestClasses')
+    // Minecraft supplies JOML in production. Exercise that same shared API here.
+    classpath = files(sourceSets.distributionTest.output, tasks.shadowJar.archiveFile,
+            configurations.distributionHostMath)
+    mainClass = 'RuntimeDistributionSmoke'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    systemProperty 'ysm.runtime.codecLibrary', 'deliberately-missing-library-for-javaOnly-verification'
+}
+check.dependsOn tasks.named('distributionTest')

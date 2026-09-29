@@ -1,0 +1,6 @@
+dependencies {
+    api project(':ysm-runtime-api')
+    implementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation project(':ysm-runtime-java-v3')
+}
+sourceSets.test.resources { srcDir rootProject.file('java-v3/src/test/resources'); include 'historical/**' }

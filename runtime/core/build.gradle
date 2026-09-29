@@ -1,0 +1,14 @@
+dependencies {
+    api project(':ysm-runtime-v3d')
+    implementation project(':ysm-runtime-java-v3')
+    api project(':ysm-runtime-render-api')
+    implementation project(':ysm-runtime-java-bake')
+    implementation project(':ysm-runtime-java-render')
+    implementation project(':ysm-runtime-native-render')
+    api project(':ysm-runtime-api')
+    implementation project(':ysm-runtime-java-archive')
+    implementation project(':ysm-runtime-java-codec')
+    implementation project(':ysm-runtime-native-codec')
+    implementation project(':ysm-runtime-java-image')
+    implementation project(':ysm-runtime-java-audio')
+}
