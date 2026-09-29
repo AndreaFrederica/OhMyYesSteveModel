@@ -7,7 +7,7 @@ import org.apache.logging.log4j.Level;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Process-lifetime native dependency required by production model parsing and codecs. */
+/** Historical harness name; verifies the independent JVM prerequisite without loading JNI. */
 public final class MockNativeRuntime {
     private MockNativeRuntime() {
     }
@@ -15,9 +15,12 @@ public final class MockNativeRuntime {
     public static String initialize(Path library) throws Exception {
         library = library.toAbsolutePath().normalize();
         if (!Files.isRegularFile(library)) {
-            throw new IllegalArgumentException("Native library does not exist: " + library);
+            throw new IllegalArgumentException("Runtime prerequisite does not exist: " + library);
         }
-        System.load(library.toString());
+        System.setProperty("ysm.runtime.javaOnly", "true");
+        if (!cc.sirrus.ysmlib.YsmRuntime.hashes().id().contains("java")) {
+            throw new IllegalStateException("Classpath harness requires the Java hash provider");
+        }
         NativeRuntime.initialize(NativeRuntime.JavaConfig.fromLog4j(Level.INFO));
         return EvidenceJson.sha256(Files.readAllBytes(library));
     }

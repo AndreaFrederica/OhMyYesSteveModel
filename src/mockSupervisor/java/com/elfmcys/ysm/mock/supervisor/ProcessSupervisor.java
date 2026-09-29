@@ -82,8 +82,11 @@ public final class ProcessSupervisor {
                     environment.put(assignment.substring(0, separator),
                             assignment.substring(separator + 1));
                 }
-            } else if (line.startsWith("\"") && line.contains("java")) {
-                command = splitWindowsCommand(line);
+            } else if (!line.isEmpty()) {
+                var tokens = splitWindowsCommand(line);
+                if (!tokens.isEmpty() && tokens.get(0).replace('\\', '/').matches("(?i).*/java(?:\\.exe)?")) {
+                    command = tokens;
+                }
             }
         }
         if (command == null || command.isEmpty()) {

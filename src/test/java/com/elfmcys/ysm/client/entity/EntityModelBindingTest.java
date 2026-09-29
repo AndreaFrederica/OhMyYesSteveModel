@@ -45,6 +45,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EntityModelBindingTest {
+    @org.junit.jupiter.api.BeforeAll
+    static void initializeHostValueClassesBeforeCreatingCleanerOwnedFixtures() throws Exception {
+        // Forge initializes these serially during startup. Plain-JVM fixtures must do the
+        // same before Cleaner can race ResourceLocation -> Style against Screen -> Style.
+        Class.forName("net.minecraft.resources.ResourceLocation");
+    }
     private static final BakeProfile PROFILE = new BakeProfile("test");
 
     @Test

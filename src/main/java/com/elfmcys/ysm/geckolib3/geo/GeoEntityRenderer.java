@@ -33,8 +33,13 @@ public abstract class GeoEntityRenderer<TEntity extends Entity, T extends Animat
                     preRender(data, animatable, poseStack, bufferSource,
                             packedLight, getPackedOverlay(entity, 0), Color.WHITE);
                     if (data.modelState.isValid()) {
-                        render(data, animatable, renderType, poseStack, bufferSource,
-                                packedLight, getPackedOverlay(entity, 0), Color.WHITE);
+                        var event = new com.elfmcys.ysm.api.rendering.v0.event.RenderModelEvent(entity,
+                                animatable.renderTargetKind(), data, bufferSource, renderType, poseStack,
+                                packedLight, getPackedOverlay(entity, 0), Color.WHITE.getColor());
+                        if (!com.elfmcys.ysm.YesSteveModel.postEvent(event)) {
+                            render(data, animatable, renderType, poseStack, bufferSource,
+                                    packedLight, getPackedOverlay(entity, 0), Color.WHITE);
+                        }
                     }
                     postRender(data, animatable, poseStack, bufferSource,
                             packedLight, getPackedOverlay(entity, 0), Color.WHITE);

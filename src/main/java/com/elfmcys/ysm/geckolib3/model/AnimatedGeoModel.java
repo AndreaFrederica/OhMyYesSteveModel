@@ -32,14 +32,6 @@ public class AnimatedGeoModel {
     @Nullable
     private final AnimatedGeoBone firstPersonViewLocator;
 
-    /**
-     * 仅用于 TLM 定位组
-     * <p>
-     * FIXME: 其实不应该这样耦合的
-     */
-    @Nullable
-    private Object tlmAnimatedGeoModel = null;
-
     public AnimatedGeoModel(GeoModel model) {
         this.model = model;
 
@@ -112,13 +104,4 @@ public class AnimatedGeoModel {
         throw new IllegalArgumentException("locator type mismatch");
     }
 
-    // TODO
-//    @SuppressWarnings("unchecked")
-//    public <T> T getTlmAnimatedGeoModel() {
-//        if (this.tlmAnimatedGeoModel == null) {
-//            // FIXME: 有可能会触发类加载？
-//            this.tlmAnimatedGeoModel = TlmConverterHelper.convertToTlmAnimatedModel(this);
-//        }
-//        return (T) this.tlmAnimatedGeoModel;
-//    }
 }

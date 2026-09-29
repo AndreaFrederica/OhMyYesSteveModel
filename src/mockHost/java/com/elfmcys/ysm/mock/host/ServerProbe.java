@@ -143,6 +143,7 @@ final class ServerProbe {
     private PendingAction start(HostAction next) {
         return switch (next.name()) {
             case "snapshot" -> () -> snapshot();
+            case "prepare-render-stage" -> () -> prepareRenderStage(next.require("player"));
             case "await-pack" -> () -> awaitPack(next.require("hierarchy"));
             case "await-selection" -> () -> awaitSelection(
                     next.require("player"), next.require("path"));
@@ -157,6 +158,22 @@ final class ServerProbe {
             default -> throw new IllegalArgumentException(
                     "Unknown server action: " + next.name());
         };
+    }
+
+    private Map<String, ?> prepareRenderStage(String name) {
+        var player = server.getPlayerList().getPlayerByName(name);
+        if (player == null) throw new IllegalStateException("Missing render-stage player: " + name);
+        var level = player.serverLevel();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) {
+                level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x, 199, z),
+                        net.minecraft.world.level.block.Blocks.SMOOTH_STONE.defaultBlockState());
+            }
+        }
+        level.setDayTime(6000);
+        level.setWeatherParameters(6000, 0, false, false);
+        player.connection.teleport(0.5, 200, 0.5, 180, 0);
+        return Map.of("stageReady", true);
     }
 
     private Map<String, ?> snapshot() {

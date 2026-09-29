@@ -11,9 +11,17 @@ import net.minecraft.world.entity.Entity;
 public final class PersonView {
     public static int getPersonView(IContext<? extends Entity> ctx) {
         // 是客户端玩家，而且不在 GUI 渲染内
-        var renderContext = ctx.animationEvent().getRenderContext();
-        if (ctx.entity() == Minecraft.getInstance().player && renderContext.level()) {
-            return ctx.mc().options.getCameraType().ordinal();
+        return getPersonView(ctx.entity() == Minecraft.getInstance().player,
+                ctx.animationEvent().getRenderContext(), ctx.mc().options.getCameraType());
+    }
+
+    static int getPersonView(boolean localPlayer,
+                             com.elfmcys.ysm.geckolib3.geo.RenderContext renderContext,
+                             CameraType camera) {
+        // The external body pass is deliberately mutable and has level=false.
+        // It is still a world view for q.is_first_person and ysm.person_view.
+        if (localPlayer && (renderContext.level() || renderContext.firstPersonMod())) {
+            return camera.ordinal();
         } else {
             // 否则永远返回第三人称正面视角
             return CameraType.THIRD_PERSON_FRONT.ordinal();

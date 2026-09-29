@@ -39,6 +39,7 @@ public class RegisterEntityRenderersEvent {
 
         CUSTOM_PLAYER_RENDERER = new CustomPlayerRenderer(context);
         CUSTOM_PROJECTILE_RENDERER = new CustomProjectileRenderer(context);
+        clearFirstPersonRenderer();
         CUSTOM_FIRST_PERSON_RENDERER = new CustomFirstPersonArmRenderer();
         CUSTOM_VEHICLE_RENDERER = new CustomVehicleRenderer(context);
 
@@ -72,6 +73,11 @@ public class RegisterEntityRenderersEvent {
             init(Minecraft.getInstance().getResourceManager());
         }
         return CUSTOM_FIRST_PERSON_RENDERER;
+    }
+
+    public static void clearFirstPersonRenderer() {
+        if (CUSTOM_FIRST_PERSON_RENDERER != null) CUSTOM_FIRST_PERSON_RENDERER.clear();
+        RenderFirstPlayerBackground.reset();
     }
 
     public static CustomVehicleRenderer getVehicleRenderer() {

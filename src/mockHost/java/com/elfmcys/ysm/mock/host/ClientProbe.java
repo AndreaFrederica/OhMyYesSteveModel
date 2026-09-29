@@ -52,6 +52,15 @@ public final class ClientProbe {
     private boolean connecting;
     private boolean reconnectRequested;
     private boolean stopAfterAck;
+    private long frameBackgroundStart, duplicateBackgroundFrames;
+
+    @SubscribeEvent
+    public void onRenderFrame(TickEvent.RenderTickEvent event) {
+        long count = com.elfmcys.ysm.client.event.RenderFirstPlayerBackground.drawCount();
+        if (event.phase == TickEvent.Phase.START) frameBackgroundStart = count;
+        else if (count - frameBackgroundStart > 1) duplicateBackgroundFrames++;
+    }
+
 
     public ClientProbe(HostIo io) {
         this.io = io;
@@ -185,6 +194,10 @@ public final class ClientProbe {
         return switch (next.name()) {
             case "await-state" -> () -> awaitState(next.require("state"));
             case "snapshot" -> () -> snapshot();
+            case "runtime-render-proof" -> new RuntimeRenderProof();
+            case "runtime-first-person-proof" -> new FirstPersonProof();
+            case "runtime-first-person-body-proof" -> new FirstPersonBodyProbe(io, () -> ticks);
+            case "runtime-audio-proof" -> new RuntimeAudioProof(next.require("codec"));
             case "await-path" -> () -> awaitPath(next.require("path"));
             case "page-pack-cover" -> new PagePackCover(next.require("hierarchy"));
             case "select-path" -> () -> selectPath(next.require("path"));
@@ -385,8 +398,171 @@ public final class ClientProbe {
     }
 
     @FunctionalInterface
-    private interface PendingAction {
+    interface PendingAction {
         Map<String, ?> poll() throws Exception;
+    }
+
+    /** Exercises real SoundEngine channel handoff with the JVM game stream adapters. */
+    private final class RuntimeAudioProof implements PendingAction {
+        private final String codec;
+        private final java.util.concurrent.atomic.AtomicLong bytesRead = new java.util.concurrent.atomic.AtomicLong();
+        private final java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean();
+        private final CompletableFuture<Void> stopped = new CompletableFuture<>();
+        private long expected;
+        private int started;
+        private com.elfmcys.ysm.client.sound.instance.CustomSoundInstance sound;
+        RuntimeAudioProof(String codec) {
+            if (!codec.equals("opus") && !codec.equals("vorbis")) throw new IllegalArgumentException("Unknown codec");
+            this.codec = codec;
+        }
+        @Override public Map<String, ?> poll() throws Exception {
+            if (sound == null) {
+                var data = java.nio.ByteBuffer.wrap(java.nio.file.Files.readAllBytes(io.artifact(codec + "-under.ogg")));
+                var media = cc.sirrus.ysmlib.audio.SupportedAudioProbe.inspect(data).media();
+                expected = media.frames() * 2;
+                com.elfmcys.ysm.client.sound.stream.CustomAudioStream delegate = codec.equals("opus")
+                        ? new com.elfmcys.ysm.client.sound.stream.OpusAudioStream(data, media)
+                        : new com.elfmcys.ysm.client.sound.stream.VorbisAudioStream(data, media);
+                var counting = new com.elfmcys.ysm.client.sound.stream.CustomAudioStream() {
+                    public java.nio.ByteBuffer read(int length) throws java.io.IOException {
+                        var pcm = delegate.read(length); bytesRead.addAndGet(pcm.remaining()); return pcm;
+                    }
+                    public javax.sound.sampled.AudioFormat getFormat() { return delegate.getFormat(); }
+                    public boolean isClosed() { return closed.get(); }
+                    public void close() throws java.io.IOException { delegate.close(); closed.set(true); }
+                };
+                var provider = new com.elfmcys.ysm.client.sound.stream.AudioStreamProvider() {
+                    public CompletableFuture<com.elfmcys.ysm.client.sound.stream.CustomAudioStream> openStream(boolean looping) {
+                        return CompletableFuture.completedFuture(counting);
+                    }
+                    public void stop() { stopped.complete(null); }
+                    public java.util.concurrent.CompletionStage<Void> stopped() { return stopped; }
+                };
+                sound = new com.elfmcys.ysm.client.sound.instance.CustomSoundInstance(
+                        com.elfmcys.ysm.init.ModSounds.CUSTOM, provider, minecraft.player);
+                sound.setConfiguredVolume(.05f);
+                minecraft.getSoundManager().play(sound);
+                started = ticks;
+            }
+            if (ticks - started > 800) {
+                sound.setStopped();
+                throw new IllegalStateException("SoundEngine did not finish " + codec + ": bytes=" + bytesRead.get());
+            }
+            if (!closed.get()) return null;
+            if (bytesRead.get() != expected) throw new IllegalStateException("SoundEngine PCM frame mismatch");
+            sound.setStopped();
+            return Map.of("codec", codec, "pcmBytes", bytesRead.get(), "streamClosed", true,
+                    "javaOnly", Boolean.getBoolean("ysm.runtime.javaOnly"));
+        }
+    }
+
+    /** Exercise actual Forge arm events in frames, including the vanilla fallback toggle. */
+    private final class FirstPersonProof implements PendingAction {
+        private int phase, finishAt = ticks + 50;
+        private long before, right, left, backgroundBefore, backgrounds;
+        private final net.minecraft.client.CameraType camera = minecraft.options.getCameraType();
+        private final net.minecraft.world.entity.HumanoidArm mainArm = minecraft.options.mainHand().get();
+        private final boolean disabled = com.elfmcys.ysm.config.ClientConfig.DISABLE_SELF_HANDS.get();
+        private final boolean bodyEnabled = com.elfmcys.ysm.client.compat.FirstPersonCompat.isInstalled()
+                && dev.tr7zw.firstperson.api.FirstPersonAPI.isEnabled();
+
+        FirstPersonProof() {
+            if (bodyEnabled) dev.tr7zw.firstperson.api.FirstPersonAPI.setEnabled(false);
+            minecraft.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+            minecraft.options.mainHand().set(net.minecraft.world.entity.HumanoidArm.RIGHT);
+            com.elfmcys.ysm.config.ClientConfig.DISABLE_SELF_HANDS.set(false);
+            minecraft.setScreen(null);
+            before = com.elfmcys.ysm.client.event.ReplacePlayerHandRenderEvent.replacementCount();
+            backgroundBefore = com.elfmcys.ysm.client.event.RenderFirstPlayerBackground.drawCount();
+        }
+
+        @Override public Map<String, ?> poll() throws Exception {
+            if (ticks < finishAt) return null;
+            long count = com.elfmcys.ysm.client.event.ReplacePlayerHandRenderEvent.replacementCount();
+            String status = com.elfmcys.ysm.client.event.ReplacePlayerHandRenderEvent.diagnostics();
+            try {
+                if (phase < 2) {
+                    if (count <= before || !status.contains(phase == 0 ? "RIGHT vertices=" : "LEFT vertices="))
+                        throw new IllegalStateException("First-person arm not replaced: " + status);
+                    try (var screenshot = net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                        screenshot.writeToFile(io.artifact(phase == 0 ? "first-person-right.png" : "first-person-left.png"));
+                    }
+                    if (phase == 0) {
+                        right = count - before;
+                        minecraft.options.mainHand().set(net.minecraft.world.entity.HumanoidArm.LEFT);
+                    } else {
+                        left = count - before;
+                        backgrounds = com.elfmcys.ysm.client.event.RenderFirstPlayerBackground.drawCount() - backgroundBefore;
+                        if (backgrounds <= 0) throw new IllegalStateException("Background not drawn: "
+                                + com.elfmcys.ysm.client.event.RenderFirstPlayerBackground.diagnostics());
+                        var backgroundKind = com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER_BACKGROUND;
+                        if (RenderFeatureProbe.calls(backgroundKind) == 0 || RenderFeatureProbe.draws(backgroundKind) == 0)
+                            throw new IllegalStateException("Background extension or nonempty draw not reached");
+                        for (var kind : new com.elfmcys.ysm.api.rendering.v0.TargetKind[]{
+                                com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER_LEFT_ARM,
+                                com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER_RIGHT_ARM}) {
+                            if (RenderFeatureProbe.calls(kind) == 0) throw new IllegalStateException("Modifier not reached: " + kind);
+                        }
+                        backgroundBefore += backgrounds;
+                        com.elfmcys.ysm.config.ClientConfig.DISABLE_SELF_HANDS.set(true);
+                    }
+                    before = count;
+                    phase++;
+                    finishAt = ticks + 50;
+                    return null;
+                }
+                if (count != before) throw new IllegalStateException("Disabled hands still replaced");
+                if (com.elfmcys.ysm.client.event.RenderFirstPlayerBackground.drawCount() != backgroundBefore)
+                    throw new IllegalStateException("Disabled background still drawn");
+                if (duplicateBackgroundFrames != 0) throw new IllegalStateException("Repeated background submission in one frame");
+                restore();
+                return Map.of("rightDraws", right, "leftDraws", left, "backgroundDraws", backgrounds, "disabledFallback", true);
+            } catch (Exception failure) {
+                restore();
+                throw failure;
+            }
+        }
+
+        private void restore() {
+            if (bodyEnabled) dev.tr7zw.firstperson.api.FirstPersonAPI.setEnabled(true);
+            minecraft.options.setCameraType(camera);
+            minecraft.options.mainHand().set(mainArm);
+            com.elfmcys.ysm.config.ClientConfig.DISABLE_SELF_HANDS.set(disabled);
+        }
+    }
+
+    /** Evidence from real frames, including the selected remotely imported model. */
+    private final class RuntimeRenderProof implements PendingAction {
+        private final jdk.jfr.Recording recording = new jdk.jfr.Recording();
+        private final int finishAt = ticks + 80;
+        RuntimeRenderProof() {
+            recording.enable("cc.sirrus.ysmlib.Operation").withThreshold(java.time.Duration.ZERO);
+            recording.start();
+            minecraft.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
+            minecraft.setScreen(null);
+        }
+        @Override public Map<String, ?> poll() throws Exception {
+            if (ticks < finishAt) return null;
+            var artifact = io.artifact("jvm-render.jfr");
+            try (recording) {
+                recording.stop();
+                recording.dump(artifact);
+            }
+            long renders = jdk.jfr.consumer.RecordingFile.readAllEvents(artifact).stream()
+                    .filter(e -> e.getEventType().getName().equals("cc.sirrus.ysmlib.Operation"))
+                    .filter(e -> e.getString("operation").equals("render")).count();
+            if (renders == 0) throw new IllegalStateException("No YSM renderer calls in actual game frames");
+            try (var screenshot = net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                screenshot.writeToFile(io.artifact("jvm-render.png"));
+            }
+            return Map.of("renderCalls", renders, "renderer", cc.sirrus.ysmlib.YsmRuntime.render().id(),
+                    "nativeDraws", nativeDraws(),
+                    "javaOnly", Boolean.getBoolean("ysm.runtime.javaOnly"));
+        }
+    }
+
+    static long nativeDraws() {
+        return cc.sirrus.ysmlib.YsmRuntime.successfulNativeRenderDraws();
     }
 
     private final class PagePackCover implements PendingAction {

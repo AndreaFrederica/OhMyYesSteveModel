@@ -19,6 +19,11 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> implements IRoamingEntity {
+    @Override
+    public com.elfmcys.ysm.api.rendering.v0.TargetKind renderTargetKind() {
+        return com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER;
+    }
+
     protected final boolean localPlayer;
 
     protected boolean isPlayingExtraAnimation = false;

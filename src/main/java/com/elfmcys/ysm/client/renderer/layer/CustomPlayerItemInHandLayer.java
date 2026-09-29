@@ -46,9 +46,9 @@ public class CustomPlayerItemInHandLayer extends GeoLayerRenderer<CustomPlayerEn
             } else {
                 // 卓越前线副手枪械不用这个渲染
                 if (!SWarfareCompat.isGun(offhandItem)) {
-                    this.renderArmWithItem(entityLivingBaseIn, mainHandItem,
-                                           ItemDisplayContext.THIRD_PERSON_RIGHT_HAND,
-                                           HumanoidArm.RIGHT, renderData, poseStack, buffer, packedLight);
+                    this.renderArmWithItem(entityLivingBaseIn, offhandItem,
+                                           ItemDisplayContext.THIRD_PERSON_LEFT_HAND,
+                                           HumanoidArm.LEFT, renderData, poseStack, buffer, packedLight);
                 }
             }
             // TACZ 副手枪械渲染

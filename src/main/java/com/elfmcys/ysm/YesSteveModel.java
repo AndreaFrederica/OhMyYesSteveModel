@@ -36,12 +36,9 @@ public class YesSteveModel {
         EVENT_BUS = FMLJavaModLoadingContext.get().getModEventBus();
         initConfig();
 
-        NativeLibUtil.load();
-        if (!NativeLibUtil.isAvailable()) {
-            LOGGER.error(getUnavailableMessageString());
-            return;
-        }
-
+        // The JVM implementation is the product baseline. NativeLibUtil is
+        // retained only for diagnostics and legacy accelerator discovery;
+        // failure to load it must never prevent event registration.
         YsmEventHandlerLoader.attach(EVENT_BUS);
     }
 
@@ -62,7 +59,7 @@ public class YesSteveModel {
     }
 
     public static boolean isAvailable() {
-        return NativeLibUtil.isAvailable();
+        return true;
     }
 
     public static boolean isMobilePlatform() {

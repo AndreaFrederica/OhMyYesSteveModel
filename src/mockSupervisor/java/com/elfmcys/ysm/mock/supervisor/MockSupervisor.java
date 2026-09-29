@@ -45,7 +45,7 @@ public final class MockSupervisor {
     private static final Duration READY_GUARD = Duration.ofSeconds(20);
     private static final Duration EXIT_GUARD = Duration.ofSeconds(30);
     private static final List<String> ENDPOINT_JVM_ARGUMENTS = List.of(
-            "-Dlog4j2.configurationFile=classpath:log4j2-mock-smoke.xml");
+            "-Dysm.runtime.javaOnly=true", "-Dlog4j2.configurationFile=classpath:log4j2-mock-smoke.xml");
 
     private MockSupervisor() {
     }
@@ -225,7 +225,7 @@ public final class MockSupervisor {
         var scenarioId = scale ? EXACT_100_SCENARIO_ID : SYSTEM_SCENARIO_ID;
         var taskName = scale ? "modelManagementMockExact100"
                 : "modelManagementMockSystem";
-        var nativeCandidate = NativeCandidateIdentity.load(taskRoot);
+        var nativeCandidate = RuntimeCandidateIdentity.capture(evidenceRoot, nativeLibrary, javaRevision);
         nativeCandidate.verifyRuntimeLibrary(nativeLibrary);
         var firstRoot = evidenceRoot.resolve("replay-1");
         var firstClient = EndpointPaths.create(firstRoot, "client");
@@ -260,7 +260,7 @@ public final class MockSupervisor {
         var metadata = new EvidenceRun.Metadata(
                 new EvidenceRun.Revisions(3, 3, 2, implementationRevision),
                 Map.of("docs", DOCS_REVISION, "java", javaRevision,
-                        "native", nativeCandidate.revision()),
+                        "ysmlib", nativeCandidate.revision()),
                 Map.ofEntries(
                         Map.entry("adapterInventory",
                                 "socket-byte-carrier,fixture-source,logical-host-callback"),
@@ -270,13 +270,13 @@ public final class MockSupervisor {
                         Map.entry("clientClasspathSha256", clientManifest.aggregateSha256()),
                         Map.entry("physicalSides", "client,dedicated-server"),
                         Map.entry("replayCount", "2"),
-                        Map.entry("nativeLibrarySha256",
+                        Map.entry("runtimeLibrarySha256",
                                 nativeCandidate.runtimeLibrarySha256()),
-                        Map.entry("nativeCandidateManifest",
+                        Map.entry("runtimeCandidateManifest",
                                 nativeCandidate.manifestPath()),
-                        Map.entry("nativeCandidateManifestSha256",
+                        Map.entry("runtimeCandidateManifestSha256",
                                 nativeCandidate.manifestSha256()),
-                        Map.entry("nativeLibraryPath", normalize(nativeLibrary)),
+                        Map.entry("runtimeLibraryPath", normalize(nativeLibrary)),
                         Map.entry("serverClasspathSha256", serverManifest.aggregateSha256()),
                         Map.entry("scenarioMode", mode),
                         Map.entry("task", taskName)),

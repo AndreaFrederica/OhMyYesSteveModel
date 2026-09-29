@@ -49,6 +49,8 @@ final class HostIo {
         return role;
     }
 
+    Path artifact(String name) { return root.resolve(name); }
+
     synchronized HostAction nextAction() throws IOException {
         if (!Files.isRegularFile(actionFile)) {
             return null;

@@ -28,7 +28,14 @@ public final class DummyProcess {
         var result = new String[arguments.length + 4];
         result[0] = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         result[1] = "-cp";
-        result[2] = System.getProperty("java.class.path");
+        // This child uses only JDK APIs. Passing the game's entire classpath can
+        // exceed CreateProcess's command-line limit on Windows.
+        try {
+            result[2] = Path.of(DummyProcess.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI()).toString();
+        } catch (java.net.URISyntaxException error) {
+            throw new IllegalStateException(error);
+        }
         result[3] = DummyProcess.class.getName();
         System.arraycopy(arguments, 0, result, 4, arguments.length);
         return result;

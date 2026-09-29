@@ -77,20 +77,17 @@ public final class RenderUtil {
                 if (index < 0) {
                     return;
                 }
-                AnimatedGeoModel loadedGeoModel = vehicleCap.getLoadedGeoModel();
-                // TODO
-//                if (loadedGeoModel == null || loadedGeoModel.passengerBones().isEmpty() || index >= loadedGeoModel.passengerBones().size()) {
-//                    return;
-//                }
-//                var bone = loadedGeoModel.passengerBones().get(index);
-//                if (bone == null) {
-//                    return;
-//                }
+                var data = vehicleCap.update(partialTicks);
+                if (data == null || !data.modelState.isValid()) return;
+                var seatPose = new PoseStack();
+                if (!data.modelState.applyLocatorPose(
+                        com.elfmcys.ysm.client.model.locator.VehicleLocator.get().passenger, index, seatPose)) return;
                 float rawVehicleYaw = Mth.lerp(partialTicks, vehicle.yRotO, vehicle.getYRot());
                 float vehicleYaw = EntityRendererReplace.getYaw(vehicle, rawVehicleYaw, partialTicks);
                 poseStack.mulPose(Axis.YP.rotationDegrees(180 - vehicleYaw));
-                // TODO
-               // RenderUtils.prepMatrixForLocator(poseStack, bone);
+                poseStack.scale(data.widthScale, data.heightScale, data.widthScale);
+                poseStack.last().pose().mulAffine(seatPose.last().pose());
+                poseStack.last().normal().mul(seatPose.last().normal());
                 poseStack.mulPose(Axis.YN.rotationDegrees(180 - vehicleYaw));
 
                 double yOffset = -vehicle.getPassengersRidingOffset() - entity.getMyRidingOffset();

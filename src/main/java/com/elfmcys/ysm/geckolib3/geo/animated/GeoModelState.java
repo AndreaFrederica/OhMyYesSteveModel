@@ -22,13 +22,17 @@ public final class GeoModelState implements Closeable {
     private GeoModel model;
 
     public boolean extract(AnimatedGeoModel animatedModel) {
+        return extract(animatedModel, animatedModel.getBoneAttributes());
+    }
+
+    public boolean extract(AnimatedGeoModel animatedModel, float[] attributes) {
         invalidate();
         var model = animatedModel.getModel();
         var boneCount = model.sortedBones().size();
         var activeLocatorMap = this.activeLocatorMap;
 
         var valid = nativeState.extract(model.bakedModel(),
-                animatedModel.getBoneAttributes());
+                attributes);
         if (!valid) {
             return false;
         }
@@ -131,7 +135,22 @@ public final class GeoModelState implements Closeable {
         if (model.locatorType() != locator.type()) {
             throw new IllegalArgumentException("locator type mismatch");
         }
-        return activeLocatorMap.get(Byte.toUnsignedInt(locator.seq())).size();
+        return activeLocatorMap.get(Byte.toUnsignedInt(locator.seq()) - 1).size();
+    }
+
+    /** Applies a stable model-order locator; hidden earlier seats never renumber later passengers. */
+    public boolean applyLocatorPose(GeoLocator locator, int ordinal, PoseStack poseStack) {
+        if (!isValid() || model == null || model.locatorType() != locator.type() || ordinal < 0) return false;
+        var group = model.locatorMap().get(Byte.toUnsignedInt(locator.seq()) - 1);
+        if (ordinal >= group.size()) return false;
+        var bone = group.get(ordinal);
+        int index = model.sortedBones().indexOf(bone);
+        if (!activeLocatorMap.get(Byte.toUnsignedInt(locator.seq()) - 1).contains((short) index)) return false;
+        var poses = nativeState.getBonePoses();
+        poseStack.last().pose().mulAffine(poses.getPose(index, new Matrix4f()));
+        poseStack.last().normal().mul(poses.getNormal(index, new Matrix3f()));
+        poseStack.translate(bone.pivot().x / 16, bone.pivot().y / 16, bone.pivot().z / 16);
+        return true;
     }
 
     private void invalidate() {

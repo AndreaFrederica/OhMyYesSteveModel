@@ -14,6 +14,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProcessSupervisorTest {
+    @Test void launchParserAcceptsQuotedAndUnquotedJavaPaths() throws Exception {
+        for (String executable : new String[]{"D:\\jdk\\bin\\java.exe", "\"C:\\Program Files\\jdk\\bin\\java.exe\""}) {
+            var script = temporary.resolve("launch.cmd");
+            Files.writeString(script, "@echo off\nset MOD_CLASSES=ysm%%%%D:\\classes\n"
+                    + executable + " @D:\\args.txt example.Main\n");
+            var parsed = ProcessSupervisor.parseModDevScript(script);
+            assertEquals(executable.replace("\"", ""), parsed.command().get(0));
+            assertEquals("@D:\\args.txt", parsed.command().get(1));
+        }
+    }
     @TempDir
     Path temporary;
 

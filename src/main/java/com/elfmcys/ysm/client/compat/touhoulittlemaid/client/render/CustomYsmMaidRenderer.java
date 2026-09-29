@@ -65,15 +65,20 @@ public class CustomYsmMaidRenderer extends GeoReplacedEntityRenderer<EntityMaid,
 
     @Override
     protected void renderLayer(PoseStack poseStack, MultiBufferSource buffer, CustomYsmMaidEntity animatable, GeoRenderData renderData, int packedLight, int overlay) {
-        for (GeoLayerRenderer<EntityMaid, CustomYsmMaidRenderer> maidLayer : maidLayers) {
-            maidLayer.render(poseStack, buffer, packedLight, animatable.getEntity(),
-                    renderData.animationData.limbSwing,
-                    renderData.animationData.limbSwingAmount,
-                    renderData.partialTicks,
-                    renderData.animationData.lerpedAge,
-                    renderData.animationData.netHeadYaw,
-                    renderData.animationData.headPitch);
-        }
+        var event = new com.elfmcys.ysm.api.rendering.v0.event.RenderLayerEvent(animatable.getEntity(),
+                animatable.renderTargetKind(), renderData, poseStack, buffer, packedLight, overlay);
+        if (com.elfmcys.ysm.YesSteveModel.postEvent(event)) return;
+        animatable.withLayerLocations((CustomYsmMaidEntity.MaidRenderData) renderData, () -> {
+            for (GeoLayerRenderer<EntityMaid, CustomYsmMaidRenderer> maidLayer : maidLayers) {
+                maidLayer.render(poseStack, buffer, packedLight, animatable.getEntity(),
+                        renderData.animationData.limbSwing,
+                        renderData.animationData.limbSwingAmount,
+                        renderData.partialTicks,
+                        renderData.animationData.lerpedAge,
+                        renderData.animationData.netHeadYaw,
+                        renderData.animationData.headPitch);
+            }
+        });
     }
 
     @Override

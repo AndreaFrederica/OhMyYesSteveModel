@@ -35,6 +35,6 @@ public class FirstPersonLocator extends GeoLocatorType {
         if (INSTANCE != null) {
             return INSTANCE;
         }
-        throw new IllegalStateException("PlayerLocator has not been initialized");
+        throw new IllegalStateException("FirstPersonLocator has not been initialized");
     }
 }

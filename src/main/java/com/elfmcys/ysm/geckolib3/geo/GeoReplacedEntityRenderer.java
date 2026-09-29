@@ -101,7 +101,7 @@ public abstract class GeoReplacedEntityRenderer<TEntity extends LivingEntity, T 
 
                     if (data.modelState.isValid()) {
                         var event = new RenderModelEvent(animatableEntity.getEntity(),
-                                TargetKind.PLAYER,
+                                animatableEntity.renderTargetKind(),
                                 data,
                                 bufferSource,
                                 renderType,
@@ -132,7 +132,7 @@ public abstract class GeoReplacedEntityRenderer<TEntity extends LivingEntity, T 
 
     protected void renderLayer(PoseStack poseStack, MultiBufferSource buffer, T animatable, GeoRenderData renderData, int packedLight, int overlay) {
         var event = new RenderLayerEvent(animatable.getEntity(),
-                TargetKind.PLAYER,
+                animatable.renderTargetKind(),
                 renderData,
                 poseStack,
                 buffer,

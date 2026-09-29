@@ -18,6 +18,11 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 public class CustomVehicleEntity extends CustomEntity<Entity> {
+    @Override
+    public com.elfmcys.ysm.api.rendering.v0.TargetKind renderTargetKind() {
+        return com.elfmcys.ysm.api.rendering.v0.TargetKind.VEHICLE;
+    }
+
     private VehicleModelResources vehicleResources;
     private VehicleOriginController originController;
 

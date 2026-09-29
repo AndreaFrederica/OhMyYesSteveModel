@@ -39,8 +39,12 @@ public abstract class BufferBuilderMixin implements VertexBufferAccessor {
     @Unique
     @Override
     public NativeBuffer ysm$reserve(int vertexCount) {
-        ensureCapacity(vertexCount);
-        return NativeBuffer.borrow(this.buffer.slice(this.nextElementByte, vertexCount * this.format.getVertexSize()));
+        if (vertexCount < 0) throw new IllegalArgumentException("Negative vertex count");
+        int byteCount = Math.multiplyExact(vertexCount, this.format.getVertexSize());
+        Math.addExact(this.nextElementByte, byteCount);
+        // BufferBuilder grows in bytes, whereas this accessor accepts vertices.
+        ensureCapacity(byteCount);
+        return NativeBuffer.borrow(this.buffer.slice(this.nextElementByte, byteCount));
     }
 
     @Override

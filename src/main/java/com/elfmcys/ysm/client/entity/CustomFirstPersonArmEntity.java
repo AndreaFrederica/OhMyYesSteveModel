@@ -15,6 +15,50 @@ import java.util.Objects;
 
 public class CustomFirstPersonArmEntity extends CustomEntity<LocalPlayer> {
     private final PlayerAnimatableCapability mainModelEntity;
+    private com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocator selectedArm;
+
+    public void selectArm(net.minecraft.world.entity.HumanoidArm arm) {
+        var locators = com.elfmcys.ysm.client.model.locator.FirstPersonLocator.get();
+        selectedArm = arm == net.minecraft.world.entity.HumanoidArm.LEFT ? locators.leftArm : locators.rightArm;
+    }
+
+    @Override
+    public com.elfmcys.ysm.api.rendering.v0.TargetKind renderTargetKind() {
+        var locators = com.elfmcys.ysm.client.model.locator.FirstPersonLocator.get();
+        if (selectedArm == locators.background) return com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER_BACKGROUND;
+        return selectedArm == locators.leftArm ? com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER_LEFT_ARM
+                : com.elfmcys.ysm.api.rendering.v0.TargetKind.PLAYER_RIGHT_ARM;
+    }
+
+    public void selectBackground() {
+        selectedArm = com.elfmcys.ysm.client.model.locator.FirstPersonLocator.get().background;
+    }
+
+    @Override
+    protected boolean allowEmitting() {
+        // The background has its own pose state, but must not repeat arm animation sounds/events.
+        return selectedArm != com.elfmcys.ysm.client.model.locator.FirstPersonLocator.get().background
+                && super.allowEmitting();
+    }
+
+    @Override
+    protected boolean determineImmutableContext(com.elfmcys.ysm.geckolib3.geo.RenderContext context) {
+        // Left and right draws in one frame require different visibility snapshots.
+        return false;
+    }
+
+    @Override
+    protected void extractModelState(com.elfmcys.ysm.geckolib3.geo.animated.GeoModelState state) {
+        var model = getLoadedGeoModel();
+        state.extract(model, cc.sirrus.ysmlib.render.LocatorVisibility.select(
+                model.getModel().bakedModel().runtimeModel(), model.getBoneAttributes(),
+                Byte.toUnsignedInt(selectedArm.seq())));
+    }
+
+    public void release() {
+        waitForAsyncUpdate();
+        resetModelRenderTarget();
+    }
 
     public CustomFirstPersonArmEntity(LocalPlayer player, PlayerAnimatableCapability mainModelEntity) {
         super(player, false);

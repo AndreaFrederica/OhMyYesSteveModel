@@ -15,6 +15,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class CustomProjectileEntity extends CustomEntity<Projectile> {
+    @Override
+    public com.elfmcys.ysm.api.rendering.v0.TargetKind renderTargetKind() {
+        return com.elfmcys.ysm.api.rendering.v0.TargetKind.PROJECTILE;
+    }
+
     private ProjectileModelResources projectileResources;
 
     public CustomProjectileEntity(Projectile projectile) {

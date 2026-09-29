@@ -44,7 +44,7 @@ public final class HostSupervisor {
     private final Path project;
     private final Path evidenceRoot;
     private final String javaRevision;
-    private final Path nativeLibrary;
+    private final Path runtimeLibrary;
     private final int implementationRevision;
     private final Path serverScript;
     private final Path clientAScript;
@@ -64,7 +64,7 @@ public final class HostSupervisor {
         project = Path.of(args[0]).toAbsolutePath().normalize();
         evidenceRoot = Path.of(args[1]).toAbsolutePath().normalize();
         javaRevision = args[2];
-        nativeLibrary = Path.of(args[3]).toAbsolutePath().normalize();
+        runtimeLibrary = Path.of(args[3]).toAbsolutePath().normalize();
         implementationRevision = Integer.parseInt(args[4]);
         serverScript = Path.of(args[5]).toAbsolutePath().normalize();
         clientAScript = Path.of(args[6]).toAbsolutePath().normalize();
@@ -106,7 +106,7 @@ public final class HostSupervisor {
                 scenario.complete(new ScenarioEvidence.Verdict(
                         outcome, observations, mismatches, diagnosticCounts,
                         "Windows 11, Forge 47.4.3, Minecraft 1.20.1 and the configured "
-                                + "native library only; shader packs, other GPUs, long soak and "
+                                + "JVM prerequisite only; shader packs, other GPUs, long soak and "
                                 + "physical GPU/RSS reclamation were not run."));
             }
         }
@@ -114,22 +114,24 @@ public final class HostSupervisor {
     }
 
     private void openEvidence() throws Exception {
-        requireFile(nativeLibrary, "native library");
+        requireFile(runtimeLibrary, "JVM prerequisite");
         requireFile(serverScript, "server launch script");
         requireFile(clientAScript, "client A launch script");
         requireFile(clientBScript, "client B launch script");
-        var nativeRevision = gitRevision(nativeLibrary.getParent());
+        var runtimeRevision = gitRevision(runtimeLibrary.getParent());
         var configuration = Map.of(
                 "forge", "47.4.3",
                 "minecraft", "1.20.1",
-                "nativeLibrarySha256", sha256(nativeLibrary),
+                "runtimeLibrarySha256", sha256(runtimeLibrary),
+                "firstPersonCompat", Boolean.toString(Boolean.getBoolean("ysm.mockFirstPerson")),
+                "nativeAcceleration", Boolean.toString(Boolean.getBoolean("ysm.mockNative")),
                 "scenario", "thin-host-adapter-conformance",
                 "task", "modelManagementMockForge");
         var metadata = new EvidenceRun.Metadata(
                 new EvidenceRun.Revisions(3, 3, 2, implementationRevision),
                 Map.of("docs", "9d42e4013b52c4c6f18b6e56a0d50920251ab8dc",
                         "java", javaRevision,
-                        "native", nativeRevision),
+                        "ysmlib", runtimeRevision),
                 configuration,
                 Map.of("arch", System.getProperty("os.arch"),
                         "java", System.getProperty("java.version"),
@@ -156,6 +158,8 @@ public final class HostSupervisor {
                 "server:snapshot", "client-a:await-path(host/online)",
                 "client-a:select-path(host/online)",
                 "server:await-selection(YsmHostA,host/online)",
+                "client-a:runtime-render-proof", "client-a:runtime-audio-proof(opus)",
+                "client-a:runtime-audio-proof(vorbis)",
                 "supervisor:add-page-pack", "server:await-pack(host/)",
                 "client-a:page-pack-cover(host/)", "client-a:invalid-select",
                 "client-a:disconnect-reconnect", "client-a:late-old-owner",
@@ -164,9 +168,11 @@ public final class HostSupervisor {
         input.put("fixtures", Map.of(
                 "pagePackCover", sha256(fixtureRoot.resolve("ysm-pack.png")),
                 "pagePackDescriptor", sha256(fixtureRoot.resolve("ysm-pack.json")),
-                "public", treeHash(fixtureRoot.resolve("1_alex"))));
+                "public", treeHash(fixtureRoot.resolve("1_alex")),
+                "opus", sha256(project.resolve("src/test/resources/audio-contract/opus-under.ogg")),
+                "vorbis", sha256(project.resolve("src/test/resources/audio-contract/vorbis-under.ogg"))));
         input.put("isolated", true);
-        input.put("nativeLibrarySha256", sha256(nativeLibrary));
+        input.put("runtimeLibrarySha256", sha256(runtimeLibrary));
         input.put("roles", List.of("server", "client-a", "client-b"));
         input.put("usernames", List.of("YsmHostA", "YsmHostB"));
         return EvidenceJson.canonicalBytes(input);
@@ -181,6 +187,12 @@ public final class HostSupervisor {
         prepareServer(serverGame);
         prepareClient(clientAGame, "AUTO");
         prepareClient(clientBGame, "LOCAL");
+        if (Boolean.getBoolean("ysm.mockFirstPerson")) {
+            var firstPersonJar = Path.of(System.getProperty("ysm.mockFirstPersonJar"));
+            requireFile(firstPersonJar, "named FirstPerson test mod");
+            Files.createDirectories(clientAGame.resolve("mods"));
+            Files.copy(firstPersonJar, clientAGame.resolve("mods/firstperson-test.jar"));
+        }
         var port = reservePort();
         var address = "127.0.0.1:" + port;
         Files.writeString(serverGame.resolve("server.properties"),
@@ -219,6 +231,37 @@ public final class HostSupervisor {
                 at(serverInitial.json(), "facts.sessions.YsmHostA.connection").getAsString());
         observations.add("Correlated actual Forge hello/full and typed model selection across "
                 + "the client/server physical connection owners");
+        var renderProof = send(clientA, "06a-render", "runtime-render-proof", Map.of());
+        boolean accelerated = Boolean.getBoolean("ysm.mockNative");
+        expect(renderProof, "facts.renderer", accelerated ? "native-cpp-render-v1 (packed)" : "java-render");
+        expect(renderProof, "facts.javaOnly", !accelerated);
+        expectAtLeast(renderProof, "facts.renderCalls", 1);
+        if (accelerated) expectAtLeast(renderProof, "facts.nativeDraws", 1);
+        var firstPerson = send(clientA, "06a-first-person", "runtime-first-person-proof", Map.of());
+        expectAtLeast(firstPerson, "facts.rightDraws", 1);
+        expectAtLeast(firstPerson, "facts.leftDraws", 1);
+        expectAtLeast(firstPerson, "facts.backgroundDraws", 1);
+        expect(firstPerson, "facts.disabledFallback", true);
+        if (Boolean.getBoolean("ysm.mockFirstPerson")) {
+            send(server, "06a-render-stage", "prepare-render-stage", Map.of("player", "YsmHostA"));
+            var body = send(clientA, "06a-first-person-body", "runtime-first-person-body-proof", Map.of());
+            expectAtLeast(body, "facts.bodyDraws", 1);
+            expect(body, "facts.headHidden", true);
+            expect(body, "facts.legsVisible", true);
+            expect(body, "facts.thirdPersonHeadRestored", true);
+            expect(body, "facts.disabledFallback", true);
+            expect(body, "facts.javaOnly", !accelerated);
+            if (accelerated) {
+                expect(body, "facts.renderer", "native-cpp-render-v1 (packed)");
+                expectAtLeast(body, "facts.nativeDraws", 1);
+            }
+        }
+        for (var codec : List.of("opus", "vorbis")) {
+            var audio = send(clientA, "06b-" + codec, "runtime-audio-proof", Map.of("codec", codec));
+            expect(audio, "facts.streamClosed", true);
+            expect(audio, "facts.javaOnly", !accelerated);
+            expectAtLeast(audio, "facts.pcmBytes", 1);
+        }
 
         installPack(serverGame.resolve("ysm/custom/host"), "Host Verification Pack");
         expect(send(server, "07-page-pack-server", "await-pack",
@@ -274,6 +317,10 @@ public final class HostSupervisor {
             throws IOException {
         var directory = gameDirectory.getParent();
         Files.createDirectories(directory.resolve("acks"));
+        if (name.equals("client-a")) for (var codec : List.of("opus", "vorbis")) {
+            Files.copy(project.resolve("src/test/resources/audio-contract/" + codec + "-under.ogg"),
+                    directory.resolve(codec + "-under.ogg"));
+        }
         var role = new Role(name, directory, gameDirectory,
                 directory.resolve("action.json"), directory.resolve("stdout.log"), script,
                 address);
@@ -412,6 +459,8 @@ public final class HostSupervisor {
                     "pid", role.process == null ? -1 : role.process.pid(),
                     "script", role.script().toString()));
             retainIfFile("roles/" + role.name() + "/stdout.log", role.output());
+            retainIfFile("roles/" + role.name() + "/jvm-render.png", role.directory().resolve("jvm-render.png"));
+            retainIfFile("roles/" + role.name() + "/jvm-render.jfr", role.directory().resolve("jvm-render.jfr"));
             retainIfFile("roles/" + role.name() + "/latest.log",
                     role.gameDirectory().resolve("logs/latest.log"));
             retainIfFile("roles/" + role.name() + "/observations.raw.jsonl",
@@ -499,6 +548,15 @@ public final class HostSupervisor {
                 StandardCharsets.UTF_8);
         installFixture("1_alex", gameDirectory.resolve("ysm/custom/host/online"),
                 "Host Online");
+        // A visible camera-relative background fixture, without changing shipped builtin models.
+        var armPath = gameDirectory.resolve("ysm/custom/host/online/models/arm.json");
+        var arm = JsonParser.parseString(Files.readString(armPath)).getAsJsonObject();
+        var bones = arm.getAsJsonArray("minecraft:geometry").get(0).getAsJsonObject().getAsJsonArray("bones");
+        bones.add(JsonParser.parseString("""
+                {"name":"Background","pivot":[0,0,0],"cubes":[
+                  {"origin":[-8,12,-18],"size":[3,3,3],"uv":[0,0]}]}
+                """));
+        Files.writeString(armPath, GSON.toJson(arm), StandardCharsets.UTF_8);
     }
 
     private void prepareClient(Path gameDirectory, String mode) throws IOException {
@@ -506,6 +564,9 @@ public final class HostSupervisor {
         Files.createDirectories(config.getParent());
         Files.writeString(config, "[general]\nDisclaimerShow = false\n\n[network]\nSessionMode = \""
                 + mode + "\"\n", StandardCharsets.UTF_8);
+        Files.writeString(gameDirectory.resolve("options.txt"),
+                "pauseOnLostFocus:false\nguiScale:2\ntutorialStep:none\noverrideWidth:1280\noverrideHeight:720\n",
+                StandardCharsets.UTF_8);
     }
 
     private void installFixture(String sourceName, Path destination, String displayName)
@@ -553,11 +614,24 @@ public final class HostSupervisor {
         var temporary = Files.createTempFile(target.getParent(), target.getFileName() + ".", ".tmp");
         try {
             Files.write(temporary, bytes);
-            try {
-                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            for (int attempt = 0; ; attempt++) {
+                try {
+                    try {
+                        Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
+                                StandardCopyOption.REPLACE_EXISTING);
+                    } catch (AtomicMoveNotSupportedException ignored) {
+                        Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    break;
+                } catch (java.nio.file.AccessDeniedException busy) {
+                    // Windows can briefly deny replacement while the client reads the action.
+                    if (attempt >= 20) throw busy;
+                    try { Thread.sleep(25); }
+                    catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Interrupted publishing host action", interrupted);
+                    }
+                }
             }
         } finally {
             Files.deleteIfExists(temporary);

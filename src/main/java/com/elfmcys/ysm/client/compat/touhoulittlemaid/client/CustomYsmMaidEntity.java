@@ -20,6 +20,33 @@ import java.util.function.Consumer;
  */
 @OnlyIn(Dist.CLIENT)
 public class CustomYsmMaidEntity extends CustomHumanoidEntity<EntityMaid> implements IGeoEntity {
+    public static class MaidRenderData extends com.elfmcys.ysm.geckolib3.geo.GeoRenderData {
+        public ILocationModel locations = com.elfmcys.ysm.client.compat.touhoulittlemaid.util.TlmConverterHelper.EMPTY;
+    }
+
+    @Override
+    public com.elfmcys.ysm.api.rendering.v0.TargetKind renderTargetKind() {
+        return com.elfmcys.ysm.api.rendering.v0.TargetKind.MAID;
+    }
+
+    @Override
+    protected com.elfmcys.ysm.geckolib3.geo.GeoRenderData createRenderData() { return new MaidRenderData(); }
+
+    @Override
+    protected void extractRenderData(com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent<?> event,
+                                     com.elfmcys.ysm.geckolib3.geo.GeoRenderData data) {
+        super.extractRenderData(event, data);
+        ((MaidRenderData) data).locations = com.elfmcys.ysm.client.compat.touhoulittlemaid.util.TlmConverterHelper.snapshot(
+                getLoadedGeoModel(), data.modelState);
+    }
+
+    private ILocationModel layerLocations = com.elfmcys.ysm.client.compat.touhoulittlemaid.util.TlmConverterHelper.EMPTY;
+    public void withLayerLocations(MaidRenderData data, Runnable draw) {
+        var previous = layerLocations;
+        layerLocations = data.locations;
+        try { draw.run(); } finally { layerLocations = previous; }
+    }
+
     private MaidModelInfo maidInfo = new MaidModelInfo();
 
     public CustomYsmMaidEntity(EntityMaid player, boolean asyncUpdate) {
@@ -103,9 +130,7 @@ public class CustomYsmMaidEntity extends CustomHumanoidEntity<EntityMaid> implem
 
     @Override
     public ILocationModel getGeoModel() {
-        // TODO
-//        return this.getLoadedGeoModel().getTlmAnimatedGeoModel();
-        return null;
+        return layerLocations;
     }
 
     @Override

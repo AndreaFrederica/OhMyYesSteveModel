@@ -241,6 +241,7 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
                     currentFrameExtracted = true;
                 }
                 extractRenderData(event, renderData);
+                com.elfmcys.ysm.client.renderer.RenderStateModifiers.apply(renderTargetKind(), entity, renderData);
             } else {
                 renderData.ctx = context;
             }
@@ -248,18 +249,24 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
         }
     }
 
+    public com.elfmcys.ysm.api.rendering.v0.TargetKind renderTargetKind() { return null; }
+
     protected GeoRenderData createRenderData() {
         return new GeoRenderData();
     }
 
     protected void extractRenderData(AnimationEvent<?> event, GeoRenderData data) {
-        data.modelState.extract(currentModel);
+        extractModelState(data.modelState);
         data.ctx = event.getRenderContext();
         data.texture = getTextureLocation();
         data.widthScale = getWidthScale();
         data.heightScale = getHeightScale();
         data.partialTicks = event.getRequestedPartialTick();
         data.animationData = event.getExtraData();
+    }
+
+    protected void extractModelState(com.elfmcys.ysm.geckolib3.geo.animated.GeoModelState state) {
+        state.extract(currentModel);
     }
 
     private GeoRenderData getRenderData(RenderContext context) {

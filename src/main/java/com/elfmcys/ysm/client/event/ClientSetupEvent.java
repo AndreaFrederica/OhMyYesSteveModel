@@ -110,6 +110,12 @@ public class ClientSetupEvent {
         });
     }
 
+    @SubscribeEvent
+    public static void onLoadComplete(net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent event) {
+        // @YsmEventHandler discovery runs during load-complete; enqueue after every mod's listeners.
+        event.enqueueWork(com.elfmcys.ysm.client.renderer.RenderStateModifiers::init);
+    }
+
     private static void checkCompatibility(Optional<Pair<String, String>> infoHolder) {
         infoHolder.ifPresent(info -> {
             ModLoader.get().addWarning(new ModLoadingWarning(

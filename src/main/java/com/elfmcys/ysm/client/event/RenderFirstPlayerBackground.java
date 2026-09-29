@@ -2,24 +2,15 @@ package com.elfmcys.ysm.client.event;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
-import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
-import com.elfmcys.ysm.model.resource.client.ModelRenderTarget;
-import com.elfmcys.ysm.client.renderer.CustomPlayerRenderer;
 import com.elfmcys.ysm.config.ClientConfig;
-import com.elfmcys.ysm.event.api.SpecialPlayerRenderEvent;
-import com.elfmcys.ysm.geckolib3.geo.CustomTranslucentRenderType;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderHandEvent;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -31,66 +22,46 @@ public class RenderFirstPlayerBackground {
     private static boolean ALREADY_RENDERED = false;
 
     @SubscribeEvent
-    public static void onRenderLevelLase(RenderLevelStageEvent event) {
-        if (!YesSteveModel.isAvailable()) {
-            return;
-        }
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_CUTOUT_BLOCKS) {
-            ALREADY_RENDERED = false;
-        }
+    public static void onRenderFrame(TickEvent.RenderTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) ALREADY_RENDERED = false;
+    }
+
+    private static long draws;
+    private static String status = "not rendered";
+
+    public static long drawCount() { return draws; }
+    public static String diagnostics() { return "First-person background: " + status + " (" + draws + ")"; }
+    public static void reset() {
+        ALREADY_RENDERED = false;
+        draws = 0;
+        status = "not rendered";
     }
 
     @SubscribeEvent
     public static void onRenderHand(RenderHandEvent event) {
-        if (!YesSteveModel.isAvailable()) {
+        var minecraft = Minecraft.getInstance();
+        if (!YesSteveModel.isAvailable() || ClientConfig.DISABLE_SELF_MODEL.get()
+                || ClientConfig.DISABLE_SELF_HANDS.get() || !minecraft.options.getCameraType().isFirstPerson()) {
+            status = "disabled or unavailable";
             return;
         }
-        if (ClientConfig.DISABLE_SELF_MODEL.get()) {
-            return;
-        }
-        if (ClientConfig.DISABLE_SELF_HANDS.get()) {
-            return;
-        }
-        AbstractClientPlayer player = Minecraft.getInstance().player;
-        if (player == null || ALREADY_RENDERED) {
-            return;
-        }
-        ALREADY_RENDERED = true;
+        var player = minecraft.player;
+        if (player == null || minecraft.getCameraEntity() != player || player.isSpectator()) return;
+        if (ALREADY_RENDERED) return;
+        // Both hands can post RenderHandEvent. The background is a single camera-relative pass.
+        status = "model pending or disabled";
         player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-            if (!cap.isInitializedAndEnabled()) {
-                return;
-            }
-            String modelId = cap.getModelId();
-            ModelRenderTarget model = cap.getModelRenderTarget();
-            var variant = cap.getModelVariant();
-            if (model == null || variant == null) {
-                return;
-            }
-            // TODO
-            /*
-            if (!variant.armModel().hasFirstPersonBackground) {
-                return;
-            }
-             */
-            CustomPlayerRenderer renderer = RegisterEntityRenderersEvent.getPlayerRenderer();
-            final PoseStack poseStack = event.getPoseStack();
-            MultiBufferSource multiBufferSource = event.getMultiBufferSource();
-            CustomPlayerEntity customPlayer = cap;
-            if (MinecraftForge.EVENT_BUS.post(new SpecialPlayerRenderEvent(player, customPlayer, modelId))) {
-                return;
-            }
-
-            ResourceLocation textureLocation = cap.getTextureLocation();
-            var vertexConsumer = multiBufferSource.getBuffer(CustomTranslucentRenderType.create(textureLocation));
-
-            if (renderer != null) {
-                poseStack.pushPose();
-                if (Minecraft.getInstance().options.bobView().get()) {
-                    bobView(poseStack, event.getPartialTick(), player);
-                }
-                poseStack.translate(0, -1.5, 0);
-                // TODO
-                // NativeRenderer.renderModel(vertexConsumer, poseStack.last(), variant.armModel(), variant.armModel().getInitialState(), null, NativeRenderer.RENDER_MODE_BACKGROUND, event.getPackedLight(), OverlayTexture.NO_OVERLAY, 1, 1, 1, 1);
+            if (!cap.isInitializedAndEnabled() || cap.getModelRenderTarget() == null || cap.getModelVariant() == null) return;
+            var renderer = RegisterEntityRenderersEvent.getFirstPersonArmRenderer();
+            ALREADY_RENDERED = true;
+            var poseStack = event.getPoseStack();
+            poseStack.pushPose();
+            try {
+                if (minecraft.options.bobView().get()) bobView(poseStack, event.getPartialTick(), player);
+                if (renderer.renderBackground(player, cap, poseStack, event.getMultiBufferSource(),
+                        event.getPackedLight(), event.getPartialTick())) draws++;
+                status = renderer.backgroundStatus();
+            } finally {
                 poseStack.popPose();
             }
         });
