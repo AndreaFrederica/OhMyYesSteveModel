@@ -2,6 +2,45 @@
 
 本 fork 使用独立前置 **Oh my ysm lib**（`ysm_runtime`，作者 AndreaFrederica）替代官方 YSM native。编译、内置资源生成和运行都接入我们的库；各能力提供 JVM 基线，可用的自建 native 优先加速。当前 native 覆盖 BLAKE3、zstd 和 packed 顶点输出，其余能力仍使用 JVM。
 
+## 我们的特性与理念
+
+**功能由 JVM 基线保证，native 负责可选加速。** 没有加速库时仍应使用相同的模型功能，而不是停用模型或只显示默认玩家；有可用加速时优先使用加速。完整功能迁移是目标，已经完成的验证范围单独公开，不以“能启动”代替功能验收。
+
+| 部分 | 这份 fork 提供什么 |
+|---|---|
+| YSM 主体 | Minecraft / Forge 接入、模型与资源生命周期、动画、网络同步、游戏渲染和命令；编译与运行均通过我们的前置，不再要求官方 YSM native |
+| Oh my ysm lib | 独立前置 Mod 与可复用 Java 17 算法模块，命名空间 `cc.sirrus.ysmlib`；接口、JVM 实现与可选 native provider 分开，算法模块不依赖 Minecraft |
+| 模型与格式 | V1/V2 原始归档与 V3 编译格式保持独立；提供归档、BLAKE3、zstd、V3 导入及 V3D 工作区工具 |
+| 图像与声音 | PNG/JPEG/WebP/AVIF/ZTX 解码、ZTX 编码、Ogg Opus/Vorbis 解码；AVIF 使用 Chicory 在 JVM 内执行 WASM，无宿主 JNI 解码依赖 |
+| 渲染 | JVM 烘焙与帧状态，Java / C++ packed 顶点输出；已恢复左右手、独立背景模型和通过 FirstPerson 驱动的全身兼容 |
+| 使用与调试 | 后台模型处理与 V3D 导出，游戏指令和独立 CLI；F3 显示前置版本与各能力当前 provider，回退情况如实显示 |
+
+我们坚持以下边界：
+
+- **模块化替代**：每个能力有清晰接口，宿主负责游戏对象、Catalog、网络与 GPU 生命周期，算法库不接管这些业务状态。
+- **托管实现优先建设**：优先 Java/Kotlin；只有缺少合适 JVM 语言实现时才接受纯 JVM/WASM 兜底。WASM 是可移植基线的一部分，不冒充 native 加速。
+- **运行时加速优先**：通过自检的自建 native 优先提供对应能力；没有制品、加载失败或可恢复的加速故障，只回退相应能力，其他模块继续工作。
+- **编译期也独立**：资源生成、校验和正常构建由我们的库驱动，不通过跳过内置资源生成来绕开官方 native。
+- **语义一致、验证透明**：JVM 与 native 应产生一致的格式和可观察行为；测试区分纯 JVM、真实 native 和尚未验收的第三方组合。替代的是官方 YSM native，不是 Minecraft 自身的 LWJGL/OpenGL/OpenAL。
+
+## 跨平台：架构能力与验证范围
+
+**理论上支持跨平台运行。** Oh my ysm lib 的托管基线面向 Java 17，不要求目标系统具备对应的 YSM DLL、SO 或 dylib，也不继承官方 native 的 CPU 指令集检查。平台或 CPU 架构缺少我们的 native 加速包时，应自动使用 JVM 实现。因此 Windows、Linux、macOS，以及具备适配 JVM 与游戏运行环境的 ARM64 设备，都具有移植路径。
+
+这不意味着所有平台已经实机验证，也不意味着一个 DLL 能跨平台使用：
+
+| 层次 | 前提与当前状态 |
+|---|---|
+| 独立算法库 / V3D CLI | 需要兼容的 Java 17 JVM；普通使用不需要 Minecraft 或官方 native。AVIF 的 WASM 引擎也在 JVM 中运行 |
+| YSM Forge Mod | 还需要目标平台能运行 Minecraft 1.20.1、Forge 及其图形/音频组件；JVM 可移植性不自动解决驱动、启动器和第三方 Mod 兼容 |
+| 自建 native 加速 | 必须匹配 OS / CPU / ABI；当前工具链配置含 Windows x64、Linux x64、macOS ARM64，构建目标不等于游戏支持声明 |
+| 已完成实机验证 | **Windows x64、Java 17、Forge 47.4.3**：纯 JVM 与自建 native 场景，包括 FirstPerson 2.2.3 的身体/双手/视角切换及独立服务器与双客户端流程 |
+| 尚待验证 | Linux、macOS、Android/社区启动器、其他架构、旧版 Windows 和更多 shader / Mod 组合；目前不承诺这些环境开箱即用 |
+
+我们的方向是让 native 成为性能选择，让平台适配不再被官方 YSM native 制品是否存在所阻塞。具体平台基线和验证缺口以[支持状态](docs/status/support-and-verification.md)为准。
+
+## 构建与安装
+
 从源码构建和安装请看 **[构建指南](docs/build.md)**；库的模块划分见 **[runtime/README.md](runtime/README.md)**。当前对接本仓库的 YSM fork，尚不支持直接替换未经修改的官方 Mod。已验证范围和未完成项见[当前支持状态](docs/status/support-and-verification.md)。
 
 使用 JDK 17，在 PowerShell 中克隆并构建：
@@ -36,7 +75,7 @@ cd YesSteveModel
 | 新增能力   | 公开的模型资产标准；细粒度资产分发；动态资源管理；更多平台支持。                                                                                        |
 | 既有能力改进 | 模型业务回归 Java，native 收缩为能力层；内容身份、连接、资源所有权、失效和恢复边界显式化。                                                              |
 | 兼容验收   | 左右手、背景模型和 FirstPerson 全身兼容已恢复，并完成 JVM/native 代表性实机验证；其他附着 layer、第三方模组与 shader 组合仍需逐项验收。 |
-| 迁移重点   | 重构 molang 引擎；扩展 API；将 x64 基线降至 x86-64-v1；适配 Windows 7。模组联动、手臂模型、layer 等旧代码迁移。 |
+| 迁移重点   | 完成剩余模组联动与 layer 验收、扩展加速覆盖、验证更多平台；旧系统和 CPU 的实际可用性仍需 JDK / 游戏环境与实机验证。 |
 |        |                                                                                                                                                         |
 | 未来方向   | 模型签名、通用外部模型源、GPU Compute Pipeline、独立 Backend。                                                                                |
 

@@ -6,6 +6,8 @@
 
 Java 包名、Maven group 与内嵌依赖命名空间统一使用 `cc.sirrus.ysmlib`。
 
+托管基线在架构上具备跨 OS / CPU 的可移植性，运行算法和 CLI 不要求对应平台的 YSM native 制品。完整 Mod 仍依赖目标平台的 Minecraft / Forge / JVM / 图形与音频环境；当前完整实机验收为 Windows x64，其他平台尚不能据此宣称开箱即用。项目的特性、理念与平台分层说明见[主 README](../README.md#跨平台架构能力与验证范围)。
+
 实现原则：
 
 - 优先直接使用 Java/Kotlin 实现。
