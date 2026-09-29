@@ -2,7 +2,7 @@
 
 ## 权威模型
 
-按[player-state-sync](../../product-decisions/decisions/player-state-sync.md)与[model-authorization](../../product-decisions/decisions/model-authorization.md)确定权威边界。`LocalPlayerStateReporter` 只报告当前会话允许的 animation 与 Roaming；`PlayerStateHandler` 从已认证 sender 和 exact `Connection` 确定主体与 owner，结合游戏状态、模型权限和语义验证后生成下行更新。
+按[player-state-sync](../../product-decisions/decisions/player-state-sync.md)与[model-authorization](../../product-decisions/decisions/model-authorization.md)确定权威边界。`LocalPlayerStateReporter` 只报告当前会话允许的 animation 与 Roaming。`PlayerStateHandler` 从已认证 sender 和 exact `Connection` 确定主体与 owner，结合游戏状态、模型权限和语义验证后生成下行更新。
 
 | 状态或操作 | 当前来源与裁决 |
 |---|---|
@@ -13,7 +13,7 @@
 | Molang、挥手、实体动画 | 客户端发送受限请求；服务端验证主体、目标和内容后执行或广播。 |
 | 投射物与载具模型状态 | 由游戏服务端下发，客户端绑定到对应实体。 |
 
-控制消息表达“请求”或“事件”，不能被客户端直接当作已经生效的权威状态。模型切换和额外动画等待服务端权威回送；本地乐观状态不得绕过权限检查。
+控制消息表达「请求」或「事件」，不能被客户端直接当作已经生效的权威状态。模型切换和额外动画等待服务端权威回送；本地乐观状态不得绕过权限检查。
 
 Selection、PlayerState 与其余 C2S 控制请求在握手 ACCEPT 后即属于可发送业务，不等待 catalog publication。Catalog 只决定目录、展示与资源取得；其延迟或失败不得关闭业务 seam。Selection 仍由服务端裁决，握手就绪不把客户端请求提升为权威状态。
 
@@ -23,7 +23,7 @@ PlayerState、Roaming 与 `ysm.sync` 如何进入客户端动画运行时，见[
 
 ## 客户端报告机会
 
-`LocalPlayerStateReporter` 只保存当前业务会话、权威模型上下文、当前观测和初始/周期 FULL 的时序。业务会话在 ACCEPT 提交后建立，不读取 client catalog `ACTIVE`；新会话或模型上下文改变后，没有自身权威 FULL 时仍不生成依赖模型或 Roaming 上下文的报告。Server 在 session active、选择解析与 catalog authority commit 后先发送该 self FULL，再入队 collection publication；取得权威后，首个有效机会形成 FULL，之后的独立变化机会形成 DELTA，周期机会重新形成当时的 FULL。
+`LocalPlayerStateReporter` 只保存当前业务会话、权威模型上下文、当前观测和初始/周期 FULL 的时序。业务会话在 ACCEPT 提交后建立，不读取 client catalog `ACTIVE`。新会话或模型上下文改变后，没有自身权威 FULL 时仍不生成依赖模型或 Roaming 上下文的报告。Server 在 session active、选择解析与 catalog authority commit 后先发送该 self FULL，再入队 collection publication。取得权威后，首个有效机会形成 FULL，之后的独立变化机会形成 DELTA，周期机会重新形成当时的 FULL。
 
 ```mermaid
 stateDiagram-v2
@@ -35,7 +35,7 @@ stateDiagram-v2
     Observing --> NeedFull: 权威模型上下文改变
 ```
 
-一个有效机会在调用宿主发送前就推进当前观测、首次机会和周期时序；本地编码或提交成功与否都不产生发送后回写、dirty 恢复或下一 tick 重放。发送调用只表示本次本地提交尝试，不证明 peer 收到或接受。首个 FULL 丢失后，服务端可以继续拒绝无真实 baseline 的 DELTA，直到某个后续周期 FULL 独立到达；不会因此立即补发。
+一个有效机会在调用宿主发送前就推进当前观测、首次机会和周期时序。本地编码或提交成功与否都不产生发送后回写、dirty 恢复或下一 tick 重放。发送调用只表示本次本地提交尝试，不证明 peer 收到或接受。首个 FULL 丢失后，服务端可以继续拒绝无真实 baseline 的 DELTA，直到某个后续周期 FULL 独立到达；不会因此立即补发。
 
 模型选择的当前连续意图仍是正常输入门槛，但不等待其发送完成，也不因失败回滚已裁决的本地或服务端事实。当前协议对这些表现消息不提供 ACK、去重、重放或有序投递保证，合法消息可以遗漏、重复、延迟或造成暂时漂移。
 
@@ -71,4 +71,4 @@ Ingress 在网络入口捕获 sender 与 exact `Connection`，排队到 owner th
 
 Minecraft tracker 开始追踪时尝试发送当前 FULL，后续 tick 形成变化后尝试 DELTA；本地 reporter 的周期机会形成 FULL。每次都是独立 best-effort 通知，不因之前失败重放旧消息。可观察义务见[player-state-sync](../../product-decisions/decisions/player-state-sync.md)。
 
-确定要补充的输入时，需要核实目标游戏版本实际对 RemotePlayer 下发并应用哪些状态；字段或 accessor 存在、LocalPlayer 可读均不足以证明已经同步。服务端权威值从服务端取得，本地独有操作经校验形成模组投影；不得写回原版玩法权威。
+确定要补充的输入时，需要核实目标游戏版本实际对 RemotePlayer 下发并应用哪些状态。字段或 accessor 存在、LocalPlayer 可读均不足以证明已经同步。服务端权威值从服务端取得，本地独有操作经校验形成模组投影；不得写回原版玩法权威。

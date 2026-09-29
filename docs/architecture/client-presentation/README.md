@@ -37,6 +37,12 @@ Catalog snapshot 替换后由 `tick()` 触发页面重建；如果实际页面�
 
 页面 batch 的完成与 remote/preview cache 的提交不是同一个事务。`ClientAssetRepository` 把图片需求交给 client runtime；client tick 接纳后由一项 worker 连续探测内嵌图和独立 cache，completion 只交回 fact。Remote preview miss 仍加入同一 page action、child 与 dispatch 生命周期，不建立 eager 第二请求。接收端由唯一 final range 动态确定 preview 大小，完成媒体解码后可先提交独立 cache；后续 sibling 失败不回滚已验证 cache。Fetcher 同步异常、空 future 或异步失败都使尚未关闭 batch 终态，不能永久悬挂。页面关闭仍由原 owner 撤销 exact page action 并处理取消，不扩大为共享 cache 的清理权。
 
+GUI 的独立图片也遵守同一边界：`CustomTexture` 在模型 worker 上读取并解码，渲染线程只轮询完成的
+像素并执行 Minecraft 纹理上传；每个渲染帧最多上传两张完成图片，每张结束后检查两毫秒软预算，
+不能中断一次正在进行的 GPU 上传。
+页面关闭、翻页或重载会取消尚未开始的 decode，并释放迟到的像素。预览截图和 OpenGL 绘制仍必须
+在 render thread，但每个渲染帧最多启动一次 preview host；取消的预览 future 会立即从等待队列移除。
+
 模型卡先查询 Ready 或 `getOrStartCached()`；只有连续 hover 同一模型严格超过 0.3 秒后才调用 `getOrStartOffline()`。其 exact cache-only 边界由[Storage 与 cache](../model-management/storage-and-cache.md)定义。展示图由内嵌/独立 cache/特化 presentation 路径取得，不能把 preview 下载误算成 model body 已 Ready，也不能把离线 miss 固化成以后正常加载的失败。Local cold miss 与显式 export 可在统一 client-tick admission 下复用真实 player target，进入 256×256 私有 framebuffer 的 draw/readback 和 worker 编码；该路径不是空白占位图，具体边界见[转换与导出](../asset-pipeline/conversion-and-export.md#preview-取得与显式-export)。GUI entity 复用动画与 render-target 机制，hover/focus 只是其展示输入，见[实体与帧状态](../animation/entity-and-frame-state.md)。
 
 ## 选择与显示的分离

@@ -1,9 +1,10 @@
 # Reverse index
 
-本页是 Landing 的导航投影，不拥有业务决定或当前实现结论。按符号/配置/下游路径匹配一行，再读取对应包头及相关 DD；多行命中时按正在修改的职责选择。没有匹配时查对应领域的 REQ.Select；仍无落点则报告映射缺口，不能猜测已有产品依据。
+本页是 Landing 的导航投影，不拥有业务决定或当前实现结论。按符号、配置或下游路径匹配一行，再读取对应包头及相关 DD；多行命中时按正在修改的职责选择。没有匹配时查对应领域的 REQ.Select；仍无落点则报告映射缺口，不能猜测已有产品依据。
 
 | 实现侧检索键 | 下游落点 | 决策包 |
 |---|---|---|
+| ysm_runtime; YsmRuntime; ArchiveService; javaOnly; Java baseline; 前置; 可选 native | [architecture](../architecture/native-runtime/portable-runtime.md) | [platform-baselines](decisions/platform-baselines.md) |
 | license; Metadata; free; All rights reserved; disclaimer; 许可证; 版权; 免责声明; 保密; NSFW; R18 | [standard](../standards/model-schema/manifest-and-identity.md#info-与展示信息) | [content-rights](decisions/content-rights.md) |
 | disable_self_model; disable_other_model; disable_self_hands; sound_volume; 指定玩家; 屏蔽; 第一人称手臂; 音量 | [concept](../concepts/rendering.md#本地呈现边界) | [local-presentation-control](decisions/local-presentation-control.md) |
 | AnimatableEntity; Molang; RenderContext; controller; side effect; pass | [architecture](../architecture/animation/entity-and-frame-state.md#实体级所有权); [architecture](../architecture/animation/controllers-and-playback.md#副作用阶段); [design](../architecture/animation/design-rationale.md) | [animation-isolation](decisions/animation-isolation.md) |

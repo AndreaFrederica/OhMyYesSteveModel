@@ -14,17 +14,17 @@
 ## DD.bedrock-creator-ecosystem
 
 - Claim: 模型采用基岩版的体素几何、Molang、动画与动画控制器创作体系。
-- Rationale: 体素美术风格契合 Minecraft，基岩版已有设计经验和创作者生态，Blockbench 提供成熟建模工具；复用这些基础降低创作、学习与维护成本。
+- Rationale: 体素美术风格契合 Minecraft，基岩版已有设计经验和创作者生态，Blockbench 提供成熟建模工具。复用这些基础降低创作、学习与维护成本。
 
 ### BC.supported-bedrock-content-is-authorable
 
-- Claim: 创作者能够把 Blockbench 等工具制作的受支持 geometry、动画、控制器和纹理组织成模型；采用基岩版体系不自动承诺其全部特性。
+- Claim: 创作者能够把 Blockbench 等工具制作的受支持 geometry、动画、控制器和纹理组织成模型。采用基岩版体系不自动承诺其全部特性。
 
 ## DD.custom-content-hot-load
 
 - Claim: 玩家添加和创作者迭代模型后，可以在游戏进程内热加载该内容。
-- Rationale: 自定义模型和创作调试需要反复修改与观察；每次变化都重启游戏会显著增加日常创作和使用成本。
+- Rationale: 自定义模型和创作调试需要反复修改与观察。每次变化都重启游戏会显著增加日常创作和使用成本。
 
 ### BC.model-edit-can-reload-in-game
 
-- Claim: 已完成验证的新增或更新模型可以通过热加载进入当前可用模型列表与后续使用；无效内容不破坏已有游戏状态。
+- Claim: 已完成验证的新增或更新模型可以通过热加载进入当前可用模型列表与后续使用。无效内容不破坏已有游戏状态。

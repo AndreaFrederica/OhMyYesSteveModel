@@ -1,6 +1,6 @@
-# 因果图与高扇出候选
+# 因果图与牵连候选
 
-本页拥有 AN 内部关系的唯一登记；跨子系统关系见[跨子系统关系](../governance/cross-subsystem-relations.md)，全局 R/D 排名见[全局高扇出候选](../governance/global-fanout.md)。
+本页登记 AN 内部关系。跨子系统关系见[跨子系统关系](../governance/cross-subsystem-relations.md)，全局排名见[牵一发动全身候选](../governance/global-fanout.md)。
 
 ## 局部因果图
 
@@ -18,7 +18,7 @@ flowchart LR
     NATIVE --> COMMIT["P-COMMIT"] --> AN12["AN-12 commit on success"]
 ```
 
-## 高扇出候选
+## 牵一发动全身的候选
 
 | 候选 | 影响的本地机制 | 局部解释 |
 |---|---|---|
@@ -37,9 +37,7 @@ flowchart LR
 | `AN-05 → P-PARTIAL-EFFECT` | 解释器在求值窗口内直接提交宿主 effect，原先的 batch/eligibility 收口已不存在；能力门禁本身不能保证半次动作安全 | Observation 仍不得提交，generation 切换与旧表现不污染仍需保持；半次动作当前没有回滚或丢弃保证，不能声称该风险已收口 |
 | `A-DEFER → P-CALL-LOCAL-ESCAPE → AN-19` | 延后执行带来参数留存和排空顺序；改调度可收缩留存窗口，但需保持既有动作语义 | Entity 隔离、capture 值含义、模型切换/结束时的排空终态；如改变可观察顺序，需要回到产品/兼容边界裁决 |
 
-这些子图是下方本地关系表的投影。AN-08/13 的根仍为假设，不能因局部扇出低而从主体删除；同样不能把“开放 ABI 一定不安全”当作已验证理由。
-
-
+这些子图是下方本地关系表的投影。AN-08/13 的根仍为假设，不能因局部影响小而从主体删除；也不能把「开放 ABI 一定不安全」当作已验证理由。
 
 ## Fact 因果关系
 

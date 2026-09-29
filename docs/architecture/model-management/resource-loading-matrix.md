@@ -1,6 +1,6 @@
 # 资源加载与释放矩阵
 
-本页按 game server 与 client 的 owner 边界，汇总模型在主要运行事件中的 catalog materialization、资源取得和引用撤销行为。它不把 catalog entry、metadata representation、完整 render target 与磁盘 cache 合并为同一种“已加载”状态；各阶段的完成条件分别由 [Catalog 与来源](catalog-and-sources.md)、[Storage 与 cache](storage-and-cache.md)和[所有权与生命周期](ownership-and-lifecycle.md)定义。
+本页按 game server 与 client 的 owner 边界，汇总模型在主要运行事件中的 catalog materialization、资源取得和引用撤销行为。它不将 catalog entry、metadata representation、完整 render target 与磁盘 cache 合并为同一种「已加载」状态；各阶段的完成条件分别由 [Catalog 与来源](catalog-and-sources.md)、[Storage 与 cache](storage-and-cache.md)和[所有权与生命周期](ownership-and-lifecycle.md)定义。
 
 矩阵使用以下资源分类：
 
@@ -43,11 +43,11 @@ Client 同时拥有进程级 local Catalog、exact connection 的 remote project
 | `player_select` | 切换到 resident default，并释放上一模型的 consumer lease。 | Selection 与 resource demand 独立推进；复用 Ready 或按需取得 target。 | 同 `builtin`。 | 首先尝试 offline exact cache。 | Cache 缺件时，连续 demand 达到门槛后可以发起在线 target closure 请求；selection 发送不等待资源完成。 |
 | `player_quit` | 保留到 client service 或进程关闭。 | Local Catalog、已验证 content 与合法 Ready cache 保留；公开 view 立即恢复最新 local snapshot。 | 同 `builtin`。 | 磁盘内容保留，store 不因单次 disconnect 清空。 | 撤销 exact-session authority，取消 Pending transfer/assembly，并释放页面、实体与选择 demand 的 lease；不携带 session capability 的已完成 Ready 可以进入 unused LRU。 |
 
-Client 的“释放”分为三个不同终点：
+Client 的「释放」分为三个不同终点：
 
 1. 页面、实体或选择需求结束时，只释放自己的 `ResourceLease` 或 Pending interest。
 2. 最后一份 consumer 退出后，普通 Ready target 进入 unused LRU；PC 最多保留 60 个，移动端最多保留 30 个，intrinsic default 不参加该驱逐。
-3. LRU 或其他 owner 撤销最后一份强引用后，native/GPU 资源才由固定 owner 或 Cleaner 完成物理回收；该回收没有时间上界。
+3. LRU 或其他 owner 撤销最后一份强引用后，GPU 资源才由固定 owner 或 Cleaner 完成物理回收；该回收没有时间上界。
 
 `player_quit`、Catalog replacement 和 server-side stop 都不清空 remote、preview 或 baked 磁盘 cache。Remote authority 退出时立即失效，但这不能反向证明相同内容的已验证 cache bytes 或合法 Ready target 已经物理释放。
 

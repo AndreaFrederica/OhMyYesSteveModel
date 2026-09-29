@@ -1,40 +1,121 @@
 # 构建指南
 
-当前 Java 工程依赖单独构建的 native 库。Native 与 JAR 的构建和打包流程近期会集成到 GitHub CI；在此之前，本地运行和构建都需要手动准备 native 库。
+本分支编译和运行依赖独立前置 **ysm_runtime**（包名与 Maven group 为 `cc.sirrus.ysmlib`）。不需要官方 native、`YSM_NATIVE_PATH` 或 `ysm.native_path`。本体通过 composite build 使用 `runtime/`，所有算法均具备 JVM 基线。迁移证据与验收范围见[独立前置与迁移](architecture/native-runtime/portable-runtime.md)。
+
+## 获取源码与工具
+
+- JDK **17**（完整 JDK，不能只安装 JRE），Git；Gradle 由仓库 Wrapper 下载，无需另外安装。
+- 构建会访问 Maven、Forge、CurseMaven 等依赖源。Minecraft 版本为 **1.20.1**，当前验证使用 Forge **47.4.3**。
+- Python 3 仅用于文档校验、辅助脚本；普通 JVM 构建不需要 C/C++ 编译器、Pixi、FFmpeg 或 WASI SDK。
+
+```powershell
+# 按仓库首页克隆迁移分支后，进入仓库根目录。
+# 将 JAVA_HOME 指向本机 JDK 17 安装目录。
+java -version
+.\gradlew.bat --version
+```
+
+Linux/macOS 上对应命令为 `./gradlew`；具备构建工具链不代表该平台游戏兼容已经验收。`runtime/` 随本仓库提交，不是子模块，不需要另外克隆官方 native。首次构建会自动生成不入 Git 的 `local.properties`。
 
 ## 开发环境运行
 
-1. 按照 native 仓库中的 `docs/build_cn.md` 构建当前平台的 native 库。
-2. 在 Java 项目根目录修改 `local.properties`，将 `ysm.native_path` 设置为生成的 native 库的绝对路径。
-    - 如果该文件尚不存在，先执行一次下一步的 `runClient`；Gradle 会在首次运行时自动生成该文件，修改后再重新运行。
-    - `local.properties` 仅保存本机开发配置，已被 Git 忽略，不会被版本控制追踪。
-    - Windows 路径建议使用 `/`，避免 `.properties` 文件将反斜杠解释为转义字符。
-3. 在 Java 项目根目录运行客户端：
+使用 JDK 17，在仓库根目录运行：
 
-   ```bash
-   ./gradlew runClient
-   ```
+```powershell
+.\gradlew.bat runClient
+.\gradlew.bat runServer
+```
 
-   Windows PowerShell 使用：
-
-   ```powershell
-   .\gradlew.bat runClient
-   ```
+开发运行 classpath 包含完整前置。默认自动发现并优先使用自建 native，未安装的能力回退 JVM。单元测试与默认 mockHost 验收显式启用 `ysm.runtime.javaOnly=true`，native 宿主验收需单独开启。Minecraft 自身的 LWJGL/OpenGL/OpenAL 不属于被替代的官方 YSM native。精简开发客户端可运行 `.\gradlew.bat runClient '-Pysm.fast_run=true'`。
 
 ## 构建 JAR
 
-1. 按照同一份 native 构建指南，构建需要支持的各平台 native 库。
-2. 将这些库放入 `src/main/resources/META-INF/native/`。当前运行时使用的资源文件名为：Windows x86_64 的 `ysm.dll`、GNU/Linux x86_64 的 `libysm.so`，以及 Android arm64 的 `libysm-android.so`。Android 构建生成的 `libysm.so` 需要以 `libysm-android.so` 放入该目录。
-3. 在 Java 项目根目录运行：
+```powershell
+.\gradlew.bat -p runtime build
+.\gradlew.bat build '-Pysm.fast_run=true'
+```
 
-   ```bash
-   ./gradlew shadowJar
-   ```
+安装到 Forge 1.20.1 客户端或服务器的 `mods/`：
 
-   Windows PowerShell 使用：
+| 制品 | 当前路径 |
+|---|---|
+| YSM 本体，`shadowJar` 发行包 | `build/libs/ysm-3.0-dev-forge+mc1.20.1.jar` |
+| Oh my ysm lib 必需前置 | `runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar` |
 
-   ```powershell
-   .\gradlew.bat shadowJar
-   ```
+不要安装 `build/devlibs/`、thin、sources 或内部算法模块 JAR；同一实例中每个 Mod 只保留一份。本体不嵌入前置，也不打包官方 DLL/SO/dylib。只构建安装包可使用 `.\gradlew.bat shadowJar '-Pysm.fast_run=true'`，但该命令不等于完整测试。
 
-最终 JAR 位于 `build/libs/`。
+左右手由 YSM 提供；第一人称全身由可选 FirstPerson 模组驱动，已验证版本为 `firstperson-forge-2.2.3-mc1.20.jar`（仓库 `libs/` 内）。它只安装到客户端；前置本身不要求安装 FirstPerson。
+
+发行包使用 Java 17 基线类，不从被合并的依赖自动继承 `Multi-Release` 标记。`verifyMockHostPackaging` 同时拒绝声明多版本却不含版本条目的 JAR，避免 Forge 的 SecureJarHandler 在扫描发行包时因缺少 `META-INF/versions` 而启动失败。前置同时提供格式版本 15 的 `pack.mcmeta`，避免独立实例首次加载时出现缺失资源包元数据警告。
+
+内置默认资源和索引仍由完整生成、materialization、校验任务产生；不跳过这些步骤。普通测试使用仓库中的冻结音频样本，重新生成样本才需要 FFmpeg。V3 全 32 版本样本来自上游独立 C++ 测试写入器，普通构建无需 C++ 编译器。
+
+## 可选 native 构建与安装
+
+先安装 [Pixi](https://pixi.sh/)。Windows 还需 Visual Studio 2022 Build Tools 的 C++ 桌面开发组件和 Windows SDK；Meson 会自动启用 MSVC 环境。其他平台的 C/C++ 编译器由 Pixi 环境提供，平台兼容验证范围见[支持状态](status/support-and-verification.md)。
+
+```powershell
+Push-Location runtime/native
+pixi install --locked
+pixi run test
+Pop-Location
+```
+
+`runtime/native/build/` 生成 Windows 的 `ysmlib_codec.dll` / `ysmlib_render.dll`，Linux 为 `libysmlib_codec.so` / `libysmlib_render.so`，macOS 为对应 `.dylib`。源码依赖由 Meson wraps 固定，工具依赖由 `pixi.lock` 固定。Windows 的 JNI 差分验证：
+
+```powershell
+.\gradlew.bat -p runtime :ysm-runtime-native-codec:nativeTest :ysm-runtime-native-render:nativeTest "-PcodecLibrary=$PWD/runtime/native/build/ysmlib_codec.dll" "-PrenderLibrary=$PWD/runtime/native/build/ysmlib_render.dll"
+```
+
+将两个 DLL 与 `runtime/native/licenses/` 放入**游戏目录**的 `ysmlib/natives/windows-x64/`，和 `mods/` 同级。其他平台目录遵循 `linux-x64`、`macos-arm64` 等平台标识；不要将 DLL 放进 `mods/`。默认 native 优先，缺失或加载失败时逐能力使用 Java。路径覆盖和 ABI 说明见 [独立前置与迁移](architecture/native-runtime/portable-runtime.md)。
+
+进入世界后按 F3：`Hash` / `Compression` 应为 `native-ysmlib-codec-v1`，`Render` 应为 `native-cpp-render-v1 (packed)`；`State`、`Bake` 等仍为 Java。`Native acceleration: disabled` 表示启动参数带有 `-Dysm.runtime.javaOnly=true`，需在启动器实例或继承的全局 JVM 参数中去掉并重启。要验证纯 JVM 兜底，则主动添加该参数。原生库选型在启动时完成。
+
+## V3D 工具与历史工作区
+
+V3D 工具现属于 ysmlib，可直接运行前置 JAR（Java 17，无需 Minecraft、本体或 Gradle）：
+
+```powershell
+java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar decode models/example.ysm decoded
+java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar validate decoded/<generation>.v3d
+java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar restore decoded/<generation>.v3d restored.ysm
+```
+
+独立轻量工具可用下述命令构建：
+
+```powershell
+.\gradlew.bat -p runtime :ysm-runtime-tools:shadowJar
+```
+
+产物为 `runtime/tools/build/libs/ysm-runtime-tools-0.1.0.jar`，命令相同。
+
+游戏内使用 `/ysm v3d export "migration-test/_Riru.ysm"`，源路径相对 `ysm/custom`，输出在 `ysm/export/v3d`；`validate` / `restore` 接受生成的工作区目录名。命令要求单人房主或 OP 2 级权限，后台执行；多人环境读取服务端本地文件。
+
+原 Gradle 入口继续保留，转发到 ysmlib 工具：
+
+```powershell
+.\gradlew.bat v3dWorkspace '-Pv3dSource=D:/models/example.ysm' '-Pv3dOutput=D:/models/decoded'
+.\gradlew.bat v3dWorkspace '-Pv3dOperation=restore' '-Pv3dSource=D:/models/decoded/<generation>.v3d' '-Pv3dOutput=D:/models/restored.ysm'
+.\gradlew.bat modelManagementMockFinal '-Pysm.fast_run=true'
+```
+
+V3D 是显式旁路操作，不修改 Catalog；restore 拒绝覆盖目标文件。完整 schema、媒体保留和编辑后的原样恢复规则见 [V3D](architecture/asset-pipeline/v3d.md)。
+
+`ysm.fast_run` 只关闭可选开发集成 Mod，不跳过内置资源生成或测试。完整验收启动一个真实服务器与两个客户端，证据保存在 `build/model-management-mock/forge`，包括截图、JFR、动作应答和进程清理结果。
+
+全身第一人称兼容可单独加入同一真实 Forge 验收。该选项仅给测试客户端 A 加载仓库内的 FirstPerson 模组，服务器与客户端 B 保持不安装，用于覆盖可选依赖隔离：
+
+```powershell
+.\gradlew.bat modelManagementMockForge '-Pysm.fast_run=true' '-Pysm.mockFirstPerson=true'
+```
+
+额外检查身体与腿部非空输出、第一人称头部隐藏、切回第三人称的头部恢复和禁用自身模型后的原版回退，并保存对应截图。
+
+默认宿主验收强制 JVM。自建 native 可通过 `-Pysm.mockNative=true` 启用，配合 `-Pysm.mockNativeDir=<加速库构建目录>` 指定同平台的 codec 与 render 制品。该模式同时断言 native provider 和成功 packed draw 计数；启用 FirstPerson 时，在视角切换后再次检查，不能仅凭没有崩溃认定加速通过。缺失加速库导致的 Java 回退会使此验收失败。
+
+```powershell
+.\gradlew.bat modelManagementMockForge '-Pysm.fast_run=true' '-Pysm.mockFirstPerson=true' '-Pysm.mockNative=true' '-Pysm.mockNativeDir=runtime/native/build'
+python docs/tools/check_docs.py
+```
+
+真实 Forge 自动宿主目前验证的是 Windows 桌面环境，会启动独立测试世界、服务器和两个客户端。它不使用玩家存档；需有可用显示与音频设备。该检查不要与本体编译任务同时执行，以免运行中替换共享 class 输出。普通 JVM 单元测试不要求图形环境。

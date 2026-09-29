@@ -6,13 +6,13 @@
 
 | 已建图内容 | 未闭合 / 未检查 |
 |---|---|
-| Entity、异步/多 pass、动作门禁、defer 排空、模型声音 handoff、混合补丁、checker、输出桥；AN-01–06、08–13、19–20 | Forge/联动、第三方线程安全、完整数值/视觉、真实 OpenAL/设备容量未验；AN-19 在 Forge 实机中的排空时机未核验 |
+| Entity、异步/多 pass、动作门禁、defer 排空、模型声音 handoff、混合补丁、checker、输出桥；AN-01–06、08–13、19–20 | Forge/联动、第三方线程安全、完整数值/视觉、真实 OpenAL/设备容量未验证；AN-19 在 Forge 实机中的排空时机未核验 |
 
 本主题记录 14 个生产机制。声音 handoff 双序已有局部自动化；Forge once-only、真实 host adoption/容量、第三方 consumer、真实多 pass 画面和跨线程可见性仍需运行验证。
 
 ## 证据入口
 
-[机制正文](mechanisms.md)逐项记录 Fact、Inference、Hypothesis 与直接删除失败；[因果图](causal-graph.md)唯一维护 AN 内部边，跨域边进入[跨子系统关系](../governance/cross-subsystem-relations.md)。
+[机制正文](mechanisms.md)逐项记录 Fact、Inference、Hypothesis 与直接删除失败。[因果图](causal-graph.md)维护 AN 内部边，跨域边进入[跨子系统关系](../governance/cross-subsystem-relations.md)。
 
 ## 根依据
 

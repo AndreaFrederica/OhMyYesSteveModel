@@ -1,62 +1,66 @@
-# Native 运行边界
+# 计算边界：独立前置 ysm_runtime
 
-> **适用问题**：native 加载、JNI 绑定、计算能力分工及跨语言失败边界；**不包含**：模型业务权威、公开格式定义、GPU draw 和平台支持矩阵。
+本页说明算法能力的归属、调用方式与失败边界。模型业务权威、公开格式定义、GPU draw 与平台支持矩阵不在本页范围。
 
-Native 是由 Java 调用的能力层。`com.elfmcys.ysm.natives` 提供 Java 包装；`ysm::lib` 只保留面向这些包装的 JNI glue，`ysm::java` 提供签名、buffer、引用和 handle 机制。具体能力已按职责分开：通用 runtime 基础不承载 codec 或 renderer，`ysm::codec` 负责 hash、压缩、archive、图像和音频，`ysm::gfx::bake` / `ysm::gfx::renderer` 负责烘焙与 CPU 顶点输出，生成的 Proto 类型形成独立 schema seam，`ysm::legacy` 负责历史容器解码与单向投影。Legacy 结果返回后仍进入 Java 当前容器管线。
-
-## Native 内部分层
-
-| 边界 | 当前职责 | 依赖方向 |
-|---|---|---|
-| 通用 runtime 基础 | buffer、分配、CPU capability、日志、状态与通用数据结构 | 位于底层，不依赖 codec、renderer、JNI 或 legacy 业务 |
-| 生成 Proto 类型 | Native 所需的当前 schema 值类型与序列化接口 | 独立于运行算法；由渲染、legacy 和最终 glue 按需消费 |
-| `ysm::codec` | hash、压缩、archive、图像、音频及相关二进制算法 | 依赖通用 runtime，不依赖 JNI glue |
-| `ysm::gfx::bake` / `ysm::gfx::renderer` | baked 数据、数学与 CPU render | 依赖通用 runtime；只在需要 schema 输入的实现边缘消费生成 Proto 类型 |
-| `ysm::java` | JNI descriptor、注册、引用、buffer 与 typed handle 基础设施 | 依赖通用 runtime，不实现领域算法 |
-| `ysm::legacy` | legacy bundle/v3 解码、历史 codec 与 current schema 投影 | 复用通用 codec，并在投影边缘消费生成 Proto 类型 |
-| `ysm::lib` 与 legacy Java bridge | 把上述能力适配成唯一 Java 可加载的共享库，并拥有 JNI 返回值/结果 owner 的边界 | 作为最外层聚合；算法不得反向依赖该 glue |
-
-这个拆分约束的是依赖方向，不增加第二套模型 authority。Java 仍决定来源、identity、预算、存储、发布和生命周期；Native 子系统之间也不能借共享库聚合关系交换这些业务状态。
-
-## 加载与一次性绑定
-
-`NativeLibUtil.load()` 选择并准备当前环境的库。`loadLibraryOnLifetimeThread()` 在专用 daemon holder thread 调用 `System.load()` 和 `NativeRuntime.initialize()`，将初始化结果交回启动方；成功后该线程保持存活，维持分配器所需的加载线程生命周期。它不承担模型工作队列或游戏侧退出协调。
-
-```mermaid
-flowchart LR
-    JAVA["NativeLibUtil"] --> HOLDER["Native holder thread"]
-    HOLDER --> LOAD["System.load / JNI_OnLoad"]
-    LOAD --> BIND["BindEntry"]
-    BIND --> CPU["CPU capability initialization"]
-    CPU --> CONFIG["NativeRuntime.initialize"]
-    CONFIG --> AVAILABLE["Java availability gate"]
-```
-
-`YSM_JNI_ENTRY` 把 Java descriptor、参数与返回形状关联到静态注册记录。`BindEntry()` 先检查登记非空、按 class/method/signature 排序并拒绝重复，再解析目标类并分组 `RegisterNatives`。Registry 只允许从 collecting 进入一次 binding，最终为 bound 或 failed；绑定失败使 `JNI_OnLoad` 返回错误，不建立动态修复或重试注册表。
-
-加载窗口与 client/server 服务创建的关系见[运行模型](../runtime-model.md)。平台选择、CPU 最低要求与发布范围以[平台决策](../../product-decisions/requirements/req-platform-availability.md)和[当前状态](../../status/support-and-verification.md)为准；CMake 能构建的目标不能直接当作产品可用入口。
+当前生产路径使用独立前置 **ysm_runtime**（显示名 *Oh my ysm lib*，包名 `cc.sirrus.ysmlib`）。官方 C++ native 不再是启动依赖。下文「上游 native 分层」仅用于理解历史结构与参考算法，不是当前 fork 的启动流程。
 
 ## 能力分工
 
-| Java 入口 / native 领域 | Native 交付 | 调用者仍负责 |
-|---|---|---|
-| `Blake3`、`Zstd` / `ysm::codec` | 摘要、压缩或按期望大小/hash 验证的解压结果 | 选择 identity 输入、descriptor、业务预算与存储提交 |
-| `Image`、`ImageEncoder` / `ysm::codec` | 图像 probe、像素解码和编码结果 | 用途与质量策略、buffer 所有权、Minecraft texture 创建和上传 |
-| `OpusDecoder`、`SupportedAudioProbe` / `ysm::codec` | Ogg Opus 结构/时间轴解释、有界 feed/end-input/read 与 mono PCM | 精确内容取得、Vorbis host adapter、每播放 owner、PCM 保留与 Minecraft channel 交接 |
-| `NativeArchive` / archive adapter | 包内目录、文件枚举和借用文件 bytes | 来源选择、路径语义、capture 和模型解析 |
-| `NativeBakedModel`、`NativeModelState`、`NativeRenderer` / bake 与 renderer | 烘焙结果、帧状态和 CPU 顶点 | 动画求值、`RenderType`、`VertexConsumer` 提交和 GPU 生命周期 |
-| `NativeLegacyImporter` / `ysm::legacy` | 有界 direct-buffer 输入、同步流式解密/解压与有类型的 `ImportResult` | 文件读取与 buffer 生命周期、结果协议校验、staging、重开验证和当前 catalog 接入 |
+Java 领域层拥有模型来源、身份、目录、预算、存储、发布、生命周期与网络会话。
 
-图像、音频和 archive 消费边界见[资产管线](../asset-pipeline/README.md)，渲染算法见[渲染架构](../rendering/README.md)。音频的精确 source、保留和播放 owner 见[模型管理](../model-management/ownership-and-lifecycle.md#模型音频生命周期)。这些能力共享 JNI 机制，不共享模型 current-content map 或 session authority。
+ysm_runtime 提供可替换能力：
+
+| 能力 | 职责 | 调用方仍负责 |
+|---|---|---|
+| 归档 | V1/V2、ZIP、7z 解包、目录枚举、文件 bytes 借出 | 来源选择、路径语义、capture、模型解析 |
+| hash / 压缩 | BLAKE3、zstd | identity 输入选择、业务预算、存储提交 |
+| 图像 | PNG/JPEG/WebP/AVIF/ZTX 解码，ZTX 等编码 | 用途与质量策略、buffer 归属、Minecraft 纹理创建与上传 |
+| 音频 | Ogg Opus/Vorbis 结构解释、mono PCM16 | 内容取得、每播放 owner、与游戏声道交接 |
+| V3 / 历史导入 | envelope、历史 wire、单向投影、decoded workspace | 文件读写、staging、重开验证、进入当前目录 |
+| V3D | 目录物化、manifest、完整性、原子发布、原样恢复 | 导出时机、输出路径、权限 |
+| bake / render | 静态烘焙、帧状态提取、CPU 顶点 | 动画求值、`RenderType`、`VertexConsumer`、GPU 生命周期 |
+
+约束如下：
+
+- 每项能力必须先有 JVM 基线；native 仅是可选加速。
+- 一次解码或渲染过程中不能无状态更换 provider。
+- 加速失败只影响对应能力，并自动回退 Java。
+- 计算层不持有模型 catalog、资源生命周期或网络会话的权威。
+
+模块拆分、构建、安装与第三方许可见运行库目录中的 `runtime/README.md`。迁移进度与验收边界见[独立前置与迁移](portable-runtime.md)。
+
+## 加载与一次性绑定
+
+本体声明必需前置依赖；前置不依赖本体。算法模块不依赖 Forge / Minecraft。
+
+本体中的 `natives.*` 为过渡适配层，将 `YsmRuntime` 的能力接口转换为业务代码已有的入口名。该层不再执行 `System.load` 加载官方库。
+
+Buffer 与借用规则见[计算边界与内存](jni-and-memory.md)。
 
 ## 失败如何返回
 
-通用 JNI entry wrapper 在边界内处理 `absl::Status` / `StatusOr` 与 C++ 异常，失败时返回对应入口的 false、null 或配置的 fallback。Java 包装必须解释该返回值，不能将默认值当作有效模型或有效输出。具体失败分类并不自动由 C++ status 无损传播；需要诊断和结构化结果的历史导入有自己的 response 协议。
+打开能力时发生 `LinkageError` 可以回退 Java。内容错误与 I/O 错误直接向上传播；损坏的 V1/V2 不得被当作其他格式再次尝试。
 
-JNI 返回成功也不自动提交外部状态。例如 `NativeRenderer.render()` 只有在 native 成功后才调用 fallback writer 或推进 direct vertex region；模型 Ready 与纹理 publication 则由 Java resource owner 决定。异常、预算和内容失效对系统的影响最终回到[领域失败处理](../model-management/failure-and-recovery.md)。
+已经返回的归档对象不得在部分读取后透明切换 provider。未来的 native provider 必须在交付对象前完成加载、绑定与能力自检。
 
-Buffer 与 handle 的具体约束见[JNI 与内存](jni-and-memory.md)。
+返回值约定仍然有效：调用成功不代表外部状态已提交。例如渲染成功后才由 Java 写入 `VertexConsumer` 或推进顶点区；模型 Ready 与纹理发布始终由 Java 资源 owner 决定。错误最终对页面、模型或会话的影响见[失败处理](../model-management/failure-and-recovery.md)。
+
+## 上游 native 分层（参考）
+
+官方 native 内部分层如下，仅作参考：
+
+| 层 | 职责 |
+|---|---|
+| 通用 runtime 基础 | buffer、分配、CPU 能力、日志 |
+| 生成 Proto 类型 | schema 值类型 |
+| codec | hash、压缩、归档、图像、音频 |
+| gfx bake / renderer | 烘焙与 CPU 顶点 |
+| java | JNI 描述符、注册、引用、handle |
+| legacy | 历史容器解码与投影 |
+| lib JNI glue | 聚合为唯一可加载共享库 |
+
+依赖方向为单向：算法不得反向依赖 glue。Java 仍是来源、身份、预算、存储、发布与生命周期的权威；上游 native 子系统之间也不能借共享库聚合关系交换这些业务状态。
 
 ## Android 启动器接入
 
-Android 的适配前提由[启动器产品边界](../../product-decisions/decisions/platform-baselines.md#bcandroid-launcher-runtime-prerequisite)定义。`MOD_ANDROID_RUNTIME` 的目录与 native library namespace 接入说明可查 [YSM FAQ 的启动器开发者说明](https://ysm.cfpa.team/en/wiki/faq/)；该外部说明用于接入导航，不扩大本主线的平台支持范围。
+Android 的前提条件由[平台决策](../../product-decisions/decisions/platform-baselines.md#bcandroid-launcher-runtime-prerequisite)定义。托管基线完成后，纯 Java 运行不以 native library namespace 为前提；实际平台可用性仍须单独验收。

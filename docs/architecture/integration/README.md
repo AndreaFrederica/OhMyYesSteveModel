@@ -21,9 +21,9 @@
 
 `api.model.v0` 与 `api.rendering.v0` 中的 YSM 事件使用 mod event bus。`RegisterModelLocatorEvent` 把特定 `ModelKind` 的 locator 注册函数交给订阅方，注册窗口由对应 locator owner 建立；它不把整份骨骼模型的修改权交给扩展。
 
-在 `GeoReplacedEntityRenderer` 的玩家主路径，`RenderModelEvent` 位于有效 `ModelState` 的模型提交前；取消只跳过该处默认模型 render。`RenderLayerEvent` 则包围默认 layer 遍历。两者按各自触发窗口使用，不能把取消其中一个解释为回滚已完成的动画、资源取得或所有 Minecraft 绘制。它们携带的 `PoseStack`、buffer 和 `GeoRenderData` 属于本次 draw，不供异步长期持有。
+在玩家、第一人称手臂与背景、女仆、投射物和载具路径，`RenderModelEvent` 位于有效 `ModelState` 的模型提交前；取消只跳过该处默认模型 render。`RenderLayerEvent` 则包围默认 layer 遍历。两者按各自触发窗口使用，不能把取消其中一个解释为回滚已完成的动画、资源取得或所有 Minecraft 绘制。它们携带的 `PoseStack`、buffer 和 `GeoRenderData` 属于本次 draw，不供异步长期持有。
 
-`RegisterRenderStateModifierEvent` / `RenderStateModifier.apply()` 还不能作为已接通入口使用，具体接线缺口见[渲染问题](../../status/known-issues/rendering.md#扩展接线)。规划中的公共适配能力仍由[联动方向](../../future/mod-animation-integration.md)承载；已有声明不构成稳定公共 API 承诺。
+`RegisterRenderStateModifierEvent` 在 load-complete 的扩展发现结束后发布，随后冻结按 `TargetKind` 分组的 modifier 快照。每次新帧状态完整提取后调用 `RenderStateModifier.apply()`；复用输出槽时不重复叠加修改。不同实体可以并行调用，modifier 必须遵守 per-entity 并发约定，不能调用渲染线程专属 API 或保留本次数据。第一人称左右手与背景有独立种类，女仆事件不再标记为玩家。规划中的公共适配能力仍由[联动方向](../../future/mod-animation-integration.md)承载；已有声明不构成稳定公共 API 承诺。
 
 ## 扩展兼容检查与注册
 

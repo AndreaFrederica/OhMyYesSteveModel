@@ -11,7 +11,7 @@
 ## DD.preserve-game-visual-signals
 
 - Claim: 原版游戏状态对玩家外观的视觉反馈继续作用于替换模型。
-- Rationale: 发光、着火、受击和环境亮度是玩家理解战斗与场景状态的信息；换模若移除这些反馈，就会使视觉增强损害原有可玩性。
+- Rationale: 发光、着火、受击和环境亮度是玩家理解战斗与场景状态的信息。换模若移除这些反馈，就会使视觉增强损害原有可玩性。
 
 ### BC.game-effects-apply-to-model
 

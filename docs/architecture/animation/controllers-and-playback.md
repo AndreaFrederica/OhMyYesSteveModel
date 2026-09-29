@@ -1,10 +1,10 @@
 # Controller 与播放
 
-`IAnimationController` 把语义状态映射为一个或多个 animation player，并管理进入、运行、退出、转换与混合。当前存在三种组合方式：
+`IAnimationController` 把语义状态映射为一个或多个 animation player，并管理进入、运行、退出、转换与混合。当前有三种组合方式：
 
 | 类型 | 职责 |
 |---|---|
-| `CodedAnimationController` | 用客户端实体语义选择内建动作，适合作为基础移动、姿态和交互行为 |
+| `CodedAnimationController` | 用客户端实体语义选择内建动作，适合基础移动、姿态和交互行为 |
 | `BedrockAnimationController` | 执行模型声明的状态、transition、条件 animation、嵌套 controller 和进入/退出动作 |
 | `HybridAnimationController` | 允许模型 controller 覆盖某个语义槽，未覆盖时委托给 coded controller |
 
@@ -22,7 +22,7 @@ stateDiagram-v2
     EndingTransition --> Idle: blend out complete
 ```
 
-Player 支持循环、单次播放和保持末帧。选择与当前相同的 animation 不会隐式重启；显式 reload 或状态重置才重建时间线。目标 animation 不存在时回到 idle，不以随机 fallback 掩盖资源错误；render target 不可用时的系统级回退另见[默认模型](../model-management/default-model.md)。Coded controller 还可返回继续、暂停或停止，用于区分推进时间、保持当前值和结束播放。
+Player 支持循环、单次播放和保持末帧。选择与当前相同的 animation 不会隐式重启；显式 reload 或状态重置才重建时间线。目标 animation 不存在时回到 idle，不以随机 fallback 掩盖资源错误。render target 不可用时的系统级回退另见[默认模型](../model-management/default-model.md)。Coded controller 还可返回继续、暂停或停止，用于区分推进时间、保持当前值和结束播放。
 
 ## Bedrock 状态机
 
@@ -38,7 +38,7 @@ Animation 和 controller 的名称、引用、时间单位与 wire 约束见 [Mo
 
 求值依次选择状态/语义槽、推进 player 与 transition、采样并在 controller 内混合，最后发布 bone queue。
 
-`AnimationPlayer` 按播放模式、当前时间和 transition 权重采样 rotation、position 与 scale；关键帧分量和条件在模型加载期已解析为 AST，求值时只传入本次 player/context 输入，不重新解析源文本。单 controller 的结果形成 bone queue，跨 controller 的顺序、覆盖与复位由 [`AnimationProcessor`](processor-and-bone-output.md) 负责。
+`AnimationPlayer` 按播放模式、当前时间和 transition 权重采样 rotation、position 与 scale。关键帧分量和条件在模型加载期已解析为 AST，求值时只传入本次 player/context 输入，不重新解析源文本。单 controller 的结果形成 bone queue，跨 controller 的顺序、覆盖与复位由 [`AnimationProcessor`](processor-and-bone-output.md) 负责。
 
 ## Coded controller override
 

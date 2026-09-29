@@ -1,6 +1,6 @@
-# 因果图与高扇出候选
+# 因果图与牵连候选
 
-本页拥有 MN 内部关系的唯一登记；跨子系统关系见[跨子系统关系](../governance/cross-subsystem-relations.md)，全局 R/D 排名见[全局高扇出候选](../governance/global-fanout.md)。
+本页登记 MN 内部关系。跨子系统关系见[跨子系统关系](../governance/cross-subsystem-relations.md)，全局排名见[牵一发动全身候选](../governance/global-fanout.md)。
 
 ## 局部因果图
 
@@ -22,34 +22,32 @@ flowchart LR
     AUDIO["A-AUDIO-RETENTION"] --> MN25["MN-25 audio retention"]
 ```
 
-## 高扇出候选
+## 牵一发动全身的候选
 
 | 候选 | 影响的本地机制 | 局部解释 |
 |---|---|---|
-| `D-CATALOG/D-HOLD/D-EXACT` | MN-01/05/06 | 完整目录、精确读取和已有使用保活是不同生命周期义务 |
+| `D-CATALOG/D-HOLD/D-EXACT` | MN-01/05/06 | 完整目录、精确读取与已有使用保活是不同生命周期义务 |
 | `D-IDENTITY/D-REUSE` | MN-03/05 | 同源替代与字节精确 cache 同时存在 |
 | `D-JOIN/D-CHUNKS/D-META/D-VERIFY` | MN-02/12 | Catalog 分层可用与 typed assembly 共享按需内容根 |
 | `A-RESOURCE` | MN-06/17 | Ready 可达性与 Pending interest 不能由一个引用计数替代 |
-| `D-DEFAULT/D-FALLBACK/D-HOST-FALLBACK` | MN-08/10 | required default 与运行期分类降级分别闭合 |
-| `A-TEXTURE-PUBLISH` | MN-18/19 | host 完整接纳产生 ordinary publication 调度负担 |
-| `D-CAPABILITY` | MN-12/22 | typed admission 与物理 filesystem sink 分别限制远端能力 |
-| `A-CONTINUOUS-DEMAND/A-FAILURE-MEMORY` | MN-10/20 | 当前意图和 exact 失败资格共同控制重复请求，但 owner 不合并 |
+| `D-DEFAULT/D-FALLBACK/D-HOST-FALLBACK` | MN-08/10 | Required default 与运行期分类降级分别闭合 |
+| `A-TEXTURE-PUBLISH` | MN-18/19 | Host 完整接纳产生 ordinary publication 调度负担 |
+| `D-CAPABILITY` | MN-12/22 | Typed admission 与物理 filesystem sink 分别限制远端能力 |
+| `A-CONTINUOUS-DEMAND/A-FAILURE-MEMORY` | MN-10/20 | 当前意图与精确失败资格共同控制重复请求，但 owner 不合并 |
 | `A-AUDIO-RETENTION` | MN-25 | 一个账本统一 encoded/PCM 保留，避免双预算与第二 cache authority |
 
 ## 局部因果与删除边界
 
-以下是本页关系表的语义压缩；沿 `→` 读原因与后果，跨机制的使用/协调另看非因果关系，不据此将整组一并删除。
+沿箭头读取原因与后果。跨机制的使用/协调另看非因果关系，不据此将整组一并删除。
 
 | 子图 | 可整体退出的条件 | 仍有独立来源的义务 |
 |---|---|---|
-| `A-RESOURCE → MN-17`：共享 Pending 工作 → 最后 interest/迟到完成协调；`A-RESOURCE → MN-06`：共享 Ready → 引用保活 | 不再共享待完成工作，才可能去掉 interest 聚合；改变完成资源的 owner 方案才可能替换可达性管理 | 多消费者已取得的资源仍有效；cancel 不能等同 physical close，session 身份仍由 MN-11 保证 |
-| `D-HOLD → MN-05`；文件型 content 的未来读取用精确实例排序，已完成资源由 MN-06 可达性保活 | 取消 direct 副本已移除完整复制、专属锁和清理；若取消延迟读取才可能进一步删除 source-instance 状态 | Direct 原件未来读取允许局部失败；已开始读的完整验证、用户来源处置权和 cache bytes 验证仍独立 |
+| `A-RESOURCE → MN-17`：共享 Pending 工作 → 最后 interest/迟到完成协调；`A-RESOURCE → MN-06`：共享 Ready → 引用保活 | 不再共享待完成工作，才可能去掉 interest 聚合；改变完成资源的 owner 方案才可能替换可达性管理 | 多消费者已取得的资源仍有效；cancel 不等同 physical close；session 身份仍由 MN-11 保证 |
+| `D-HOLD → MN-05`；文件型 content 的未来读取用精确实例排序，已完成资源由 MN-06 保活 | 取消 direct 副本已移除完整复制、专属锁和清理；若取消延迟读取才可能进一步删除 source-instance 状态 | Direct 原件未来读取允许局部失败；已开始读的完整验证、用户来源处置权和 cache bytes 验证仍独立 |
 | `A-TEXTURE-PUBLISH → MN-18 → P-UPLOAD-BURST → MN-19`：host 发布 → 集中 owner 工作 → 延后 admission | Host 发布策略或有证据的调度预算改变后，可收缩排队及等待期 guard | GPU/host thread affinity、失败 candidate 不污染 Ready、旧 lease 保活仍在；仅改队列名称无收益 |
-| `MN-10 → P-REACQUIRE → MN-20`：保留恢复机会 → 同条件再请求 → exact 失败记忆 | 将失败资格在同一 domain 中统一表示，证明不同 request/content 仍能恢复 | Flight 终态退出；模型请求、target 内 lazy 资源与 preview miss 的失败边界不同，不能拼成全局永久失败表 |
+| `MN-10 → P-REACQUIRE → MN-20`：保留恢复机会 → 同条件再请求 → 精确失败记忆 | 将失败资格在同一 domain 中统一表示，证明不同 request/content 仍能恢复 | Flight 终态退出；模型请求、target 内 lazy 资源与 preview miss 的失败边界不同，不能拼成全局永久失败表 |
 | `A-REMOTE-FILES → MN-22` 与 `A-SHARED-CACHE → MN-23` | 移除对应文件型 sink 或共享 writer 选择，分别评估删除 | 不同 cache 的来源保护、完整发布和 exact identity 仍成立；跨进程锁不能替代物理路径约束 |
 | `A-CONVERTED-CONSUMERS → MN-24` | 不再跨进程共享 converted，或采用能证明活跃使用的更小方案，才可退出登记与清理许可 | 用户来源只读、精确对象验证和一次 scan 保留集合仍独立；不得扩大为所有 cache 的清理 owner |
-
-
 
 ## Fact 因果关系
 
@@ -110,7 +108,7 @@ flowchart LR
 
 | From | Relation / Confidence | To | 含义 |
 |---|---|---|---|
-| MN-17 | coordinates / Fact | MN-11, MN-12 | 最后 interest 请求 exact transfer owner 取消 |
+| MN-17 | coordinates / Fact | MN-11, MN-12 | 最后 interest 请求精确 transfer owner 取消 |
 | MN-17 | depends / Fact | MN-18 | 成功 candidate 通过 host publication 后才成为 Ready |
 | MN-19 | depends / Fact | MN-17, MN-18 | 等待期间依赖 exact Flight guard，出队仍走同一 Ready 门禁 |
 | MN-10 | depends / Fact | MN-06, MN-17 | 保留旧 Ready，等待/取消新 candidate 是不同使用方式 |

@@ -11,18 +11,18 @@
 ### BC.incompatible-integration-is-optional
 
 - Decision: [DD.local-failure-degradation](failure-isolation.md#ddlocal-failure-degradation)
-- Claim: 联动缺失或版本不匹配不阻断 startup；若无法实现降级或降级成本过高，该组合只能进入人工裁决，不能自动获得启动失败例外。
+- Claim: 联动缺失或版本不匹配不阻断 startup。若无法实现降级或降级成本过高，该组合只能进入人工裁决，不能自动获得启动失败例外。
 
 ## DD.intrusive-change-needs-adjudication
 
 - Constraints: [CON.visual-only-scope](../shared.md#convisual-only-scope)
 - Claim: 对其他游戏内容的显式取代，以及无法安全降级的高风险侵入，必须有人工裁决的产品依据。
-- Rationale: 渲染替换可能截断原有流程并影响其他模组，局部实现便利不足以抵偿这种外部代价；人工裁决必须比较真实玩法收益、完整故障传播、降级可行性及维护成本。
+- Rationale: 渲染替换可能截断原有流程并影响其他模组，局部实现便利不足以抵偿这种外部代价。人工裁决必须比较真实玩法收益、完整故障传播、降级可行性及维护成本。
 
 ### BC.replacement-is-explicit-product-scope
 
-- Claim: 只有已经人工明确并写入产品目标的内容才允许被修改或取代；玩家模型与动画替换的授权不扩展到无关玩法。
+- Claim: 只有已经人工明确并写入产品目标的内容才允许被修改或取代。玩家模型与动画替换的授权不扩展到无关玩法。
 
 ### BC.intrusion-exception-is-specific
 
-- Claim: 每项无法满足默认降级原则的侵入例外必须记录触发条件、侵入点、受影响对象、完整风险传播、既有防护、降级为何不可行或成本过高、真实需求、理由、证据与人工接受范围；未裁决不等于已接受。
+- Claim: 每项无法满足默认降级原则的侵入例外，必须记录触发条件、侵入点、受影响对象、完整风险传播、既有防护、降级为何不可行或成本过高、真实需求、理由、证据与人工接受范围。未裁决不等于已接受。

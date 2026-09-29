@@ -1,29 +1,20 @@
 # 逐帧状态与调度
 
-`GeoModelState.extract(...)` 调用 `ModelState::Extract`，把 Java [`AnimationProcessor`](../animation/processor-and-bone-output.md) 已求值的 `BoneAttribute` 转成可供一次或多次 draw 消费的逐帧状态，并在可见工作集变化时生成 `RenderSchedule`。`GeoModelState` 拥有这份结果；Extract 不生成顶点，也不运行 render worker。
+算法在独立前置的 `render-api` / `java-bake` / `java-render`。本体里的 `NativeBakedModel` / `NativeModelState` / `NativeRenderer` 是保留旧名的 JVM 适配器，不再加载官方 native。顶点与分区约定不变，baked cache 用独立 Java profile。见[迁移状态](../native-runtime/portable-runtime.md)。
+
+`GeoModelState.extract(...)` 调用 `ModelState.extract`，把 Java [`AnimationProcessor`](../animation/processor-and-bone-output.md) 已求值的 `BoneAttribute` 转成可供一次或多次 draw 消费的逐帧状态，并计算可见骨骼列表及顶点容量。`GeoModelState` 拥有这份结果；Extract 不生成顶点，也不运行 render worker。
 
 ## 输入、输出与状态
 
-| 对象 | 内容与所有权 |
-|---|---|
-| `BoneAttribute` | `AnimatedGeoModel` 的实体级求值结果；Extract 期间只临时读取，通道语义见[骨骼输出](../animation/processor-and-bone-output.md) |
-| pose / normal buffer | Native `ModelState` 拥有 `BonePose` 容器；Extract 原位写入，Java 通过 `BonePoseView` 借用 |
-| frame state | `GeoModelState` 拥有 native `ModelState`；后者共享 `BakedModel`，并拥有 pose、可见骨骼索引、locator scratch、`RenderSchedule` 与有效标记 |
-| locator result | Native 临时暂存并复制 active locator 骨骼索引；Java 保存 locator 到骨骼索引的映射，访问时读取同一状态的借用 pose view |
-| `RenderSchedule` | 当前可见骨骼和 worker 数对应的只读计划；由 `RenderTask` 描述工作与输出范围 |
+`render-api.ModelState` 是每实体、每输出槽独占的状态接口。`JavaModelState` 持有共享的
+immutable BakedModel、JOML pose/normal、可见骨骼与 locator indices、顶点容量和 generation。
+`NativeModelState` 仅为本体 adapter，`BonePoseView` 每次访问检查 generation；没有 native
+handle、借用地址或 SIMD 对齐要求。调用方从接口复制矩阵，不取得内部 mutable 矩阵。
 
-`GeoModelState.extract(...)` 开始先使旧状态失效；只有 `BoneAttribute`、容量、`ModelState::Extract` 层级遍历和调度全部成功后才整体发布为有效。失败不能继续消费上一帧结果。成功的 `ModelState` 共享持有 `BakedModel`，并拥有 pose 与 render-bone 索引存储；它不保留 `BoneAttribute`。`NativeModelState` 只把返回地址包装成 Java 借用 view，不转移 allocation 所有权。View 必须在下次 Extract 或 close 前消费完毕，不能因 Java view 仍可达就继续使用旧地址。后续 Extract 可覆盖或扩容 native 存储；任何覆盖、换模或释放都必须发生在此前 Extract、Render 与 locator 消费完成之后。
-
-```mermaid
-stateDiagram-v2
-    [*] --> Invalid
-    Invalid --> Extracting: begin extract
-    Valid --> Extracting: next state or context
-    Extracting --> Valid: traversal and schedule succeed
-    Extracting --> Invalid: validation or schedule fails
-    Valid --> Invalid: model replacement or close
-    Invalid --> [*]
-```
+Extract 首先使上一帧失效，校验并计算临时结果，全部成功才发布。它不保留输入属性数组。
+失败或 close 后不能读取旧 pose。close 是终态，不能再次 extract；每次 invalidate 都改变
+代数，使旧 view 明确失效。状态仍由原 GeoModelState owner 持有，不因 provider 变化改变
+游戏的模型 lease 或资源生命周期。
 
 ## 层级遍历与可见性
 
@@ -34,7 +25,11 @@ stateDiagram-v2
 - 隐藏当前骨骼几何只影响该骨骼及其附着点；child 继续遍历。
 - 隐藏子级会保留当前骨骼自身，再利用 subtree range 跳过全部后代。
 - 只有未隐藏且实际拥有几何的骨骼进入 render bone 序列；正常生产路径由 preorder 构造，因此稳定且唯一。
-- 附着点供 Java 原版 layer 使用；`locator_sequence` 只标记需要回传的 active bone。`ModelState::Extract` 返回对应 bone indices，`GeoModelState` 据此建立 locator 到骨骼索引的映射，访问时通过当前 `BonePoseView` 读取 native pose，不长期复制 pose records。
+- 附着点供 Java 原版 layer 使用；`locator_sequence` 只标记需要回传的 active bone。`ModelState.extract` 返回对应 bone indices，`GeoModelState` 据此建立 locator 到骨骼索引的映射，访问时通过当前 `BonePoseView` 读取 provider pose，不长期复制 pose records。
+
+载具座位按模型中 `PassengerLocator` 的稳定序号选择，并通过当前 `ModelState` 应用 pose；隐藏较早的座位不重排后面的乘客。缺少座位、状态未准备或定位组隐藏时保留原版位置，不额外扣除乘坐高度。
+
+女仆适配层从已提取帧的 active locator 复制不可变的父骨骼链、局部变换和 pivot，随该帧 `GeoRenderData` 保存。TLM layer 只在当前 draw 内取得该快照，不借用动画 worker 的属性数组；支持多组左右手，仅在模型未定义背包定位组时回退到鞘翅定位。已定义但隐藏或零缩放的背包组不会触发回退。核心动画模型不再保存 TLM 对象。
 
 ## Java 预调度与 context
 
@@ -69,36 +64,18 @@ sequenceDiagram
 
 ## `RenderSchedule`
 
-`RenderSchedule` 只在 `BakedModel` 身份、`ParallelExecutor` worker 数或可见骨骼序列变化时重建；单纯 pose 变化可复用。四个分区先按稳定骨骼顺序、再按骨骼内 `CubeGroup` 顺序展平，随后以不可拆分的 `CubeGroup` 为单位切成连续 `RenderTask` range。
-
-```mermaid
-flowchart LR
-    V["visible bones in preorder"] --> P["flatten each logical partition"]
-    P --> G["contiguous CubeGroup ranges"]
-    G --> T["RenderTask per worker"]
-    T --> O["disjoint vertex offsets and capacities"]
-    T --> D["optional bone-state owner dependencies"]
-```
-
-`RenderSchedule` 保存顶点容量、透明区间和任务；每个 `RenderTask` 分区指定 `CubeGroup` 与 vertex 的固定范围。Opaque 分区在前，透明分区接在尾部；剔除留下的容量清零，以保持 task offset 稳定。
-
-当前分配按 `CubeGroup` 数近似均衡，而不是按 quad、PBR、剔除结果或真实指令成本估算。它优先保证确定性、连续访问和无共享 append；复杂分布仍可能产生尾部不均衡。
+当前 Java baseline 不构造上游 native RenderSchedule。Extract 保留稳定的可见骨骼列表和
+四分区顶点容量；JavaRenderer 每 draw 在本线程变换并构造完整顶点结果。opaque 在前，
+透明面在尾部排序，剔除容量不足处写确定性的零顶点。它不创建额外 worker pool。
 
 ## `RenderSchedulingMode`
 
-`RenderSchedule.mode` 选择以下执行方式：
-
-| 模式 | 适用逻辑 | 同步方式 |
-|---|---|---|
-| `RenderSchedulingMode::kInline` | 单 worker 或小工作集 | 调用线程完成 `RenderBoneState` 与全部顶点任务 |
-| `RenderSchedulingMode::kSerialLateWake` | 并行收益有限但仍值得分担顶点工作 | 调用线程先准备全部 `RenderBoneState`，再发布任务并唤醒 worker |
-| `RenderSchedulingMode::kSerialPrewake` | 较大顶点工作，串行骨骼准备仍较短 | 先预唤醒 worker；调用线程准备 `RenderBoneState`，随后发布顶点任务 |
-| `RenderSchedulingMode::kWorkerReadySpin` | 骨骼与 `CubeGroup` 均足够多 | worker 准备连续骨骼区间并发布 ready；任务只等待其依赖 owner |
-
-具体阈值是性能调优参数，不属于架构契约。`kWorkerReadySpin` 以一个 worker 所拥有的整段骨骼状态为粒度，而不是每骨骼 flag；消费者只等待实际依赖，避免全局阶段屏障。
+旧 native scheduling mode 只保留在兼容诊断配置中，不控制 JVM renderer。
+游戏侧 animation/extract 预调度仍按原 RenderContext 生命周期工作。是否增加并行顶点
+生成属于 provider 内部的未来性能优化，不能改变输入/输出和 owner 契约。
 
 ## 低延迟同步与并发边界
 
-`ParallelExecutor` 是进程级常驻 worker pool，调用线程同时承担 worker 0。桌面策略可在 active render scope 中短暂预唤醒或自旋；Android 优先阻塞等待。任务与 ready 状态通过 release / acquire 发布，结束时统一建立完成可见性。
-
-每个 `RenderTask` 只写自己的 vertex range；worker 可并行读取 `BakedModel` 和已发布 pose。当前 `ParallelExecutor`、透明 scratch、`VertexConsumer` fallback 与 draw-matrix scratch 要求 `renderer::Render` 全局串行；同一 `ModelState` 的 Extract 与 Render 也不得并发。不同 `entity` 的 Java 动画求值与 Extract 可以并行，Extract 不属于 render worker 工作。
+同一 ModelState 的 extract/render/close 必须串行；游戏侧等待已调度 animation task 后
+消费结果。不同实体状态可以独立求值。共享 BakedModel 不可变，JavaRenderer 不持有每次
+调用的 scratch 或游戏全局状态；provider 切换只能发生在新状态建立时。

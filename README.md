@@ -1,5 +1,20 @@
 # Yes Steve Model
 
+本 fork 使用独立前置 **Oh my ysm lib**（`ysm_runtime`，作者 AndreaFrederica）替代官方 YSM native。编译、内置资源生成和运行都接入我们的库；各能力提供 JVM 基线，可用的自建 native 优先加速。当前 native 覆盖 BLAKE3、zstd 和 packed 顶点输出，其余能力仍使用 JVM。
+
+从源码构建和安装请看 **[构建指南](docs/build.md)**；库的模块划分见 **[runtime/README.md](runtime/README.md)**。当前对接本仓库的 YSM fork，尚不支持直接替换未经修改的官方 Mod。已验证范围和未完成项见[当前支持状态](docs/status/support-and-verification.md)。
+
+使用 JDK 17，在 PowerShell 中克隆并构建：
+
+```powershell
+git clone --branch feature/v3d-decoded-cache https://github.com/AndreaFrederica/YesSteveModel.git
+cd YesSteveModel
+.\gradlew.bat -p runtime build
+.\gradlew.bat build '-Pysm.fast_run=true'
+```
+
+安装本体 `build/libs/ysm-3.0-dev-forge+mc1.20.1.jar` 和前置 `runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar`。可选 native、FirstPerson 和开发启动步骤见构建指南。
+
 ## ⚠️ 警告
 
 当前公开版本还未完成，不保证稳定性、数据安全、跨平台行为、API、代码结构或后续版本兼容性。请勿用于生产环境或重要存档，测试前务必备份游戏目录、世界和模型。
@@ -20,7 +35,7 @@
 | ------ |---------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 新增能力   | 公开的模型资产标准；细粒度资产分发；动态资源管理；更多平台支持。                                                                                        |
 | 既有能力改进 | 模型业务回归 Java，native 收缩为能力层；内容身份、连接、资源所有权、失效和恢复边界显式化。                                                              |
-| 暂缺旧能力  | 第一人称、附着 layer 和部分模组联动未完全恢复。                                                                   |
+| 兼容验收   | 左右手、背景模型和 FirstPerson 全身兼容已恢复，并完成 JVM/native 代表性实机验证；其他附着 layer、第三方模组与 shader 组合仍需逐项验收。 |
 | 迁移重点   | 重构 molang 引擎；扩展 API；将 x64 基线降至 x86-64-v1；适配 Windows 7。模组联动、手臂模型、layer 等旧代码迁移。 |
 |        |                                                                                                                                                         |
 | 未来方向   | 模型签名、通用外部模型源、GPU Compute Pipeline、独立 Backend。                                                                                |

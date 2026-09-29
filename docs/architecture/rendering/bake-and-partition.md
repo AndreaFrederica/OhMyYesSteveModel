@@ -1,5 +1,7 @@
 # Bake、分区与 cache
 
+算法在独立前置的 `render-api` / `java-bake` / `java-render`。本体里的 `NativeBakedModel` 等是保留旧名的 JVM 适配器，不再加载官方 native。顶点与分区约定不变，baked cache 用独立 Java profile。见[迁移状态](../native-runtime/portable-runtime.md)。
+
 `BakeModel` 将公开几何与基础纹理中稳定的事实转成 CPU renderer 可直接消费的不可变 `BakedModel`。它不上传纹理，不计算动画，也不决定本帧是否可见。
 
 ## 三种表示
@@ -7,12 +9,12 @@
 | 表示 | 用途 | 稳定性 |
 |---|---|---|
 | Model Schema geometry | 跨实现交换模型语义 | 公开标准 |
-| runtime `BakedModel` | 当前进程按所选 SIMD 能力组织的只读热数据 | 内部运行时对象 |
-| serialized baked cache | 校验后重建 `BakedModel` 的磁盘派生物 | 机器与 renderer ABI 相关，可删除 |
+| runtime `BakedModel` | 当前进程由独立 render-api 定义的不可变逻辑数据 | 内部运行时对象 |
+| serialized baked cache | 校验后重建 `BakedModel` 的磁盘派生物 | 由 provider profile 版本化，可删除 |
 
-Serialized cache 不是 runtime 内存映像、Model Schema 或 GPU buffer 格式。其兼容性由模型管理内部的私有 cache key 覆盖精确内容与派生输入，renderer 只提供 bake 版本、native ABI、SIMD capability、UV 约定和烘焙选项等技术 profile，不接收或解释容器身份。派生物的通用存储规则见 [Storage 与 cache](../model-management/storage-and-cache.md)。
+Serialized cache 不是 runtime 内存映像、Model Schema 或 GPU buffer 格式。其兼容性由模型管理内部的私有 cache key 覆盖精确内容与派生输入，renderer 只提供 bake provider profile、UV 约定和烘焙选项等技术 profile，不接收或解释容器身份。派生物的通用存储规则见 [Storage 与 cache](../model-management/storage-and-cache.md)。
 
-Serialized cache 的私有 manifest 直接保存完整 `GeoModel`，包括 cubes。Java 通过 QuickBuffers 的 buffer-backed view 读取该消息，不再为避免 cubes 拷贝维护独立 `GeoModelIndex` 或模型到 index 的投影；native baked payload 仍是另一个受 cache profile 约束的 chunk。
+Serialized cache 的私有 manifest 直接保存完整 `GeoModel`，包括 cubes。Java 通过 QuickBuffers 的 buffer-backed view 读取该消息，不再为避免 cubes 拷贝维护独立 `GeoModelIndex` 或模型到 index 的投影；Java baked payload 仍是另一个受 cache profile 约束的 chunk。
 
 ## 核心数据关系
 
@@ -20,16 +22,16 @@ Serialized cache 的私有 manifest 直接保存完整 `GeoModel`，包括 cubes
 flowchart TB
     BM["BakedModel"] --> H["preorder bone hierarchy"]
     BM --> PS["four logical partitions"]
-    H --> GR["per-bone CubeGroup ranges"]
-    H --> PC["cumulative cube / quad capacities"]
-    PS --> CG["CubeGroup SIMD geometry"]
+    H --> GR["per-bone cube partitions"]
+    H --> PC["cube / quad capacities"]
+    PS --> CG["immutable cube geometry"]
     CG --> CP["cube positions and face indices"]
     CG --> FA["normal, plane, winding and center"]
     CG --> UV["UV and per-face metadata"]
     CG --> TG["optional tangent and handedness"]
 ```
 
-`BakedModel` 以稳定 preorder 保存骨骼，并记录 subtree range 以支持整棵跳过。每个 `CubeGroup` 只属于一个骨骼和一个逻辑分区，是烘焙、调度和批量处理的共同单位；分区范围与累计容量允许 `RenderSchedule` 直接计算工作量。
+`BakedModel` 以稳定 preorder 保存骨骼，并记录 subtree range 以支持整棵跳过。每个 cube 只属于一个骨骼和一个逻辑分区。骨骼保存 parent/subtreeEnd；每个 cube 保存位置、quad 和剔除容量。Java renderer 按分区和可见骨骼顺序遍历，不依赖 native 调度器。
 
 ## 烘焙流程
 
@@ -40,8 +42,8 @@ flowchart LR
     U --> A["sample base-texture alpha"]
     A --> F["derive static face data"]
     F --> P["classify logical partitions"]
-    P --> G["pack SIMD geometry groups as AoSoA"]
-    G --> C["build cumulative capacities"]
+    P --> G["build immutable logical cubes"]
+    G --> C["calculate partition capacities"]
     C --> O["BakedModel or serialized cache"]
 ```
 
@@ -51,7 +53,7 @@ UV 先按来源版本转换为最终采样语义，再参与 alpha 分类和 tan
 
 ## 四逻辑分区
 
-分区由透明语义与 native 面剔除两个轴组成。`cutout` 是历史内部名称，在这里表示 opaque，不等同于纹理 cutout；四个名称也不决定 Java 的 `RenderType`。
+分区由透明语义与 CPU 面剔除两个轴组成。`cutout` 是历史内部名称，在这里表示 opaque，不等同于纹理 cutout；四个名称也不决定 Java 的 `RenderType`。
 
 | 分区 | Alpha / 几何语义 | Render 行为 |
 |---|---|---|
@@ -70,6 +72,7 @@ Authoring 几何及视觉保证见[geometry-regions](../../product-decisions/dec
 
 ## AoSoA 与能力相关布局
 
-每个 `CubeGroup` 将 position、normal、plane、winding、center 和可选 tangent 按分量拆成 SIMD lane 数组；UV、face index 和每个 cube 的 quad 元数据仍按逻辑 face 组织。组内 padding 只是对齐容量，不是额外几何；`RenderSchedule` 不得拆分该组。
-
-进程启动时选择一个受支持的 SIMD 能力，Bake、cache read、transform 和 vertex writer 必须使用同一选择。不同宽度可以拥有不同 group 容量与 padding，因此 serialized cache 只能在匹配的能力键下复用。GPU 方向见[独立设计](../../future/gpu-compute-renderer.md)。
+此标题保留供旧链接定位。当前 Java baseline 不使用 AoSoA、SIMD lane 或 native ABI。
+`BakedModelCodec` 序列化独立的逻辑结构，profile 为 `ysmlib-java-bake-1`，解码时重新验证
+层级、分区、索引和容量。未来 accelerator 可在内部派生能力相关布局，但不得要求 Java
+baseline 理解其内存地址，也不得复用不匹配的 cache profile。

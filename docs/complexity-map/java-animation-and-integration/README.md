@@ -1,24 +1,26 @@
 # Java 动画、绘制交接与扩展复杂度总览
 
-本主题负责实体私有求值状态、调度与采样、多 pass 输出、动作副作用、模型声音触发/host handoff、controller 回退、可选扩展隔离以及 Java 到宿主顶点 consumer 的交接。模型资源与声音保留归 [MN](../java-models-and-network/README.md)，native worker、帧 state、透明重排和音频 decoder 能力归 [NR](../native-capabilities/README.md)。
+这一块管的是：实体各自的求值状态、调度与采样、多 pass 输出、动作副作用、模型声音怎么交给宿主播放、controller 兜底、可选扩展隔离，以及 Java 到宿主顶点 consumer 的交接。
 
-## 阅读路径
+模型资源和声音保留归 [MN](../java-models-and-network/README.md)。native worker、帧状态、透明重排和音频解码器归 [NR](../native-capabilities/README.md)。
 
-| 问题 | 页面 |
+## 从问题找页面
+
+| 想知道什么 | 看哪页 |
 |---|---|
-| AN 机制的行为、删除失败与证据入口 | [机制](mechanisms.md) |
-| 动画、绘制交接和扩展覆盖到哪里 | [证据、覆盖与根依据](evidence-and-scope.md) |
-| 求值、多 pass、副作用和输出桥的因果关系 | [因果图与高扇出候选](causal-graph.md) |
-| 调度、pose、输出路径和扩展检查如何归约 | [归约支点](reduction-pivots.md) |
-| 哪些兼容、性能或线程语义仍未闭合 | [因果缺口与差异](open-questions.md) |
+| AN 机制各自在防什么错 | [机制](mechanisms.md) |
+| 动画、绘制交接、扩展覆盖到哪 | [证据、覆盖与根依据](evidence-and-scope.md) |
+| 求值、多 pass、副作用、输出桥之间谁逼出谁 | [因果图与牵连候选](causal-graph.md) |
+| 调度、姿态、输出路径、扩展检查哪里能简化 | [可简化的地方](reduction-pivots.md) |
+| 哪些兼容、性能、线程语义还没定 | [未决问题](open-questions.md) |
 
-## 子系统拓扑
+## 这块内部怎么分
 
-| 机制簇 | 主要机制 | 边界 |
+| 一组 | 机制 | 管什么 |
 |---|---|---|
-| 实体状态与调度 | AN-01–04 | 只读资源可共享，可变求值状态实体私有；异步、限频与多 pass 分别协调 |
-| 动作与 controller | AN-05/06/19/20 | 动作能力、模型覆盖/内建动作桥、deferred capture 与声音 host handoff |
-| 扩展隔离 | AN-08–10/13 | 历史混合、checker、加载前隔离和未闭合 fence |
-| 宿主输出交接 | AN-11/12 | Direct/fallback 两条 consumer 路径和成功后提交 |
+| 实体状态与调度 | AN-01–04 | 只读资源可共享，可变求值状态实体私有；异步、限频、多 pass 分别协调 |
+| 动作与 controller | AN-05/06/19/20 | 动作能力、模型覆盖/内建动作桥、延后参数快照、声音交给宿主 |
+| 扩展隔离 | AN-08–10/13 | 历史混合、检查器、加载前隔离、还没闭合的 fence |
+| 宿主输出交接 | AN-11/12 | direct/fallback 两条 consumer 路径，成功后才提交 |
 
-本主题拥有 AN 内部关系；跨域边由[跨子系统关系](../governance/cross-subsystem-relations.md)唯一维护，加载规则见[关系登记入口](../governance/relationship-register.md)。
+AN 内部的关系写在本目录。跨子系统关系统一写在[跨子系统关系](../governance/cross-subsystem-relations.md)。加载规则见[关系登记入口](../governance/relationship-register.md)。

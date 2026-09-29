@@ -9,7 +9,7 @@
 ## DD.single-file-model-container
 
 - Claim: 模型以一个容器文件携带清单及其组织的资产。
-- Rationale: 玩家分发单个文件比维护一组有相对引用的松散文件更直接，也更不容易漏掉模型所需内容；清单把分发单元与模型定义的边界对齐。
+- Rationale: 玩家分发单个文件比维护一组有相对引用的松散文件更直接，也更不容易漏掉模型所需内容。清单把分发单元与模型定义的边界对齐。
 
 ### BC.container-carries-model-definition
 

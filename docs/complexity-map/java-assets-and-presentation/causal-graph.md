@@ -1,6 +1,6 @@
-# 因果图与高扇出候选
+# 因果图与牵连候选
 
-本页拥有 AP 内部关系的唯一登记；跨子系统关系见[跨子系统关系](../governance/cross-subsystem-relations.md)，全局 R/D 排名见[全局高扇出候选](../governance/global-fanout.md)。
+本页登记 AP 内部关系。跨子系统关系见[跨子系统关系](../governance/cross-subsystem-relations.md)，全局排名见[牵一发动全身候选](../governance/global-fanout.md)。
 
 ## 局部因果图
 
@@ -17,32 +17,32 @@ flowchart LR
     DIRECT["A-DIRECT-ADMISSION"] --> AP07["AP-07 source admission"]
 ```
 
-## 高扇出候选
+## 牵一发动全身的候选
+
+以下根决策各自影响多个机制，修改前需评估牵连范围。
 
 | 候选 | 影响的本地机制 | 局部解释 |
 |---|---|---|
-| `D-SOURCE` | AP-06/07/08 | 转换交付、direct 准入和独立 preview/export 分别保留 owner |
+| `D-SOURCE` | AP-06/07/08 | 转换交付、direct 准入与独立 preview/export 分别保留 owner |
 | `D-JOIN/D-CHUNKS/D-META/D-VERIFY` | AP-02/05 | 分层内容可用性与浏览不下载模型共同来自按需内容边界 |
 | `D-FREEZE` | AP-01/06/08 | 输入、staging 与 export 分别闭合语义冻结 |
-| `D-SOUND/D-MIGRATION` | AP-09 | Raw 与 legacy 通过同一 current 音频 profile 交付，metadata 与完整内容分阶段验证 |
+| `D-SOUND/D-MIGRATION` | AP-09 | Raw 与 legacy 通过同一 current 音频 profile 交付；metadata 与完整内容分阶段验证 |
 | `A-CONTINUOUS-DEMAND` | AP-04/05 | 页面与 hover 共享短命意图原则，但拥有独立门槛和终态 |
-| `A-PREVIEW` / `A-PREVIEW-CACHE` | AP-05/08 | 3D 探测和图片取得是两个可分别替换的展示选择 |
-| `A-ARCHIVE` | AP-01 | Native 借用协议把“下次读取前复制”加入 capture 约束 |
+| `A-PREVIEW` / `A-PREVIEW-CACHE` | AP-05/08 | 3D 探测与图片取得是两个可分别替换的展示选择 |
+| `A-ARCHIVE` | AP-01 | Native 借用协议将「下次读取前复制」加入 capture 约束 |
 
 ## 局部因果与删除边界
 
 | 子图 | 附属机制及退出条件 | 仍有独立来源的义务 |
 |---|---|---|
-| `A-CAPTURE → P-RAW-DRIFT → AP-01`；`NR-11 → P-BORROW → AP-01` | 分阶段解析需要固定输入，archive 借用又要求及时复制。同一个 capture 同时承接两个来源 | 改 owning archive 只消除“下次读取前复制”的时间耦合，不消除 scan/compile 的来源一致性 |
+| `A-CAPTURE → P-RAW-DRIFT → AP-01`；`NR-11 → P-BORROW → AP-01` | 分阶段解析需要固定输入，archive 借用又要求及时复制。同一个 capture 同时承接两个来源 | 修改 owning archive 只消除「下次读取前复制」的时间耦合，不消除 scan/compile 的来源一致性 |
 | `A-ONE-ARTIFACT → P-STAGED-ARTIFACT → AP-06`；AP-06 使用 AP-02 | 转换后统一为当前容器，需要独立产物交接与可读性验证；调整交付表示可减少 staging I/O | NR-13 的跨语言 payload owner、内容投影保真、MN-05 的存储提交和 MN-01 的目录发布各有失败边界 |
-| `A-PAGE → P-PAGE-LATE → AP-04`；AP-04 使用 MN-17 | 页面离开不等于共享后台工作完成，需撤需求并处置迟到结果 | 更换页面加载策略不能关闭其他消费者的 Ready lease；standalone GUI texture 与 model texture 发布 owner 不同 |
+| `A-PAGE → P-PAGE-LATE → AP-04`；AP-04 使用 MN-17 | 页面离开不等于共享后台工作完成，需要撤需求并处置迟到结果 | 更换页面加载策略不能关闭其他消费者的 Ready lease；GUI 纹理与模型纹理的发布 owner 不同 |
 | `A-CONTINUOUS-DEMAND → P-SHORT-LIVED → AP-04/AP-05` | 页面、hover 和实体只保留当前意图及起点；取消门槛可删除这些短期状态 | 已命中内容及时交付、各流独立和页面关闭终态仍需保持 |
-| `A-PREVIEW → P-PREVIEW-MISS → AP-05/AP-08` | Preview-first 与独立 cache 分别承接展示 miss；取消 3D hover 可缩 AP-05，但不能删除图片取得 | 浏览不得驱动全量模型下载；AP-08 的弱关联、export 和 AP-03 raw 输入策略仍独立 |
+| `A-PREVIEW → P-PREVIEW-MISS → AP-05/AP-08` | Preview-first 与独立 cache 分别承接展示 miss；取消 3D hover 可缩减 AP-05，但不能删除图片取得 | 浏览不得驱动全量模型下载；AP-08 的弱关联、export 和 AP-03 的 raw 输入策略仍独立 |
 | `A-DIRECT-ADMISSION → AP-07`；`A-PREVIEW-CACHE → AP-08` | 改变来源政策或图片存储选择后可分别替换 | Schema 合法性、模型内容验证、作者图保留和来源只读不随实现一起消失 |
 
-上图和删除边界由下方本地关系表支持，不把转换→存储→目录→页面的普通数据流当成因果链。AP-03 的策略效果与成本、AP-05 的体验收益仍需证据，低扇出不降低其记录价值。
-
-
+上图和删除边界由下方本地关系表支持。转换、存储、目录、页面之间的普通数据流不视为因果链。AP-03 的策略效果与成本、AP-05 的体验收益仍需证据；影响范围小不降低记录价值。
 
 ## Fact 因果关系
 

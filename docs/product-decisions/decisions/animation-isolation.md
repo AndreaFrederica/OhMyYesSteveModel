@@ -14,11 +14,11 @@
 ## DD.animation-state-is-entity-local
 
 - Claim: 动画求值中的可变状态按实体隔离。
-- Rationale: 多个玩家可以使用同一模型但执行不同动作，复用模型资产不意味着共享动作进度或脚本运行状态；混用这些状态会使一个玩家改变另一个玩家的表现。
+- Rationale: 多个玩家可以使用同一模型但执行不同动作。复用模型资产不意味着共享动作进度或脚本运行状态；混用这些状态会使一个玩家改变另一个玩家的表现。
 
 ### BC.entity-isolates-animation-state
 
-- Claim: 一个实体的控制器进度、脚本内存、随机结果和骨骼姿态不直接成为另一实体的可变状态；跨客户端需要协调的数据只能通过明确同步语义传播。
+- Claim: 一个实体的控制器进度、脚本内存、随机结果和骨骼姿态不直接成为另一实体的可变状态。跨客户端需要协调的数据只能通过明确同步语义传播。
 
 ## DD.render-observation-does-not-repeat-actions
 
@@ -27,9 +27,9 @@
 
 ### BC.animation-effects-follow-logical-actions
 
-- Claim: 同一次逻辑推进的脚本动作、粒子、同步事件和声音不会因重复观察再次触发；此约束不把主时间线的推进频率或动作次数固定为帧率无关。
+- Claim: 同一次逻辑推进的脚本动作、粒子、同步事件和声音不会因重复观察再次触发。此约束不把主时间线的推进频率或动作次数固定为帧率无关。
 
 ### BC.animation-failure-is-local
 
 - Decision: [DD.local-failure-degradation](failure-isolation.md#ddlocal-failure-degradation)
-- Claim: 单个动画的确定性读取、解析或绑定失败只影响该动画，不使其他已验证动画失效；只有错误进一步阻断整体模型逻辑时才进入严重模型错误降级。
+- Claim: 单个动画的确定性读取、解析或绑定失败只影响该动画，不使其他已验证动画失效。只有错误进一步阻断整体模型逻辑时才进入严重模型错误降级。
