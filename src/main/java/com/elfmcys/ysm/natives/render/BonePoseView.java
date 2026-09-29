@@ -1,90 +1,119 @@
 package com.elfmcys.ysm.natives.render;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Objects;
 import net.minecraft.client.renderer.LightTexture;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryUtil;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Objects;
-
 public final class BonePoseView {
-    static final int STRIDE = 128;
+  static final int STRIDE = 128;
 
-    private static final ByteBuffer EMPTY_BUFFER =
-            ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder());
-    private static final int NORMAL_OFFSET = 64;
-    private static final int UNIFORM_SCALE_OFFSET = 100;
-    private static final int TANGENT_ORIENTATION_OFFSET = 104;
-    private static final int NORMAL_SCALE_OFFSET = 108;
-    private static final int COLOR_OFFSET = 112;
-    private static final int GLOW_OFFSET = 116;
+  private static final ByteBuffer EMPTY_BUFFER =
+      ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder());
+  private static final int NORMAL_OFFSET = 64;
+  private static final int UNIFORM_SCALE_OFFSET = 100;
+  private static final int TANGENT_ORIENTATION_OFFSET = 104;
+  private static final int NORMAL_SCALE_OFFSET = 108;
+  private static final int COLOR_OFFSET = 112;
+  private static final int GLOW_OFFSET = 116;
 
-    private final ByteBuffer data;
-    private final int boneCount;
+  private final ByteBuffer data;
+  private cc.sirrus.ysmlib.render.ModelState runtime;
+  private long generation;
 
-    BonePoseView(long ptr, int boneCount) {
-        if (boneCount < 0) {
-            throw new IllegalArgumentException("Negative bone count");
-        }
-        var byteCount = Math.multiplyExact(boneCount, STRIDE);
-        if (byteCount != 0 && ptr == 0) {
-            throw new IllegalStateException("Native bone pose pointer is null");
-        }
-        data = byteCount == 0 ? EMPTY_BUFFER :
-                MemoryUtil.memByteBuffer(ptr, byteCount);
-        data.order(ByteOrder.nativeOrder());
-        this.boneCount = boneCount;
+  BonePoseView(cc.sirrus.ysmlib.render.ModelState state) {
+    data = null;
+    runtime = state;
+    generation = state.generation();
+    boneCount = state.model().bones().size();
+  }
+
+  private void checkRuntime() {
+    if (runtime != null && (!runtime.valid() || runtime.generation() != generation))
+      throw new IllegalStateException("Bone pose view is expired");
+  }
+
+  private final int boneCount;
+
+  BonePoseView(long ptr, int boneCount) {
+    if (boneCount < 0) {
+      throw new IllegalArgumentException("Negative bone count");
     }
-
-    public int getBoneCount() {
-        return boneCount;
+    var byteCount = Math.multiplyExact(boneCount, STRIDE);
+    if (byteCount != 0 && ptr == 0) {
+      throw new IllegalStateException("Native bone pose pointer is null");
     }
+    data = byteCount == 0 ? EMPTY_BUFFER : MemoryUtil.memByteBuffer(ptr, byteCount);
+    data.order(ByteOrder.nativeOrder());
+    this.boneCount = boneCount;
+  }
 
-    public Matrix4f getPose(int boneIndex, Matrix4f destination) {
-        Objects.requireNonNull(destination, "destination");
-        destination.set(offset(boneIndex), data);
-        return destination;
-    }
+  public int getBoneCount() {
+    return boneCount;
+  }
 
-    public Matrix3f getNormal(int boneIndex, Matrix3f destination) {
-        Objects.requireNonNull(destination, "destination");
-        destination.set(offset(boneIndex) + NORMAL_OFFSET, data);
-        return destination;
-    }
+  public Matrix4f getPose(int boneIndex, Matrix4f destination) {
+    Objects.requireNonNull(destination, "destination");
+    checkRuntime();
+    if (runtime != null) return runtime.pose(boneIndex, destination);
+    destination.set(offset(boneIndex), data);
+    return destination;
+  }
 
-    public boolean isUniformScale(int boneIndex) {
-        return data.get(offset(boneIndex) + UNIFORM_SCALE_OFFSET) != 0;
-    }
+  public Matrix3f getNormal(int boneIndex, Matrix3f destination) {
+    Objects.requireNonNull(destination, "destination");
+    checkRuntime();
+    if (runtime != null) return runtime.normal(boneIndex, destination);
+    destination.set(offset(boneIndex) + NORMAL_OFFSET, data);
+    return destination;
+  }
 
-    public float getTangentOrientation(int boneIndex) {
-        return data.getFloat(offset(boneIndex) + TANGENT_ORIENTATION_OFFSET);
-    }
+  public boolean isUniformScale(int boneIndex) {
+    checkRuntime();
+    if (runtime != null) return runtime.uniform(boneIndex);
+    return data.get(offset(boneIndex) + UNIFORM_SCALE_OFFSET) != 0;
+  }
 
-    public float getNormalScale(int boneIndex) {
-        return data.getFloat(offset(boneIndex) + NORMAL_SCALE_OFFSET);
-    }
+  public float getTangentOrientation(int boneIndex) {
+    checkRuntime();
+    if (runtime != null) return runtime.orientation(boneIndex);
+    return data.getFloat(offset(boneIndex) + TANGENT_ORIENTATION_OFFSET);
+  }
 
-    public int getColor(int boneIndex) {
-        return data.getInt(offset(boneIndex) + COLOR_OFFSET);
-    }
+  public float getNormalScale(int boneIndex) {
+    checkRuntime();
+    if (runtime != null) return runtime.normalScale(boneIndex);
+    return data.getFloat(offset(boneIndex) + NORMAL_SCALE_OFFSET);
+  }
 
-    public int getLightLevel(int boneIndex) {
-        var light = Byte.toUnsignedInt(data.get(offset(boneIndex) + GLOW_OFFSET));
-        return light == 0xFF ? -1 : light;
-    }
+  public int getColor(int boneIndex) {
+    checkRuntime();
+    if (runtime != null) return runtime.color(boneIndex);
+    return data.getInt(offset(boneIndex) + COLOR_OFFSET);
+  }
 
-    public int getLightmapUv(int boneIndex) {
-        var light = getLightLevel(boneIndex);
-        return light == -1 ? -1 : LightTexture.pack(light, light);
-    }
+  public int getLightLevel(int boneIndex) {
+    checkRuntime();
+    var light =
+        runtime != null
+            ? runtime.glow(boneIndex)
+            : Byte.toUnsignedInt(data.get(offset(boneIndex) + GLOW_OFFSET));
+    return light == 0xFF ? -1 : light;
+  }
 
-    private int offset(int boneIndex) {
-        if (boneIndex < 0 || boneIndex >= boneCount) {
-            throw new IndexOutOfBoundsException(
-                    "bone index " + boneIndex + " out of bounds for " + boneCount);
-        }
-        return boneIndex * STRIDE;
+  public int getLightmapUv(int boneIndex) {
+    var light = getLightLevel(boneIndex);
+    return light == -1 ? -1 : LightTexture.pack(light, light);
+  }
+
+  private int offset(int boneIndex) {
+    if (boneIndex < 0 || boneIndex >= boneCount) {
+      throw new IndexOutOfBoundsException(
+          "bone index " + boneIndex + " out of bounds for " + boneCount);
     }
+    return boneIndex * STRIDE;
+  }
 }

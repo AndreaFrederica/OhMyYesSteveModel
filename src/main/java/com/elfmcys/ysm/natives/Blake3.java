@@ -1,48 +1,31 @@
 package com.elfmcys.ysm.natives;
 
 import com.elfmcys.ysm.buffer.UniBuffer;
-import com.elfmcys.ysm.natives.buffer.BufferArgument;
-
+import cc.sirrus.ysmlib.YsmRuntime;
+import java.security.MessageDigest;
 import java.lang.ref.Reference;
+import java.util.Objects;
 
-public class Blake3 {
+/** Transitional mod adapter; all hashing is supplied by the independent runtime. */
+public final class Blake3 {
     public static final int HASH_SIZE = 32;
-
-    private static final int OP_COMPARE = 1;
-    private static final int OP_COMPUTE = 2;
+    private Blake3() {}
 
     public static boolean validateHash(UniBuffer source, byte[] hash) {
-        var args = BufferArgument.packInput(source);
-        final int result;
-        try {
-            result = nBlake3(args.obj(), args.flags(), hash, OP_COMPARE);
-        } finally {
-            Reference.reachabilityFence(source);
-        }
-        if (result == -1) {
-            throw new IllegalArgumentException();
-        }
-        return result != 0;
+        requireHash(hash);
+        return MessageDigest.isEqual(computeHash(source), hash);
     }
-
     public static byte[] computeHash(UniBuffer source) {
-        var hash = new byte[HASH_SIZE];
-        computeHash(source, hash);
-        return hash;
+        try { return YsmRuntime.hashes().blake3(source.nio()); }
+        finally { Reference.reachabilityFence(source); }
     }
-
     public static void computeHash(UniBuffer source, byte[] hash) {
-        var args = BufferArgument.packInput(source);
-        final boolean result;
-        try {
-            result = nBlake3(args.obj(), args.flags(), hash, OP_COMPUTE) == -1;
-        } finally {
-            Reference.reachabilityFence(source);
-        }
-        if (result) {
-            throw new IllegalArgumentException();
-        }
+        requireHash(hash);
+        System.arraycopy(computeHash(source), 0, hash, 0, HASH_SIZE);
+    }
+    private static void requireHash(byte[] hash) {
+        Objects.requireNonNull(hash, "hash");
+        if (hash.length != HASH_SIZE) throw new IllegalArgumentException("Expected BLAKE3-256");
     }
 
-    private static native int nBlake3(Object source, long sourceFlags, byte[] hash, int op);
 }

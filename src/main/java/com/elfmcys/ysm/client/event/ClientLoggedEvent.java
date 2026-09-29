@@ -35,6 +35,8 @@ public class ClientLoggedEvent {
             return;
         }
         loggedIn = null;
+        RegisterEntityRenderersEvent.clearFirstPersonRenderer();
+        ReplacePlayerHandRenderEvent.resetDiagnostics();
         if (YesSteveModel.isAvailable()) {
             ClientSessionRuntime.disconnect(connection);
         }

@@ -23,7 +23,7 @@ import java.util.Locale;
 
 public final class BakedModelCache {
     static final String CACHE_SUFFIX = ".geo.ysm-cache";
-    static final String CACHE_ABI = "renderer-0.2.0-unstable";
+    static final String CACHE_ABI = cc.sirrus.ysmlib.render.BakedModel.PROFILE;
     private static final byte[] HASH_DOMAIN =
             ("ysm." + CACHE_ABI + "\0").getBytes(StandardCharsets.UTF_8);
 
@@ -34,10 +34,7 @@ public final class BakedModelCache {
     public BakedModelCache(Path bakedRoot, AtomicSharedCache cache) {
         this.bakedRoot = bakedRoot;
         this.cache = cache;
-        this.capabilityKey = sanitize(System.getProperty("os.arch", "unknown")) + "-"
-                + sanitize(System.getProperty("os.name", "unknown")) + "-simd-"
-                + Integer.toUnsignedString(NativeBakedModel.capability()) + "-bake-"
-                + BakedModelConstant.CURRENT_VERSION;
+        this.capabilityKey = "portable-bake-" + BakedModelConstant.CURRENT_VERSION;
     }
 
     String profileKey() {
@@ -174,7 +171,10 @@ public final class BakedModelCache {
                 return false;
             }
             try (var data = view.readModelData(channel)) {
-                return data != null;
+                if (data == null) return false;
+                try (var model = NativeBakedModel.read(data, view.model().bones().size()).bakedModel()) {
+                    return true;
+                }
             }
         } catch (AssetLoadException error) {
             if (error.reason() == AssetLoadException.Reason.ACCESS) {

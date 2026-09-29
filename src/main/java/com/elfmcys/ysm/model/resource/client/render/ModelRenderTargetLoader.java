@@ -2,6 +2,10 @@ package com.elfmcys.ysm.model.resource.client.render;
 
 import com.elfmcys.ysm.client.animation.molang.CustomMolangParser;
 import com.elfmcys.ysm.client.model.locator.PlayerLocator;
+import com.elfmcys.ysm.client.model.locator.FirstPersonLocator;
+import com.elfmcys.ysm.client.model.locator.ProjectileLocator;
+import com.elfmcys.ysm.client.model.locator.VehicleLocator;
+import com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocatorType;
 import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.schema.file.AssetFileConstant;
 import com.elfmcys.ysm.format.schema.file.ChunkDataSource;
@@ -236,10 +240,10 @@ public final class ModelRenderTargetLoader {
                 case RENDER_TARGET_KIND_PLAYER -> {
                     var main = resources.own(bakeModel(representation, targetId + "/" + selectedTexture + "/main",
                             textureHash, geoModel(definition, "main"), textures, target, textureProto,
-                            defaultModel, cacheOnly));
+                            defaultModel, cacheOnly, PlayerLocator.get()));
                     var arm = resources.own(bakeModel(representation, targetId + "/" + selectedTexture + "/arm",
                             textureHash, geoModel(definition, "arm"), textures, target, textureProto,
-                            defaultModel, cacheOnly));
+                            defaultModel, cacheOnly, FirstPersonLocator.get()));
                     var mainFiles = new ArrayList<Map.Entry<String, AnimationFile>>();
                     var firstPersonFiles = new ArrayList<Map.Entry<String, AnimationFile>>();
                     for (var file : animationFiles) {
@@ -259,7 +263,9 @@ public final class ModelRenderTargetLoader {
                 case RENDER_TARGET_KIND_PROJECTILE, RENDER_TARGET_KIND_VEHICLE -> {
                     var baked = resources.own(bakeModel(representation, targetId + "/" + selectedTexture,
                             textureHash, geoModel(definition, "main"), textures, target, textureProto,
-                            defaultModel, cacheOnly));
+                            defaultModel, cacheOnly,
+                            target.kind() == RenderTargetKind.RENDER_TARGET_KIND_PROJECTILE
+                                    ? ProjectileLocator.get() : VehicleLocator.get()));
                     var animations = resources.own(loadAnimations(representation, target.descriptor(), targetId,
                             "main", definitionHash, animationFiles,
                             defaultModel, resourceFailures));
@@ -341,21 +347,21 @@ public final class ModelRenderTargetLoader {
                                    BakedModelCache.TexturePixelsSupplier texturePixels,
                                    RenderTargetView target,
                                    PBRTextureSet textureProto,
-                                   boolean defaultModel, boolean cacheOnly) throws IOException {
+                                   boolean defaultModel, boolean cacheOnly, GeoLocatorType locatorType) throws IOException {
             if (defaultModel) {
                 return BakedModelCache.bakeResident(geo, resourceName, texturePixels,
                         CURRENT_RAW_UV_VERSION,
                         target.descriptor().settings().forceCulling(),
-                        false, hasPbr(textureProto), PlayerLocator.get());
+                        false, hasPbr(textureProto), locatorType);
             }
             if (cacheOnly) {
                 return bakedModels.loadExisting(representation.containerId(),
-                        resourceName, textureHash, PlayerLocator.get());
+                        resourceName, textureHash, locatorType);
             }
             return bakedModels.loadOrBake(representation.containerId(),
                     resourceName, textureHash, geo, texturePixels, CURRENT_RAW_UV_VERSION,
                     target.descriptor().settings().forceCulling(), false,
-                    hasPbr(textureProto), PlayerLocator.get());
+                    hasPbr(textureProto), locatorType);
         }
 
         private AnimationStore loadAnimations(ModelRepresentation representation,

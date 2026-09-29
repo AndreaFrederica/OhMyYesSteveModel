@@ -1,12 +1,10 @@
 package com.elfmcys.ysm.client.sound.stream;
 
-import com.elfmcys.ysm.format.media.SupportedAudioProbe;
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
 import com.elfmcys.ysm.format.AssetLoadException;
-import com.elfmcys.ysm.testutil.NativeLibraryExtension;
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,8 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@EnabledIfEnvironmentVariable(named = "YSM_NATIVE_PATH", matches = ".+")
-@ExtendWith(NativeLibraryExtension.class)
+@EnabledIfEnvironmentVariable(named = "YSM_AUDIO_FIXTURE_DIR", matches = ".+")
 class AudioDecoderIntegrationTest {
     private static final int[] READ_SIZES = {1, 3, 17, 511, 4095, 8192};
 
@@ -59,7 +56,7 @@ class AudioDecoderIntegrationTest {
             assertEquals(expected.length, actual.length, id + " byte count");
             assertEquals(fixture.get("frames").getAsLong(), actual.length / 2L,
                     id + " frame count");
-            assertPcmWithinTwoLsb(expected, actual, id);
+            assertPcmReference(expected, actual, id);
         }
     }
 
@@ -158,15 +155,8 @@ class AudioDecoderIntegrationTest {
         }
     }
 
-    private static void assertPcmWithinTwoLsb(byte[] expected, byte[] actual, String id) {
-        var expectedPcm = ByteBuffer.wrap(expected).order(ByteOrder.LITTLE_ENDIAN);
-        var actualPcm = ByteBuffer.wrap(actual).order(ByteOrder.LITTLE_ENDIAN);
-        int frame = 0;
-        while (expectedPcm.hasRemaining()) {
-            int delta = Math.abs(expectedPcm.getShort() - actualPcm.getShort());
-            assertTrue(delta <= 2, id + " frame " + frame + " differs by " + delta + " LSB");
-            frame++;
-        }
+    private static void assertPcmReference(byte[] expected, byte[] actual, String id) {
+        com.elfmcys.ysm.testutil.AudioAssertions.reference(expected, actual, id.startsWith("opus"), id);
     }
 
     private static Path fixtureRoot() {

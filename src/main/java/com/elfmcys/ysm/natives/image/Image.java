@@ -2,7 +2,8 @@ package com.elfmcys.ysm.natives.image;
 
 import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
-import com.elfmcys.ysm.natives.buffer.BufferArgument;
+import cc.sirrus.ysmlib.YsmRuntime;
+import cc.sirrus.ysmlib.image.ImageProvider;
 import com.elfmcys.ysm.mixin.client.NativeImageAccessor;
 import com.elfmcys.ysm.util.ScopeGuard;
 import com.mojang.blaze3d.platform.NativeImage;
@@ -10,88 +11,74 @@ import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import it.unimi.dsi.fastutil.objects.ReferenceLists;
 
 import java.io.UnsupportedEncodingException;
+import java.io.IOException;
+import org.lwjgl.system.MemoryUtil;
 import java.lang.ref.Reference;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
 public record Image(Format format, int width, int height, UniBuffer data) implements AutoCloseable {
-    private Image(long packedInfo, UniBuffer buffer) {
-        this(Format.VALUES.get((int) (packedInfo >>> 32) & 0xFF),
-                (int) (packedInfo >>> 16) & 0xFFFF,
-                (int) (packedInfo & 0xFFFF),
-                buffer);
-    }
-
     public Image share() {
         return new Image(format, width, height, data.acquire());
     }
 
     @SuppressWarnings("DataFlowIssue")
     public NativeImage decode() throws UnsupportedEncodingException {
-        var args = BufferArgument.packInput(data);
+        byte[] pixels = decodedPixels();
         try (var dstScope = ScopeGuard.create(new NativeImage(NativeImage.Format.RGBA, width, height, false))) {
             var dst = dstScope.get();
             var dstAccessor = (NativeImageAccessor) (Object) dst;
-            final boolean result;
             try {
-                result = Native.nDecode(args.obj(), args.flags(),
-                        format.id, width, height,
-                        dstAccessor.ysm$pixels(), dstAccessor.ysm$size());
+                MemoryUtil.memByteBuffer(dstAccessor.ysm$pixels(), pixels.length).put(pixels);
             } finally {
-                Reference.reachabilityFence(data);
                 Reference.reachabilityFence(dst);
             }
-            if (result) {
-                return dstScope.release();
-            }
+            return dstScope.release();
         }
-        throw new UnsupportedEncodingException("Failed to decode image");
     }
 
     public NativeBuffer decodeToBuffer() throws UnsupportedEncodingException {
-        var args = BufferArgument.packInput(data);
-        try (var dstScope = NativeBuffer.allocateWithScope(width * height * 4)) {
+        byte[] pixels = decodedPixels();
+        try (var dstScope = NativeBuffer.allocateWithScope(pixels.length)) {
             var dst = dstScope.get();
-            final boolean result;
             try {
-                result = Native.nDecode(args.obj(), args.flags(),
-                        format.id, width, height, dst.ptr(), dst.size());
+                dst.nio().put(pixels);
             } finally {
-                Reference.reachabilityFence(data);
                 Reference.reachabilityFence(dst);
             }
-            if (result) {
-                return dstScope.release();
-            }
+            return dstScope.release();
         }
-        throw new UnsupportedEncodingException("Failed to decode image");
     }
 
     public static Image probe(UniBuffer buffer) throws UnsupportedEncodingException {
-        var args = BufferArgument.packInput(buffer);
-        final long result;
         try {
-            result = Native.nProbe(args.obj(), args.flags());
+            var info = YsmRuntime.images().probe(buffer.nio());
+            return new Image(Format.valueOf(info.format().name()), info.width(), info.height(), buffer.acquire());
+        } catch (IOException invalid) {
+            throw decodeFailure(invalid);
         } finally {
             Reference.reachabilityFence(buffer);
         }
-        if (result == 0) {
-            throw new UnsupportedEncodingException("Failed to read image");
-        }
-        return new Image(result, buffer.acquire());
+    }
+
+    private byte[] decodedPixels() throws UnsupportedEncodingException {
+        try {
+            return YsmRuntime.images().decode(data.nio(), new ImageProvider.Info(
+                    ImageProvider.Format.valueOf(format.name()), width, height));
+        } catch (IOException | IllegalArgumentException invalid) {
+            throw decodeFailure(invalid);
+        } finally { Reference.reachabilityFence(data); }
+    }
+
+    private static UnsupportedEncodingException decodeFailure(Exception cause) {
+        return (UnsupportedEncodingException) new UnsupportedEncodingException("Failed to decode image: "
+                + cause.getMessage()).initCause(cause);
     }
 
     @Override
     public void close() {
         data.close();
-    }
-
-    private static class Native {
-        private static native long nProbe(Object input, long input_flags);
-        private static native boolean nDecode(Object input, long input_flags,
-                                              int format, int width, int height,
-                                              long dst, long dst_size);
     }
 
     public enum Format {

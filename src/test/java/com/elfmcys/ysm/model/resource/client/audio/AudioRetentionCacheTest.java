@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.model.resource.client.audio;
 
-import com.elfmcys.ysm.format.media.SupportedAudioProbe;
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.model.domain.ModelFileIdentity;
 import org.junit.jupiter.api.Test;

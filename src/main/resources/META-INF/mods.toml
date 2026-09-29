@@ -15,6 +15,13 @@ issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
     description="A mod based on GeckoLib that modifies the player model"
 
 [[dependencies.ysm]]
+    modId="ysm_runtime"
+    mandatory=true
+    versionRange="[0.1.0,0.2.0)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.ysm]]
     modId="forge"
     mandatory=true
     versionRange="[46,)"

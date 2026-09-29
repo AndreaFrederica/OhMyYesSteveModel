@@ -1,6 +1,5 @@
 package com.elfmcys.ysm.buffer;
 
-import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
 import com.elfmcys.ysm.util.ScopeGuard;
 import org.lwjgl.system.MemoryUtil;
 
@@ -61,11 +60,11 @@ public interface NativeBuffer extends UniBuffer {
     }
 
     static NativeBuffer allocate(int size) {
-        return new NativeHeapBuffer(size);
+        return NativeNioBuffer.allocate(size, 0);
     }
 
     static NativeBuffer allocate(int size, int alignment) {
-        return new NativeHeapBuffer(size, alignment);
+        return NativeNioBuffer.allocate(size, alignment);
     }
 
     static ScopeGuard<NativeBuffer> allocateWithScope(int size) {

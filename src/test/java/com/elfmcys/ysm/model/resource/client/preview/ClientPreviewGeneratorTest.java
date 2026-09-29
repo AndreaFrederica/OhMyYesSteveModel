@@ -30,6 +30,45 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientPreviewGeneratorTest {
+    @Test
+    void cancelledPagesFreeQueueCapacityWithoutWaitingForATick() {
+        var workers = new QueueExecutor();
+        try (var generator = new ClientPreviewGenerator(ignored -> { throw new AssertionError(); },
+                (request, lease) -> { throw new AssertionError(); },
+                image -> { throw new AssertionError(); }, Runnable::run, workers, 1, 2)) {
+            for (int page = 0; page < 100; page++) {
+                var first = generator.generate(content());
+                var second = generator.generate(content());
+                assertFalse(first.isDone()); assertFalse(second.isDone());
+                first.cancel(false); second.cancel(false);
+            }
+            var current = generator.generate(content());
+            assertFalse(current.isDone());
+        }
+    }
+
+    @Test
+    void multipleTicksInOneFrameDoNotBurstPreviewDrawsAndCancelledDeferredLeaseIsReleased() {
+        var leases = new java.util.ArrayList<FakeLease>();
+        var renders = new AtomicInteger();
+        try (var generator = new ClientPreviewGenerator(ignored -> {
+            var lease = new FakeLease(); leases.add(lease); return ready(lease);
+        }, (request, lease) -> {
+            renders.incrementAndGet(); return new NativeImage(1, 1, false);
+        }, image -> TestPreviews.blank(), Runnable::run, Runnable::run)) {
+            var first = generator.generate(content());
+            var second = generator.generate(content());
+            var third = generator.generate(content());
+            generator.tick(); generator.tick(); generator.tick(); generator.tick();
+            assertEquals(1, renders.get()); assertTrue(first.isDone());
+            second.cancel(false); generator.tick();
+            assertEquals(1, leases.get(1).closes.get());
+            assertEquals(1, renders.get());
+            generator.beginRenderFrame(); generator.tick();
+            assertEquals(2, renders.get());
+            generator.tick(); generator.tick(); assertTrue(third.isDone());
+        }
+    }
     private static final Hash256 MODEL_ID = hash(1);
     private static final ResourceRequest REQUEST = new ResourceRequest(
             MODEL_ID, "player", "", new BakeProfile("test"));

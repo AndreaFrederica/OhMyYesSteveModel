@@ -1,77 +1,24 @@
-def ysmNativeEnvironment = 'YSM_NATIVE_PATH'
-def ysmNativeProperty = 'ysm.native_path'
-def localPropertiesFile = ysmLocalPropertiesFile
-def localProperties = ysmLocalProperties
-
-def validateNativeLibraryPath = { String value, String source ->
-    java.nio.file.Path path
-    try {
-        path = java.nio.file.Path.of(value)
-    } catch (java.nio.file.InvalidPathException exception) {
-        throw new GradleException("Invalid native library path from ${source}: ${value}", exception)
-    }
-
-    if (!path.isAbsolute()) {
-        throw new GradleException("Native library path from ${source} must be absolute: ${value}")
-    }
-
-    path = path.normalize()
-    if (!java.nio.file.Files.isRegularFile(path)) {
-        throw new GradleException("Native library path from ${source} is not a file: ${path}")
-    }
-    return path.toString()
-}
-
-def nativeLibraryPath = providers.provider {
-    def environmentValue = providers.environmentVariable(ysmNativeEnvironment).orNull
-    if (environmentValue != null && !environmentValue.isBlank()) {
-        return validateNativeLibraryPath(environmentValue.trim(), ysmNativeEnvironment)
-    }
-
-    def propertyValue = localProperties.getProperty(ysmNativeProperty)
-    if (propertyValue != null && !propertyValue.isBlank()) {
-        return validateNativeLibraryPath(propertyValue.trim(),
-                "${localPropertiesFile.name}:${ysmNativeProperty}")
-    }
-
-    def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
-    String libraryName
-    if (osName.contains('win')) {
-        libraryName = 'ysm.dll'
-    } else if (osName.contains('linux')) {
-        libraryName = 'libysm.so'
-    } else if (osName.contains('mac') || osName.contains('darwin')) {
-        libraryName = 'libysm.dylib'
-    } else {
-        throw new GradleException("Unsupported operating system for YSM native library: ${System.getProperty('os.name')}")
-    }
-
-    def resourcePath = layout.projectDirectory
-            .file("src/main/resources/META-INF/native/${libraryName}")
-            .asFile.toPath().toAbsolutePath().normalize()
-    if (java.nio.file.Files.isRegularFile(resourcePath)) {
-        return resourcePath.toString()
-    }
-
-    throw new GradleException(
-            "YSM native library is not configured. Set ${ysmNativeEnvironment}, " +
-                    "set ${ysmNativeProperty} in ${localPropertiesFile.name}, " +
-                    "or provide ${resourcePath}.")
-}
-
-ext.ysmNativeLibraryPath = nativeLibraryPath
-def nativeLibraryFile = layout.file(nativeLibraryPath.map { path -> new File(path) })
-ext.ysmNativeLibraryFile = nativeLibraryFile
-
-legacyForge.runs.configureEach {
-    environment.put(ysmNativeEnvironment, nativeLibraryPath)
-}
-
+// The host compiles and runs against ysmlib. Official YSM native is not an input.
+// Optional acceleration is selected by ysmlib itself and has a JVM fallback.
 tasks.withType(Test).configureEach {
-    inputs.file(nativeLibraryFile)
-            .withPropertyName('ysmNativeLibrary')
-            .withPathSensitivity(PathSensitivity.NONE)
-    doFirst {
-        environment ysmNativeEnvironment, nativeLibraryPath.get()
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    environment 'YSM_AUDIO_FIXTURE_DIR', providers.environmentVariable('YSM_AUDIO_FIXTURE_DIR')
+            .getOrElse(layout.projectDirectory.dir('src/test/resources/audio-contract').asFile.absolutePath)
+}
+// The default conformance host verifies JVM fallback; native verification is explicit.
+afterEvaluate {
+    legacyForge.runs.configureEach {
+        if (name.startsWith('mockHost')) {
+            def accelerated = providers.gradleProperty('ysm.mockNative').getOrElse('false').toBoolean()
+            jvmArguments.add('-Dysm.runtime.javaOnly=' + !accelerated)
+            if (accelerated) {
+                def nativeDir = file(providers.gradleProperty('ysm.mockNativeDir')
+                        .getOrElse('runtime/native/build'))
+                for (module in ['render', 'codec']) {
+                    jvmArguments.add('-Dysm.runtime.' + module + 'Library=' +
+                            new File(nativeDir, System.mapLibraryName('ysmlib_' + module)).absolutePath)
+                }
+            }
+        }
     }
 }

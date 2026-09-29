@@ -1,6 +1,7 @@
 package com.elfmcys.ysm.format.vfs;
 
-import com.elfmcys.ysm.buffer.NativeBuffer;
+import com.elfmcys.ysm.buffer.ArrayBuffer;
+import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.util.Closeable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -17,7 +18,7 @@ import java.util.Comparator;
 
 public class Directory implements VirtualFileSystem, Closeable {
     private final Path dir;
-    private NativeBuffer buffer;
+    private ArrayBuffer buffer;
     private boolean closed;
 
     public Directory(Path dir) {
@@ -62,21 +63,21 @@ public class Directory implements VirtualFileSystem, Closeable {
         return file != null && Files.isRegularFile(file);
     }
 
-    private NativeBuffer getBufferView(int size) {
+    private ArrayBuffer getBufferView(int size) {
         if (buffer != null) {
             if (buffer.size() < size) {
-                var newSize = Math.max(size, buffer.size() * 2);
+                var newSize = Math.max(size, Math.min(UniBuffer.MAX_SIZE, buffer.size() * 2));
                 buffer.close();
-                buffer = NativeBuffer.allocate(newSize);
+                buffer = ArrayBuffer.allocate(newSize);
             }
         } else {
-            buffer = NativeBuffer.allocate(Math.max(32 * 1024, size));
+            buffer = ArrayBuffer.allocate(Math.max(32 * 1024, size));
         }
         return buffer.slice(0, size).borrow();
     }
 
     @Override
-    public @Nullable NativeBuffer getFile(String fileName) {
+    public @Nullable ArrayBuffer getFile(String fileName) {
         var file = prependPath(fileName);
         if (file == null || !Files.isRegularFile(file)) {
             return null;
@@ -84,7 +85,7 @@ public class Directory implements VirtualFileSystem, Closeable {
 
         try (var channel = Files.newByteChannel(file, StandardOpenOption.READ)) {
             var size = channel.size();
-            if (size > Integer.MAX_VALUE) {
+            if (size > UniBuffer.MAX_SIZE) {
                 throw new IllegalArgumentException("File is too large: " + file);
             }
 

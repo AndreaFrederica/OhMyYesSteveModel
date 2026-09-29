@@ -26,7 +26,7 @@ public final class ChunkDecoding {
                             + " encoding=" + chunk.encoding()
                             + " encodedSize=" + chunk.size()
                             + " decodedSize=" + chunk.decodeSize()
-                            + " nativeStatus=" + error.getMessage(),
+                            + " codecStatus=" + error.getMessage(),
                     error);
         }
     }

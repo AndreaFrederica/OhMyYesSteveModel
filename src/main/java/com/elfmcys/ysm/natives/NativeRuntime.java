@@ -30,7 +30,7 @@ public final class NativeRuntime {
             return nativeConfig;
         }
 
-        var packedNativeConfig = nInitialize(packedJavaConfig);
+        var packedNativeConfig = CONFIG_VERSION;
         var decoded = NativeConfig.decode(packedNativeConfig);
         initializedJavaConfig = packedJavaConfig;
         nativeConfig = decoded;
@@ -102,5 +102,5 @@ public final class NativeRuntime {
         }
     }
 
-    private static native long nInitialize(long javaConfig);
+
 }

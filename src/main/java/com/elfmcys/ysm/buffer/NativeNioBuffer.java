@@ -14,6 +14,19 @@ class NativeNioBuffer implements NativeBuffer {
     private final long headPtr;
     private final Ownership ownership;
 
+    static NativeBuffer allocate(int size, int alignment) {
+        if (size < 0 || size > MAX_SIZE) throw new IllegalArgumentException("Invalid buffer size");
+        if (alignment < 0 || (alignment != 0 && (alignment & (alignment - 1)) != 0)) {
+            throw new IllegalArgumentException("Alignment must be zero or a power of two");
+        }
+        int capacity = Math.addExact(size, Math.max(0, alignment - 1));
+        ByteBuffer owner = ByteBuffer.allocateDirect(capacity);
+        long base = MemoryUtil.memAddress(owner);
+        int offset = alignment == 0 ? 0 : (int) ((-base) & (alignment - 1L));
+        ByteBuffer view = owner.slice(offset, size);
+        return new NativeNioBuffer(view, base + offset, new Ownership(new Backing(owner)));
+    }
+
     NativeNioBuffer(ByteBuffer data, boolean owning) {
         if (!data.isDirect()) {
             throw new IllegalArgumentException("Buffer is not direct");

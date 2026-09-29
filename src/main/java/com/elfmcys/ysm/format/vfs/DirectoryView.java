@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.format.vfs;
 
-import com.elfmcys.ysm.buffer.NativeBuffer;
+import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.buffer.annotation.Borrowed;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,7 +52,7 @@ class DirectoryView implements VirtualFileSystem {
 
     @Borrowed
     @Override
-    public @Nullable NativeBuffer getFile(String fileName) {
+    public @Nullable UniBuffer getFile(String fileName) {
         return underlying.getFile(prependPath(fileName));
     }
 }

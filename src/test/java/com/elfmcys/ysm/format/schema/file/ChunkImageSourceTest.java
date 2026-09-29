@@ -236,7 +236,7 @@ class ChunkImageSourceTest {
 
         var error = assertThrows(AssetLoadException.class, source::open);
         assertEquals(AssetLoadException.Reason.CONTENT, error.reason());
-        assertEquals("Failed to read image", error.getCause().getMessage());
+        assertTrue(error.getCause().getMessage().startsWith("Failed to decode image:"));
     }
 
     @Test

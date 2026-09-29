@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.format.parser;
 
-import com.elfmcys.ysm.format.media.SupportedAudioProbe;
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
 import com.elfmcys.ysm.format.parser.pojo.animation.AnimationFile;
 import com.elfmcys.ysm.format.parser.pojo.controller.AnimationControllerFile;
 import com.elfmcys.ysm.format.parser.pojo.manifest.ModelManifest;

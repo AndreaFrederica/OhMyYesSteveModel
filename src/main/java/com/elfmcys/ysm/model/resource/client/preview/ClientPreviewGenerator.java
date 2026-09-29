@@ -58,6 +58,12 @@ public final class ClientPreviewGenerator implements Closeable {
     private final ArrayBlockingQueue<Submission> submissions;
     private final Map<Long, Operation> active = new LinkedHashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private int hostStartsRemaining = 1;
+
+    /** Several catch-up client ticks still share one preview draw per rendered frame. */
+    public synchronized void beginRenderFrame() {
+        hostStartsRemaining = 1;
+    }
 
     public ClientPreviewGenerator(ClientCatalogManager catalogs,
                                   ClientModelRenderTargetManager targets,
@@ -159,6 +165,9 @@ public final class ClientPreviewGenerator implements Closeable {
             output.completeExceptionally(
                     new CancellationException("Preview operation owner is closed"));
         }
+        output.whenComplete((ignored, failure) -> {
+            if (output.isCancelled()) submissions.remove(submission);
+        });
         return output;
     }
 
@@ -171,8 +180,9 @@ public final class ClientPreviewGenerator implements Closeable {
             if (operation.output().isCancelled()) {
                 operation.requestCancellation();
             }
-            var fact = operation.poll();
+            var fact = operation.poll(hostStartsRemaining > 0 || operation.output().isCancelled());
             if (fact != null) {
+                if (needsHost(fact) && !operation.output().isCancelled()) hostStartsRemaining--;
                 apply(operation, fact);
             }
         }
@@ -195,6 +205,10 @@ public final class ClientPreviewGenerator implements Closeable {
 
     synchronized int activeOperationCount() {
         return active.size();
+    }
+
+    private static boolean needsHost(Fact fact) {
+        return fact.failure() == null && (fact instanceof TargetFact || fact instanceof DetachedFact);
     }
 
     private void start(Operation operation) {
@@ -437,6 +451,11 @@ public final class ClientPreviewGenerator implements Closeable {
                                 FactSupplier supplier, FailureCleanup cleanup) {
         try {
             workers.execute(() -> {
+                if (slot.isClosed() || operation.output().isCancelled()) {
+                    slot.publish(new FailureFact(cleanup.apply(
+                            new CancellationException("Preview worker was cancelled before execution"))));
+                    return;
+                }
                 Fact fact;
                 try {
                     fact = Objects.requireNonNull(supplier.get(),
@@ -847,8 +866,8 @@ public final class ClientPreviewGenerator implements Closeable {
             return slot;
         }
 
-        private Fact poll() {
-            return slot == null ? null : slot.poll();
+        private Fact poll(boolean allowHost) {
+            return slot == null ? null : slot.poll(allowHost);
         }
 
         private CompletableFuture<?> output() {
@@ -896,8 +915,9 @@ public final class ClientPreviewGenerator implements Closeable {
             }
         }
 
-        private Fact poll() {
+        private Fact poll(boolean allowHost) {
             var value = state.get();
+            if (value instanceof Fact fact && !allowHost && needsHost(fact)) return null;
             if (value instanceof Fact fact && state.compareAndSet(value, CONSUMED)) {
                 return fact;
             }

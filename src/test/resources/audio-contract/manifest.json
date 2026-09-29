@@ -1,0 +1,92 @@
+{
+  "cases": [
+    {
+      "id": "opus-under",
+      "codec": "opus",
+      "source_channels": 2,
+      "sample_rate": 48000,
+      "frames": 191999,
+      "pre_skip": 312,
+      "short_eligible": true,
+      "encoded": "opus-under.ogg",
+      "reference": "opus-under.s16le"
+    },
+    {
+      "id": "opus-exact",
+      "codec": "opus",
+      "source_channels": 2,
+      "sample_rate": 48000,
+      "frames": 192000,
+      "pre_skip": 312,
+      "short_eligible": false,
+      "encoded": "opus-exact.ogg",
+      "reference": "opus-exact.s16le"
+    },
+    {
+      "id": "opus-long",
+      "codec": "opus",
+      "source_channels": 2,
+      "sample_rate": 48000,
+      "frames": 240001,
+      "pre_skip": 312,
+      "short_eligible": false,
+      "encoded": "opus-long.ogg",
+      "reference": "opus-long.s16le"
+    },
+    {
+      "id": "opus-origin",
+      "codec": "opus",
+      "source_channels": 2,
+      "sample_rate": 48000,
+      "frames": 60001,
+      "pre_skip": 312,
+      "short_eligible": true,
+      "encoded": "opus-origin.ogg",
+      "reference": "opus-origin.s16le"
+    },
+    {
+      "id": "opus-input-rate",
+      "codec": "opus",
+      "source_channels": 2,
+      "sample_rate": 48000,
+      "frames": 60001,
+      "pre_skip": 312,
+      "short_eligible": true,
+      "encoded": "opus-input-rate.ogg",
+      "reference": "opus-input-rate.s16le"
+    },
+    {
+      "id": "vorbis-under",
+      "codec": "vorbis",
+      "source_channels": 2,
+      "sample_rate": 44100,
+      "frames": 176399,
+      "pre_skip": 0,
+      "short_eligible": true,
+      "encoded": "vorbis-under.ogg",
+      "reference": "vorbis-under.s16le"
+    },
+    {
+      "id": "vorbis-exact",
+      "codec": "vorbis",
+      "source_channels": 2,
+      "sample_rate": 44100,
+      "frames": 176400,
+      "pre_skip": 0,
+      "short_eligible": false,
+      "encoded": "vorbis-exact.ogg",
+      "reference": "vorbis-exact.s16le"
+    },
+    {
+      "id": "vorbis-long",
+      "codec": "vorbis",
+      "source_channels": 2,
+      "sample_rate": 44100,
+      "frames": 220501,
+      "pre_skip": 0,
+      "short_eligible": false,
+      "encoded": "vorbis-long.ogg",
+      "reference": "vorbis-long.s16le"
+    }
+  ]
+}

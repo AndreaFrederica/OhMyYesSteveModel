@@ -154,6 +154,14 @@ class CatalogReconcilerTest {
                 .getParent();
         copyTree(source, root.resolve("raw-model"));
 
+        // The builtin Ogg streams are valid, including legal EOS trimming.
+        // Damage one supported stream explicitly instead of relying on a
+        // previous decoder's rejection of a valid builtin file.
+        var sound = root.resolve("raw-model/sounds/dooble.ogg");
+        var corrupt = Files.readAllBytes(sound);
+        corrupt[corrupt.length - 1] ^= 1;
+        Files.write(sound, corrupt);
+
         var candidate = reconciler(root).reconcile();
 
         assertEquals(0, candidate.snapshot().report().errorCount());

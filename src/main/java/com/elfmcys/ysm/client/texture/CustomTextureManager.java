@@ -40,6 +40,11 @@ public final class CustomTextureManager {
         REGISTRY.tick();
     }
 
+    public static void uploadFrame() {
+        RenderSystem.assertOnRenderThread();
+        REGISTRY.uploadFrame();
+    }
+
     static final class Registry {
         private static final int MAX_MILLI = 20;
 
@@ -92,6 +97,8 @@ public final class CustomTextureManager {
             if (registration == null) {
                 return;
             }
+
+            if (texture instanceof CustomTexture custom) custom.cancelPendingLoad();
             registration.clearHolder();
             discardIfUnregistered(texture, registration, registration.state.releaseCurrent());
         }
@@ -101,6 +108,8 @@ public final class CustomTextureManager {
             while ((cleanup = cleanupEvents.poll()) != null) {
                 var registration = registrations.get(cleanup.texture());
                 if (registration != null) {
+                    if (cleanup.texture() instanceof CustomTexture custom
+                            && registration.holder() == null) custom.cancelPendingLoad();
                     discardIfUnregistered(cleanup.texture(), registration,
                             registration.state.release(cleanup.token()));
                 }
@@ -126,6 +135,16 @@ public final class CustomTextureManager {
                 }
                 if (stopWatch.getTime() >= MAX_MILLI) {
                     return;
+                }
+            }
+        }
+
+        void uploadFrame() {
+            long deadline = System.nanoTime() + 2_000_000L;
+            int uploaded = 0;
+            for (var texture : registrations.keySet()) {
+                if (texture instanceof CustomTexture custom && custom.uploadReady()) {
+                    if (++uploaded >= 2 || System.nanoTime() >= deadline) return;
                 }
             }
         }

@@ -440,5 +440,10 @@
   "gui.yes_steve_model.catalog.tooltip.textures": "Textures: %s",
   "gui.yes_steve_model.catalog.tooltip.root_cause": "Root cause: %s",
   "commands.ysm.model.reload.unknown_audio": "Ignored %s unsupported model audio file(s); the model catalog was still published.",
-  "commands.ysm.model.reload.invalid_audio": "Ignored %s invalid supported model audio file(s); the model catalog was still published."
+  "commands.ysm.model.reload.invalid_audio": "Ignored %s invalid supported model audio file(s); the model catalog was still published.",
+  "commands.yes_steve_model.v3d.usage": "/ysm v3d export \"path relative to ysm/custom\" | validate \"workspace.v3d\" | restore \"workspace.v3d\". Output: ysm/export/v3d; restored originals: ysm/export/restored.",
+  "commands.yes_steve_model.v3d.started": "V3D %s started in the background.",
+  "commands.yes_steve_model.v3d.success": "V3D %s completed: %s",
+  "commands.yes_steve_model.v3d.failure": "V3D failed: %s",
+  "commands.yes_steve_model.v3d.busy": "A V3D operation is already running. Try again when it finishes."
 }

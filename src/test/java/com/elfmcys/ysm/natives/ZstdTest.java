@@ -36,7 +36,7 @@ class ZstdTest {
     }
 
     @Test
-    void rejectsInvalidCompressedDataThroughNullBoundaryValue() {
+    void rejectsInvalidCompressedDataAndHashes() {
         var payload = new byte[4096];
         Arrays.fill(payload, (byte) 7);
         var hash = new byte[Blake3.HASH_SIZE];
@@ -53,7 +53,7 @@ class ZstdTest {
             var error = assertThrows(IllegalStateException.class,
                     () -> Zstd.decompressAndValidate(
                             source, payload.length, hash, BufferType.ARRAY));
-            assertEquals("Native zstd decompression returned no result",
+            assertEquals("Zstd decompression failed",
                     error.getMessage());
         }
 
@@ -61,7 +61,7 @@ class ZstdTest {
             var error = assertThrows(IllegalStateException.class,
                     () -> Zstd.decompressAndValidate(
                             source, payload.length + 1, hash, BufferType.NATIVE));
-            assertEquals("Native zstd decompression returned no result",
+            assertEquals("Zstd decompression failed",
                     error.getMessage());
         }
 
@@ -69,7 +69,7 @@ class ZstdTest {
             var error = assertThrows(IllegalStateException.class,
                     () -> Zstd.decompressAndValidate(
                             source, payload.length - 1, hash, BufferType.ARRAY));
-            assertEquals("Native zstd decompression returned no result",
+            assertEquals("Zstd decompression failed",
                     error.getMessage());
         }
 
@@ -79,22 +79,24 @@ class ZstdTest {
             var error = assertThrows(IllegalStateException.class,
                     () -> Zstd.decompressAndValidate(
                             source, payload.length, incorrectHash, BufferType.ARRAY));
-            assertEquals("Native zstd decompression returned no result",
+            assertEquals("Zstd decompression failed",
                     error.getMessage());
         }
     }
 
     @Test
-    void temporaryNativeOwnerSurvivesConcurrentGcDuringJniCall() throws Exception {
+    void temporaryDirectOwnerSurvivesConcurrentGcDuringCodecCall() throws Exception {
         var payload = new byte[4 * 1024 * 1024];
         for (var index = 0; index < payload.length; index++) {
             payload[index] = (byte) (index * 31);
         }
         var running = new AtomicBoolean(true);
+        // Initialize the signed Java crypto classes before applying GC pressure.
+        try (var warmup = buffer(new byte[0], BufferType.ARRAY)) { Blake3.computeHash(warmup); }
         var gc = new Thread(() -> {
             while (running.get()) {
                 System.gc();
-                Thread.onSpinWait();
+                java.util.concurrent.locks.LockSupport.parkNanos(10_000_000);
             }
         }, "zstd-owner-gc-pressure");
         gc.setDaemon(true);

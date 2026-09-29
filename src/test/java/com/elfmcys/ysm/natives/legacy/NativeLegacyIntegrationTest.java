@@ -14,14 +14,13 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
-@EnabledIfEnvironmentVariable(named = "YSM_NATIVE_PATH", matches = ".+")
 @ExtendWith(NativeLibraryExtension.class)
 class NativeLegacyIntegrationTest {
     @TempDir
     Path temp;
 
     @Test
-    void invokesEnvelopeRouterRegisteredByTheMainLibrary() throws Exception {
+    void portableImporterPreservesStableSourceAndEnvelopeFailures() throws Exception {
         assertStatus(temp.resolve("missing.ysm"), NativeLegacyStatus.SOURCE_IO);
 
         assertBytes("empty", new byte[0], NativeLegacyStatus.INVALID_CONTENT);
@@ -85,9 +84,9 @@ class NativeLegacyIntegrationTest {
         assertStatus(source, expected);
     }
 
-    private static void assertStatus(Path path, NativeLegacyStatus expected) {
-        var response = NativeLegacyImporter.invoke(path);
-        var failure = assertInstanceOf(NativeLegacyProtocol.Failure.class, response);
-        assertEquals(expected, failure.status());
+    private void assertStatus(Path path, NativeLegacyStatus expected) {
+        var failure = org.junit.jupiter.api.Assertions.assertThrows(LegacyModelImportException.class,
+                () -> new LegacyModelImporter().stage(path, temp.resolve("output")));
+        assertEquals(expected.code(), failure.statusCode());
     }
 }

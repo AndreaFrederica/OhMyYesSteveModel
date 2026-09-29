@@ -15,23 +15,23 @@ class LegacySoundProjectionTest {
     void requiresTheProjectedDescriptorToMatchThePreservedStream() throws Exception {
         var encoded = ByteBuffer.wrap(Files.readAllBytes(
                 fixtureRoot().resolve("opus-under.ogg")));
-        var record = new NativeLegacyProtocol.PayloadRecord(
-                NativeLegacyProtocol.PayloadKind.SOUND_STREAM,
-                NativeLegacyProtocol.PayloadEncoding.OGG_OPUS,
+        var record = new LegacyPayloadContract.PayloadRecord(
+                LegacyPayloadContract.PayloadKind.SOUND_STREAM,
+                LegacyPayloadContract.PayloadEncoding.OGG_OPUS,
                 1, "tone", 0, 0, 0, encoded.remaining());
         var valid = sound("tone", "OGG_OPUS", 2, 48_000, 191_999, 1);
 
         assertDoesNotThrow(() -> LegacyModelImporter.validateSound(
                 record, encoded, Map.of(1, valid)));
-        assertThrows(NativeLegacyProtocol.ProtocolException.class,
+        assertThrows(LegacyPayloadContract.ProtocolException.class,
                 () -> LegacyModelImporter.validateSound(record, encoded,
                         Map.of(1, sound("tone", "OGG_OPUS", 2,
                                 48_000, 192_000, 1))));
-        assertThrows(NativeLegacyProtocol.ProtocolException.class,
+        assertThrows(LegacyPayloadContract.ProtocolException.class,
                 () -> LegacyModelImporter.validateSound(record, encoded,
                         Map.of(1, sound("other", "OGG_OPUS", 2,
                                 48_000, 191_999, 1))));
-        assertThrows(NativeLegacyProtocol.ProtocolException.class,
+        assertThrows(LegacyPayloadContract.ProtocolException.class,
                 () -> LegacyModelImporter.validateSound(record, encoded,
                         Map.of(1, sound("tone", "OGG_VORBIS", 2,
                                 48_000, 191_999, 1))));

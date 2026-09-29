@@ -17,6 +17,14 @@ public class ClientTickEvent {
     private static int refreshRate = 60;
 
     @SubscribeEvent
+    public static void onRenderTick(TickEvent.RenderTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) {
+            CustomTextureManager.uploadFrame();
+            ClientModelService.current().ifPresent(ClientModelService::beginRenderFrame);
+        }
+    }
+
+    @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (!YesSteveModel.isAvailable()) {
             return;

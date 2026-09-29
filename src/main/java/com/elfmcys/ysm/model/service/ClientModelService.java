@@ -342,7 +342,11 @@ public final class ClientModelService implements AutoCloseable {
     }
 
     public CustomTexture createTexture(ImageSource source) {
-        return new CustomTexture(source);
+        return new CustomTexture(source, workers);
+    }
+
+    public void beginRenderFrame() {
+        if (previewOperations != null) previewOperations.beginRenderFrame();
     }
 
     public AudioStreamProvider createSoundPlayback(SoundSource source) {

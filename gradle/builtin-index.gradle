@@ -4,13 +4,38 @@ sourceSets {
     builtinIndexTool {
         java.srcDir 'src/builtinIndexTool/java'
         compileClasspath += sourceSets.main.output.classesDirs + sourceSets.main.compileClasspath
-        runtimeClasspath = output + sourceSets.main.output.classesDirs + configurations.runtimeClasspath
+        runtimeClasspath += sourceSets.main.output.classesDirs + configurations.runtimeClasspath
     }
 }
 
 sourceSets.test {
     compileClasspath += sourceSets.builtinIndexTool.output
     runtimeClasspath += sourceSets.builtinIndexTool.output
+}
+
+dependencies {
+    builtinIndexToolImplementation 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.0'
+}
+
+configurations { v3dToolClasspath }
+dependencies { v3dToolClasspath 'cc.sirrus.ysmlib:ysm-runtime-tools:0.1.0' }
+
+tasks.register('v3dWorkspace', JavaExec) {
+    group = 'application'
+    description = 'Delegates archival V3D operations to the standalone ysmlib tool.'
+    classpath = configurations.v3dToolClasspath
+    mainClass = 'cc.sirrus.ysmlib.tools.V3dTool'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    doFirst {
+        def source = providers.gradleProperty('v3dSource').getOrNull()
+        def output = providers.gradleProperty('v3dOutput').getOrNull()
+        def operation = providers.gradleProperty('v3dOperation').getOrElse('decode')
+        if (!source || (operation != 'validate' && !output))
+            throw new GradleException('Set -Pv3dSource and -Pv3dOutput (output omitted for validate)')
+        def arguments = [operation, file(source).absolutePath]
+        if (operation != 'validate') arguments.add(file(output).absolutePath)
+        setArgs(arguments)
+    }
 }
 
 def builtinModelRoot = layout.projectDirectory.dir('src/main/resources/assets/ysm/builtin')
@@ -30,7 +55,6 @@ def builtinToolLauncher = javaToolchains.launcherFor {
 def configureBuiltinToolTask = { BuiltinModelToolTask task, String command ->
     task.command.set(command)
     task.toolClasspath.from(sourceSets.builtinIndexTool.runtimeClasspath)
-    task.nativeLibrary.set(ysmNativeLibraryFile)
     task.operatingSystem.set(providers.systemProperty('os.name'))
     task.architecture.set(providers.systemProperty('os.arch'))
     task.javaExecutable.set(builtinToolLauncher.map {

@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.format.parser;
 
-import com.elfmcys.ysm.buffer.NativeBuffer;
+import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.format.vfs.VirtualFileSystem;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
@@ -35,7 +35,7 @@ final class RawModelSource {
         return canonicalizer.aggregate();
     }
 
-    Optional<NativeBuffer> readFile(String path, String type,
+    Optional<UniBuffer> readFile(String path, String type,
                                     boolean required) throws FileNotFoundException {
         if (!StringUtils.isBlank(path)) {
             var borrowed = vfs.getFile(path);
@@ -68,7 +68,7 @@ final class RawModelSource {
     }
 
     void collectFiles(String directory, String extension, String type,
-                      boolean recursive, BiConsumer<String, NativeBuffer> consumer) {
+                      boolean recursive, BiConsumer<String, UniBuffer> consumer) {
         collectFileNames(directory, extension, recursive, (name, path) -> {
             try {
                 consumer.accept(name, readFile(path, type, true).orElseThrow());
@@ -84,7 +84,7 @@ final class RawModelSource {
         collectFilesImpl(root, root, extension.toLowerCase(Locale.ROOT), recursive, consumer);
     }
 
-    static String readUtf8(NativeBuffer buffer) {
+    static String readUtf8(UniBuffer buffer) {
         return StandardCharsets.UTF_8.decode(buffer.nio()).toString();
     }
 

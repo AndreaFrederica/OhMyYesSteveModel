@@ -1,7 +1,6 @@
 package com.elfmcys.ysm.format.parser;
 
 import com.elfmcys.ysm.buffer.ArrayBuffer;
-import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.natives.Blake3;
 
@@ -14,7 +13,7 @@ import java.util.TreeMap;
 public class ModelHashCanonicalizer {
     private final TreeMap<RecordKey, byte[]> items = new TreeMap<>();
 
-    public void add(String role, String portablePath, NativeBuffer original) {
+    public void add(String role, String portablePath, UniBuffer original) {
         Objects.requireNonNull(original, "original");
         var bytes = new byte[original.size()];
         original.nio().get(bytes);

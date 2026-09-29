@@ -80,7 +80,7 @@ final class CatalogModelCardState implements AutoCloseable {
 
     @Nullable
     TextureHolder preview() {
-        return preview;
+        return previewTexture != null && previewTexture.ready() ? preview : null;
     }
 
     @Nullable
@@ -117,10 +117,8 @@ final class CatalogModelCardState implements AutoCloseable {
                 loadError = new IllegalStateException("One or more preview animations failed to load");
             }
         }
-        if (loadError != null) {
-            targetState.fail(loadError);
-        }
-        return targetState.failure();
+        // Presentation failures do not retire an otherwise usable 3D model.
+        return loadError;
     }
 
     void updatePreviewAnimations(boolean hovered, boolean focused, long now) {

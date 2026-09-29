@@ -50,7 +50,7 @@ class BakedAnimationCacheTest {
     void usesUnstableBakeCacheSuffixes() {
         assertEquals(".geo.ysm-cache", BakedModelCache.CACHE_SUFFIX);
         assertEquals(".anim.ysm-cache", BakedAnimationCache.CACHE_SUFFIX);
-        assertEquals("renderer-0.2.0-unstable", BakedModelCache.CACHE_ABI);
+        assertEquals("ysmlib-java-bake-1", BakedModelCache.CACHE_ABI);
         assertEquals("animation-0.3.0-unstable", BakedAnimationCache.CACHE_ABI);
     }
 

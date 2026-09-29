@@ -316,7 +316,7 @@ class ModelParserTest {
         return vfs;
     }
 
-    private static byte[] bytes(NativeBuffer buffer) {
+    private static byte[] bytes(com.elfmcys.ysm.buffer.UniBuffer buffer) {
         var result = new byte[Objects.requireNonNull(buffer, "buffer").size()];
         buffer.nio().get(result);
         return result;

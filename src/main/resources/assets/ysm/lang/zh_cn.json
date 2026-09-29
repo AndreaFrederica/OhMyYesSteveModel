@@ -441,5 +441,10 @@
   "gui.yes_steve_model.catalog.tooltip.textures": "材质：%s",
   "gui.yes_steve_model.catalog.tooltip.root_cause": "根因：%s",
   "commands.ysm.model.reload.unknown_audio": "已忽略 %s 个不受支持的模型音频文件；模型目录仍已成功发布。",
-  "commands.ysm.model.reload.invalid_audio": "已忽略 %s 个格式已知但内容损坏的模型音频文件；模型目录仍已成功发布。"
+  "commands.ysm.model.reload.invalid_audio": "已忽略 %s 个格式已知但内容损坏的模型音频文件；模型目录仍已成功发布。",
+  "commands.yes_steve_model.v3d.usage": "/ysm v3d export \"相对 ysm/custom 的路径\" | validate \"工作区.v3d\" | restore \"工作区.v3d\"。输出：ysm/export/v3d；原样恢复：ysm/export/restored。",
+  "commands.yes_steve_model.v3d.started": "V3D %s 已在后台开始。",
+  "commands.yes_steve_model.v3d.success": "V3D %s 完成：%s",
+  "commands.yes_steve_model.v3d.failure": "V3D 操作失败：%s",
+  "commands.yes_steve_model.v3d.busy": "已有 V3D 任务正在执行，请等待完成后重试。"
 }

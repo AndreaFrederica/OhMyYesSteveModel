@@ -3,10 +3,7 @@ def localPropertiesFile = layout.projectDirectory.file('local.properties').asFil
 if (!localPropertiesFile.exists()) {
     def template = '''# Local development settings. This file is ignored by Git.
 
-# ysm.native_path must be the absolute path to ysm.dll, libysm.so, or libysm.dylib.
-# Pass environment variable YSM_NATIVE_PATH to override this,
-# or leave the value empty to use src/main/resources/META-INF/native for the current platform.
-ysm.native_path=
+# Official YSM native is not used by this fork.
 # Fast run keeps collaboration mods on the compile classpath but removes them from the runtime classpath.
 ysm.fast_run=false
 # Comma-separated group:artifact entries to keep on the runtime classpath while fast run is enabled.

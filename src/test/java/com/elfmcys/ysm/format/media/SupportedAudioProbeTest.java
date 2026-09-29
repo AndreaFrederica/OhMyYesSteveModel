@@ -1,5 +1,7 @@
 package com.elfmcys.ysm.format.media;
 
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
+
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 

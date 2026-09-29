@@ -5,7 +5,7 @@ import com.elfmcys.ysm.format.parser.CapturedModel;
 import com.elfmcys.ysm.format.parser.ModelParser;
 import com.elfmcys.ysm.format.parser.RawCompileResult;
 import com.elfmcys.ysm.format.vfs.Directory;
-import com.elfmcys.ysm.natives.NativeArchive;
+import com.elfmcys.ysm.format.vfs.ArchiveFileSystem;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +24,7 @@ public final class RawModelImporter {
                 return ModelParser.capture(vfs);
             }
         }
-        try (var vfs = new NativeArchive(source.toString())) {
+        try (var vfs = ArchiveFileSystem.open(source)) {
             return ModelParser.capture(vfs);
         }
     }

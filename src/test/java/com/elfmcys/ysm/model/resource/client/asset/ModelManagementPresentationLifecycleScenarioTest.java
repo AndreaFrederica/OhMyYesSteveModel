@@ -56,6 +56,26 @@ class ModelManagementPresentationLifecycleScenarioTest {
     Path temp;
 
     @Test
+    void closingPageCancelsTheOriginalPreviewOperationNotOnlyItsResultWrapper() throws Exception {
+        var fixture = RemotePublicationScenarioFixture.create(temp.resolve("cancel-preview-fixture"));
+        try (var catalogs = ClientCatalogScenarioHarness.open(temp.resolve("cancel-preview-catalog"),
+                fixture.asset("default").file(), List.of(fixture.asset("presentation-rich").file()))) {
+            var upstream = new CompletableFuture<com.elfmcys.ysm.natives.image.ImageSource>();
+            var repository = new ClientAssetRepository(catalogs.manager(),
+                    (members, receiver) -> CompletableFuture.failedFuture(new AssertionError("Unexpected network")),
+                    java.util.function.Function.identity(), null, Runnable::run,
+                    content -> upstream, content -> CompletableFuture.completedFuture(java.util.Optional.empty()));
+            var page = repository.openBatch();
+            var result = page.preview(fixture.asset("presentation-rich").identity().modelId());
+            page.submit();
+            org.junit.jupiter.api.Assertions.assertFalse(upstream.isDone());
+            page.close();
+            org.junit.jupiter.api.Assertions.assertTrue(upstream.isCancelled());
+            org.junit.jupiter.api.Assertions.assertTrue(result.isCancelled());
+        }
+    }
+
+    @Test
     void localDelayedImageReadsThroughTheExactRuntimeContent() throws Exception {
         var fixture = RemotePublicationScenarioFixture.create(temp.resolve("exact-fixture"));
         var expected = new IOException("exact runtime source");

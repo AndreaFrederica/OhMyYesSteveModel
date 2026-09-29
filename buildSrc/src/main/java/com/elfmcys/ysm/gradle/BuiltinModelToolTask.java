@@ -53,10 +53,6 @@ public abstract class BuiltinModelToolTask extends DefaultTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getSourceFiles();
 
-    @InputFile
-    @PathSensitive(PathSensitivity.NONE)
-    public abstract RegularFileProperty getNativeLibrary();
-
     @Optional
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -120,7 +116,6 @@ public abstract class BuiltinModelToolTask extends DefaultTask {
         var arguments = new ArrayList<String>();
         var command = getCommand().get();
         arguments.add(command);
-        arguments.add(getNativeLibrary().get().getAsFile().getAbsolutePath());
         arguments.add(getSourceRoot().get().getAsFile().getAbsolutePath());
         arguments.add(output.toAbsolutePath().normalize().toString());
         arguments.add(workDirectory.toAbsolutePath().normalize().toString());

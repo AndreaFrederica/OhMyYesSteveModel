@@ -1,6 +1,5 @@
 package com.elfmcys.ysm.tool;
 
-import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.format.parser.ModelParser;
 import com.elfmcys.ysm.format.schema.model.ModelFileIdentityReader;
 import com.elfmcys.ysm.format.vfs.Directory;
@@ -16,7 +15,6 @@ import com.elfmcys.ysm.model.domain.ModelFileIdentity;
 import com.elfmcys.ysm.model.domain.ModelPath;
 import com.elfmcys.ysm.model.storage.ManagedContainer;
 import com.elfmcys.ysm.model.storage.ModelHashing;
-import com.elfmcys.ysm.natives.NativeRuntime;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +27,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.logging.log4j.Level;
 
 public final class BuiltinModelIndexTool {
     private static final ModelPath DEFAULT_PATH = new ModelPath("default");
@@ -43,40 +40,36 @@ public final class BuiltinModelIndexTool {
             throw usage();
         }
         var expectedArguments = switch (args[0]) {
-            case "generate-default-contract" -> 5;
-            case "generate-index", "verify" -> 7;
+            case "generate-default-contract" -> 4;
+            case "generate-index", "verify" -> 6;
             default -> throw new IllegalArgumentException("Unknown command: " + args[0]);
         };
         if (args.length != expectedArguments) {
             throw usage();
         }
 
-        var libPath = Path.of(args[1]).toAbsolutePath().normalize().toString();
-        YesSteveModel.LOGGER.error("Loading native lib: {}", libPath);
-        System.load(libPath);
-        NativeRuntime.initialize(NativeRuntime.JavaConfig.fromLog4j(Level.INFO));
-        var sourceRoot = Path.of(args[2]).toAbsolutePath().normalize();
-        var resultFile = Path.of(args[3]).toAbsolutePath().normalize();
-        var workDirectory = Path.of(args[4]).toAbsolutePath().normalize();
+        var sourceRoot = Path.of(args[1]).toAbsolutePath().normalize();
+        var resultFile = Path.of(args[2]).toAbsolutePath().normalize();
+        var workDirectory = Path.of(args[3]).toAbsolutePath().normalize();
         switch (args[0]) {
             case "generate-default-contract" ->
                     generateDefaultContract(sourceRoot, resultFile, workDirectory);
             case "generate-index" -> generateIndex(sourceRoot, resultFile,
-                    Path.of(args[5]).toAbsolutePath().normalize(),
-                    Path.of(args[6]).toAbsolutePath().normalize());
+                    Path.of(args[4]).toAbsolutePath().normalize(),
+                    Path.of(args[5]).toAbsolutePath().normalize());
             case "verify" -> verify(sourceRoot, resultFile, workDirectory,
-                    Path.of(args[5]).toAbsolutePath().normalize(),
-                    Path.of(args[6]).toAbsolutePath().normalize());
+                    Path.of(args[4]).toAbsolutePath().normalize(),
+                    Path.of(args[5]).toAbsolutePath().normalize());
             default -> throw new AssertionError("Command was validated before native load");
         }
     }
 
     private static IllegalArgumentException usage() {
         return new IllegalArgumentException("Usage:\n"
-                + "  generate-default-contract <native-library> <default-root> <contract-file> <work-dir>\n"
-                + "  generate-index <native-library> <builtin-root> <index-file> <work-dir> "
+                + "  generate-default-contract <default-root> <contract-file> <work-dir>\n"
+                + "  generate-index <builtin-root> <index-file> <work-dir> "
                 + "<default-contract> <history-file>\n"
-                + "  verify <native-library> <builtin-root> <receipt-file> <work-dir> "
+                + "  verify <builtin-root> <receipt-file> <work-dir> "
                 + "<index-file> <default-contract>");
     }
 

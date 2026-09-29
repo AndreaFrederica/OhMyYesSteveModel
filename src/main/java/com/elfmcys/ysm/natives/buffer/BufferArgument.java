@@ -20,22 +20,20 @@ public class BufferArgument {
                     | ((long) nio.remaining() & 0xFFFF_FFFFL);
             return new Input(nio, flags);
         }
-        throw new IllegalArgumentException("Unknown UniBuffer type: " + buf.getClass().getName());
-    }
-
-    @Owned
-    public static UniBuffer unpackOutput(Object buf) {
-        if (buf instanceof byte[] array) {
-            return ArrayBuffer.move(array);
-        } else if (buf instanceof ByteBuffer nio) {
-            if (nio.isDirect()) {
-                return new NativeHeapBuffer(nio);
-            } else {
-                return ArrayBuffer.move(nio);
-            }
-        } else {
-            throw new IllegalArgumentException("Unknown data type");
+        // Generic read-only capture views deliberately expose neither raw pointers
+        // nor mutable arrays. Direct views can be borrowed; heap views need a copy.
+        var nio = buf.nio();
+        if (!nio.isReadOnly()) {
+            throw new IllegalArgumentException("Unknown mutable UniBuffer type: " + buf.getClass().getName());
         }
+        if (nio.isDirect()) {
+            long flags = Long.MIN_VALUE | ((long) nio.position() << 32)
+                    | (nio.remaining() & 0xFFFF_FFFFL);
+            return new Input(nio, flags);
+        }
+        var bytes = new byte[nio.remaining()];
+        nio.get(bytes);
+        return new Input(bytes, bytes.length);
     }
 
     public record Input(Object obj, long flags) {}

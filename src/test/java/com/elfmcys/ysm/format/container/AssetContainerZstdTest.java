@@ -112,7 +112,7 @@ class AssetContainerZstdTest {
             assertTrue(error.getMessage().contains(
                     "decodedSize=" + chunk.decodeSize()));
             assertTrue(error.getMessage().contains(
-                    "nativeStatus=Native zstd decompression returned no result"));
+                    "codecStatus=Zstd decompression failed"));
         }
     }
 

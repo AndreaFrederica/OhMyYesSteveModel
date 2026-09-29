@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.format.vfs;
 
-import com.elfmcys.ysm.buffer.NativeBuffer;
+import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.buffer.annotation.Borrowed;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +30,7 @@ public interface VirtualFileSystem {
 
     @Borrowed
     @Nullable
-    NativeBuffer getFile(String fileName);
+    UniBuffer getFile(String fileName);
 
     // 有个格式拿不到解压后的 size，所以没有这个接口
 }

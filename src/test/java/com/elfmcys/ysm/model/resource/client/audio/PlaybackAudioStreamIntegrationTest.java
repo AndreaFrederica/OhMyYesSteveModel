@@ -1,7 +1,7 @@
 package com.elfmcys.ysm.model.resource.client.audio;
 
 import com.elfmcys.ysm.buffer.NativeBuffer;
-import com.elfmcys.ysm.format.media.SupportedAudioProbe;
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
 import com.elfmcys.ysm.testutil.NativeLibraryExtension;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -19,7 +19,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@EnabledIfEnvironmentVariable(named = "YSM_NATIVE_PATH", matches = ".+")
 @ExtendWith(NativeLibraryExtension.class)
 class PlaybackAudioStreamIntegrationTest {
     private static final AudioRetentionCache.Receipt RECEIPT =
@@ -47,7 +46,7 @@ class PlaybackAudioStreamIntegrationTest {
             hotBytes = readAll(hot, 4095);
         }
         assertArrayEquals(coldBytes, hotBytes);
-        assertPcmWithinTwoLsb(fixture.reference(), coldBytes);
+        assertPcmReference(fixture.reference(), coldBytes);
         assertEquals(1, closes.get());
     }
 
@@ -76,7 +75,7 @@ class PlaybackAudioStreamIntegrationTest {
         System.arraycopy(fixture.reference(), 0, expected, 0, fixture.reference().length);
         System.arraycopy(fixture.reference(), 0, expected, fixture.reference().length,
                 fixture.reference().length);
-        assertPcmWithinTwoLsb(expected, twoCycles);
+        assertPcmReference(expected, twoCycles);
     }
 
     @Test
@@ -157,13 +156,8 @@ class PlaybackAudioStreamIntegrationTest {
                 Files.readAllBytes(root.resolve(name + ".s16le")));
     }
 
-    private static void assertPcmWithinTwoLsb(byte[] expected, byte[] actual) {
-        assertEquals(expected.length, actual.length);
-        var expectedPcm = ByteBuffer.wrap(expected).order(ByteOrder.LITTLE_ENDIAN);
-        var actualPcm = ByteBuffer.wrap(actual).order(ByteOrder.LITTLE_ENDIAN);
-        while (expectedPcm.hasRemaining()) {
-            assertTrue(Math.abs(expectedPcm.getShort() - actualPcm.getShort()) <= 2);
-        }
+    private static void assertPcmReference(byte[] expected, byte[] actual) {
+        com.elfmcys.ysm.testutil.AudioAssertions.reference(expected, actual, true, "Opus playback");
     }
 
     private record Fixture(byte[] encoded, byte[] reference) {

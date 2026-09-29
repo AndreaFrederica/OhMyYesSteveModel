@@ -4,7 +4,7 @@ import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.client.sound.stream.CustomAudioStream;
 import com.elfmcys.ysm.client.sound.stream.OpusAudioStream;
 import com.elfmcys.ysm.client.sound.stream.VorbisAudioStream;
-import com.elfmcys.ysm.format.media.SupportedAudioProbe;
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;

@@ -418,7 +418,7 @@ public final class ClientAssetRepository {
             var pending = new PendingAsset(() -> decodeRemotePreview(payload), member,
                     null, null, payload);
             assets.add(pending);
-            pending.preparation = probeRemotePreview(readable)
+            pending.preparation = track(pending, probeRemotePreview(readable))
                     .whenComplete((source, failure) -> {
                         synchronized (Batch.this) {
                             if (closed.get()) return;
@@ -456,7 +456,7 @@ public final class ClientAssetRepository {
             var pending = assets.get(assets.size() - 1);
             pending.started = true;
             try {
-                loader.get().whenComplete((source, failure) -> {
+                track(pending, loader.get()).whenComplete((source, failure) -> {
                     if (closed.get()) {
                         return;
                     }
@@ -495,7 +495,7 @@ public final class ClientAssetRepository {
                     return CompletableFuture.completedFuture(asset.prepared);
                 }
                 try {
-                    return asset.loader.get().handle(Resolved::new);
+                    return track(asset, asset.loader.get()).handle(Resolved::new);
                 } catch (RuntimeException failure) {
                     return CompletableFuture.completedFuture(new Resolved(null, failure));
                 }
@@ -521,12 +521,22 @@ public final class ClientAssetRepository {
             assets.forEach(asset -> asset.result.completeExceptionally(failure));
         }
 
+        private synchronized <T> CompletableFuture<T> track(PendingAsset asset, CompletableFuture<T> operation) {
+            asset.operation = Objects.requireNonNull(operation, "Asset loader returned no operation");
+            if (closed.get() || asset.result.isCancelled()) operation.cancel(false);
+            return operation;
+        }
+
         @Override
         public synchronized void close() {
             if (!closed.compareAndSet(false, true)) {
                 return;
             }
             if (transfer != null) transfer.cancel(false);
+            assets.forEach(asset -> {
+                if (asset.operation != null) asset.operation.cancel(false);
+                if (asset.preparation != null) asset.preparation.cancel(false);
+            });
             assets.stream().map(asset -> asset.previewPayload)
                     .filter(Objects::nonNull).forEach(PreviewPayload::close);
             assets.forEach(asset -> asset.result.cancel(false));
@@ -541,6 +551,7 @@ public final class ClientAssetRepository {
             private final PreviewPayload previewPayload;
             private final CompletableFuture<ImageSource> result = new CompletableFuture<>();
             private CompletableFuture<?> preparation;
+            private CompletableFuture<?> operation;
             private volatile Resolved prepared;
             private volatile boolean started;
 

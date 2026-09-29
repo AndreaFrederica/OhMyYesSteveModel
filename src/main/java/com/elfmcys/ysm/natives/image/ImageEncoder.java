@@ -1,6 +1,9 @@
 package com.elfmcys.ysm.natives.image;
 
 import com.elfmcys.ysm.buffer.NativeBuffer;
+import com.elfmcys.ysm.buffer.ArrayBuffer;
+import cc.sirrus.ysmlib.YsmRuntime;
+import org.lwjgl.system.MemoryUtil;
 import com.elfmcys.ysm.mixin.client.NativeImageAccessor;
 import com.mojang.blaze3d.platform.NativeImage;
 
@@ -41,25 +44,13 @@ public class ImageEncoder {
     private static Image encode(long pixels, Object pixelsOwner, int width, int height,
                                 boolean lossless, int maxWidth, int maxHeight) throws IOException {
         var capacity = Math.toIntExact(requiredPixelBytes(width, height));
-        try (var dstScope = NativeBuffer.allocateWithScope(capacity)) {
-            var dst = dstScope.get();
-            final long result;
-            try {
-                result = nEncode(pixels, width, height, dst.ptr(), dst.size(),
-                        lossless, maxWidth, maxHeight);
-            } finally {
-                Reference.reachabilityFence(pixelsOwner);
-                Reference.reachabilityFence(dst);
-            }
-            if (result == 0) {
-                throw new IOException("Failed to encode lossy image");
-            }
-            width  = (int) ((result >>> 48) & 0xFFFFL);
-            height = (int) ((result >>> 32) & 0xFFFFL);
-            var format = (int) ((result >>> 28) & 0xFL);
-            var size   = (int) (result & 0x0FFFFFFFL);
-            return new Image(Image.Format.VALUES.get(format), width, height, dstScope.release().slice(0, size));
-        }
+        try {
+            var encoded = YsmRuntime.images().encode(MemoryUtil.memByteBuffer(pixels, capacity), width, height,
+                    lossless ? width : maxWidth, lossless ? height : maxHeight);
+            var info = encoded.info();
+            return new Image(Image.Format.valueOf(info.format().name()), info.width(), info.height(),
+                    ArrayBuffer.move(encoded.bytes()));
+        } finally { Reference.reachabilityFence(pixelsOwner); }
     }
 
     private static void validatePixelBuffer(long size, int width, int height) {
@@ -69,13 +60,11 @@ public class ImageEncoder {
     }
 
     private static long requiredPixelBytes(int width, int height) {
-        if (width < 0 || height < 0) {
+        if (width <= 0 || height <= 0 || width > 65535 || height > 65535
+                || (long) width * height * 4 > com.elfmcys.ysm.buffer.UniBuffer.MAX_SIZE) {
             throw new IllegalArgumentException("Invalid image dimensions");
         }
         return Math.multiplyExact(Math.multiplyExact((long) width, height), 4L);
     }
 
-    private static native long nEncode(long pixels, int width, int height,
-                                             long dst, long dst_size,
-                                             boolean lossless, int maxWidth, int maxHeight);
 }

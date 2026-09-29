@@ -1,376 +1,262 @@
 package com.elfmcys.ysm.natives.render;
 
-import com.elfmcys.ysm.buffer.NativeBuffer;
-import com.elfmcys.ysm.buffer.annotation.Borrowed;
-import com.elfmcys.ysm.geckolib3.model.AnimatedGeoModel;
-import com.elfmcys.ysm.natives.NativeObject;
-import com.elfmcys.ysm.util.ExposedShortArrayList;
+import cc.sirrus.ysmlib.render.ModelState;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortList;
-import org.lwjgl.system.MemoryUtil;
-
-import java.lang.ref.Reference;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
-public final class NativeModelState extends NativeObject {
-    private static final int BONE_INFO_INT_COUNT = 8;
-    private static final int CUBE_INFO_HEADER_INT_COUNT = 2;
-    private static final int CUBE_INFO_INT_COUNT = 2;
+/** Minecraft adapter; the state and all transforms are owned by the prerequisite. */
+public final class NativeModelState implements com.elfmcys.ysm.util.Closeable {
+  private static final int BONE_INFO_INT_COUNT = 8,
+      CUBE_INFO_HEADER_INT_COUNT = 2,
+      CUBE_INFO_INT_COUNT = 2;
+  private final ModelState state = cc.sirrus.ysmlib.YsmRuntime.render().createState();
+  private BonePoseView poses;
 
-    private static final ByteBuffer EMPTY_NATIVE_BUFFER =
-            ByteBuffer.allocateDirect(0);
-    private static final ShortBuffer EMPTY_SHORT_BUFFER =
-            ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder()).asShortBuffer();
-    private static final ThreadLocal<int[]> BONE_INFO_BUFFER =
-            ThreadLocal.withInitial(() -> new int[0]);
-    private static final ThreadLocal<int[]> CUBE_INFO_BUFFER =
-            ThreadLocal.withInitial(() -> new int[0]);
+  private NativeModelState() {}
 
-    private final ExposedShortArrayList locatorBoneIndices = new ExposedShortArrayList(0);
-    private final long[] extractOutput = new long[4];
+  public static NativeModelState create() {
+    return new NativeModelState();
+  }
 
-    private BonePoseView bonePoses;
-    private ShortBuffer renderBoneIndices;
-    private int locatorCount;
-    private int totalVertexCount;
-    private int translucentVertexCount;
+  public ModelState runtimeState() {
+    return state;
+  }
 
-    private boolean valid;
+  public boolean extract(NativeBakedModel model, float[] attributes) {
+    invalidate();
+    if (!state.extract(model.runtimeModel(), attributes)) return false;
+    poses = new BonePoseView(state);
+    return true;
+  }
 
-    private NativeModelState(long ptr) {
-        super(ptr);
+  public void invalidate() {
+    state.invalidate();
+    poses = null;
+  }
+
+  public BonePoseView getBonePoses() {
+    return poses;
+  }
+
+  public ShortBuffer getRenderBoneIndices() {
+    if (!state.valid()) return null;
+    var indices = state.renderBones();
+    var result = new short[indices.size()];
+    for (int i = 0; i < result.length; i++) result[i] = (short) (int) indices.get(i);
+    return ShortBuffer.wrap(result).asReadOnlyBuffer();
+  }
+
+  public ShortList getLocatorBoneIndices() {
+    var result = new ShortArrayList();
+    for (int i : state.locators()) result.add((short) i);
+    return result;
+  }
+
+  public int getTotalVertexCount() {
+    return state.valid() ? state.vertices() : 0;
+  }
+
+  public int getTranslucentVertexCount() {
+    return state.valid() ? state.translucentVertices() : 0;
+  }
+
+  public boolean isValid() {
+    return state.valid();
+  }
+
+  public BoneInfoView calculateRenderBoneInfo() {
+    var bones = state.renderBones();
+    var data = new int[bones.size() * 8];
+    int offset = 0;
+    for (int p = 0; p < 4; p++)
+      for (int i = 0; i < bones.size(); i++) {
+        int count = state.model().bones().get(bones.get(i)).vertices(p);
+        data[i * 8 + p * 2] = offset;
+        data[i * 8 + p * 2 + 1] = count;
+        offset = Math.addExact(offset, count);
+      }
+    return new BoneInfoView(data, bones.size());
+  }
+
+  public CubeInfoView calculateRenderCubeInfo() {
+    var bones = state.renderBones();
+    int count = 0;
+    for (int b : bones)
+      for (var part : state.model().bones().get(b).partitions())
+        count = Math.addExact(count, part.size());
+    int header = bones.size() * 2 + 1;
+    var data = new int[Math.addExact(header, Math.multiplyExact(count, 2))];
+    data[0] = count;
+    var info = calculateRenderBoneInfo();
+    int cursor = header;
+    for (int b = 0; b < bones.size(); b++)
+      for (int p = 0; p < 4; p++) {
+        var cubes = state.model().bones().get(bones.get(b)).partitions().get(p);
+        if (cubes.size() > 65535)
+          throw new IllegalStateException("Cube count exceeds diagnostic view capacity");
+        data[1 + b * 2 + p / 2] |= cubes.size() << ((p % 2) * 16);
+        int offset = (int) info.get(b, p * 2).vertexOffset();
+        for (var c : cubes) {
+          int v = (p == 0 || p == 3 ? c.cullingQuads() : c.quads().size()) * 4;
+          data[cursor++] = offset;
+          data[cursor++] = v;
+          offset += v;
+        }
+      }
+    return new CubeInfoView(data, bones.size(), count, header);
+  }
+
+  private static void checkIndex(int index, int count, String name) {
+    if (index < 0 || index >= count) throw new IndexOutOfBoundsException(name + " index " + index);
+  }
+
+  @Override
+  public void close() {
+    state.close();
+    poses = null;
+  }
+
+  // 相对于最终 vertex buffer 的 offset；以及根据是否剔除和是否为负尺寸块计算的最大顶点数量。
+  public record VertexRange(long vertexOffset, long expectedVertexCount) {
+    public static VertexRange unpack(int[] data, int offset) {
+      return new VertexRange(
+          Integer.toUnsignedLong(data[offset]), Integer.toUnsignedLong(data[offset + 1]));
+    }
+  }
+
+  public static final class BoneInfoView {
+    private final int[] data;
+    private final int boneCount;
+
+    private BoneInfoView(int[] data, int boneCount) {
+      this.data = data;
+      this.boneCount = boneCount;
     }
 
-    public static NativeModelState create() {
-        var ptr = nCreate();
-        if (ptr == 0) {
-            throw new RuntimeException("Failed to create ModelState");
-        }
-        return new NativeModelState(ptr);
+    public int boneCount() {
+      return boneCount;
     }
 
-    @Borrowed
-    // Result and BonePoseView are reused by this state. Consume them before
-    // the next extract call or close.
-    public boolean extract(NativeBakedModel bakedModel,
-                                 float[] boneAttributes) {
-        var expectedBoneCount = boneAttributes.length / AnimatedGeoModel.BONE_ATTRIBUTE_COUNT;
-        if (locatorBoneIndices.size() < expectedBoneCount) {
-            locatorBoneIndices.size(expectedBoneCount);
-        }
-
-        invalidate();
-        final boolean success;
-        try {
-            success = nExtract(get(), bakedModel.get(), boneAttributes,
-                    locatorBoneIndices.getUnderlyingArray(), extractOutput);
-        } finally {
-            Reference.reachabilityFence(this);
-            Reference.reachabilityFence(bakedModel);
-        }
-        if (!success) {
-            return false;
-        }
-
-        bonePoses = new BonePoseView(extractOutput[0], expectedBoneCount);
-        var renderBoneCount = Math.toIntExact(extractOutput[2] & 0xFFFFFFFFL);
-        renderBoneIndices = borrowShortBuffer(extractOutput[1], renderBoneCount);
-        locatorCount = Math.toIntExact(extractOutput[2] >>> 32);
-        totalVertexCount = Math.toIntExact(extractOutput[3] & 0xFFFFFFFFL);
-        translucentVertexCount = Math.toIntExact(extractOutput[3] >>> 32);
-
-        valid = true;
-        return true;
+    public VertexRange getCutout(int boneIndex) {
+      return get(boneIndex, 0);
     }
 
-    public void invalidate() {
-        bonePoses = null;
-        renderBoneIndices = null;
-        locatorCount = 0;
-        totalVertexCount = 0;
-        translucentVertexCount = 0;
-        valid = false;
+    public VertexRange getCutoutNoCulling(int boneIndex) {
+      return get(boneIndex, 2);
     }
 
-    public BonePoseView getBonePoses() {
-        return bonePoses;
+    public VertexRange getTranslucent(int boneIndex) {
+      return get(boneIndex, 4);
     }
 
-    /// Direct
-    public ShortBuffer getRenderBoneIndices() {
-        return renderBoneIndices;
+    public VertexRange getTranslucentCulling(int boneIndex) {
+      return get(boneIndex, 6);
     }
 
-    public ShortList getLocatorBoneIndices() {
-        return locatorBoneIndices.subList(0, locatorCount);
+    private VertexRange get(int boneIndex, int partitionOffset) {
+      checkIndex(boneIndex, boneCount, "bone");
+      return VertexRange.unpack(data, boneIndex * BONE_INFO_INT_COUNT + partitionOffset);
+    }
+  }
+
+  public static final class CubeInfoView {
+    private final int[] data;
+    private final int boneCount;
+    private final int cubeCount;
+    private final int headerIntCount;
+
+    private CubeInfoView(int[] data, int boneCount, int cubeCount, int headerIntCount) {
+      this.data = data;
+      this.boneCount = boneCount;
+      this.cubeCount = cubeCount;
+      this.headerIntCount = headerIntCount;
+
+      var parsedCubeCount = 0;
+      for (var boneIndex = 0; boneIndex < boneCount; ++boneIndex) {
+        parsedCubeCount = Math.addExact(parsedCubeCount, getBoneCubeCountUnchecked(boneIndex));
+      }
+      if (parsedCubeCount != cubeCount) {
+        throw new IllegalStateException("Invalid native cube info");
+      }
     }
 
-    public int getTotalVertexCount() {
-        return totalVertexCount;
+    public int boneCount() {
+      return boneCount;
     }
 
-    public int getTranslucentVertexCount() {
-        return translucentVertexCount;
+    public int cubeCount() {
+      return cubeCount;
     }
 
-    public boolean isValid() {
-        return valid;
+    public int getCutoutCubeCount(int boneIndex) {
+      return getPartitionCubeCount(boneIndex, 0);
     }
 
-    // 获取需要渲染的所有 bone 在最终 vertex buffer 内的位置
-    // 返回的 View 借用 thread-local carrier；同一线程再次调用本方法后不可继续使用旧 View。
-    public BoneInfoView calculateRenderBoneInfo() {
-        var requiredSize = checkedArraySize(renderBoneIndices.capacity(),
-                BONE_INFO_INT_COUNT, 0);
-        var data = getIntBuffer(BONE_INFO_BUFFER, requiredSize);
-        final boolean success;
-        try {
-            success = nCalculateRenderBoneInfo(get(), data);
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-        if (!success) {
-            throw new RuntimeException("Failed to get ModelState bone info");
-        }
-        return new BoneInfoView(data, renderBoneIndices.capacity());
+    public int getCutoutNoCullingCubeCount(int boneIndex) {
+      return getPartitionCubeCount(boneIndex, 1);
     }
 
-    // 获取需要渲染的所有 cube 在最终 vertex buffer 内的位置
-    // 返回的 View 仅为借用；同一线程再次调用本方法后不可继续使用旧 View。
-    public CubeInfoView calculateRenderCubeInfo() {
-        var headerIntCount = checkedArraySize(renderBoneIndices.capacity(),
-                CUBE_INFO_HEADER_INT_COUNT, 0) + 1;
-        var data = CUBE_INFO_BUFFER.get();
-        final int[] result;
-        try {
-            result = nCalculateRenderCubeInfo(get(), data);
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-        if (result == null) {
-            throw new RuntimeException("Failed to get ModelState cube info");
-        }
-        if (data != result) {
-            CUBE_INFO_BUFFER.set(result);
-        }
-
-        return new CubeInfoView(data, renderBoneIndices.capacity(), result[0],
-                headerIntCount);
+    public int getTranslucentCubeCount(int boneIndex) {
+      return getPartitionCubeCount(boneIndex, 2);
     }
 
-    private static int checkedArraySize(int count, int stride, int header) {
-        if (count < 0) {
-            throw new IllegalArgumentException("Negative element count");
-        }
-        return Math.addExact(header, Math.multiplyExact(count, stride));
+    public int getTranslucentCullingCubeCount(int boneIndex) {
+      return getPartitionCubeCount(boneIndex, 3);
     }
 
-    private static int[] getIntBuffer(ThreadLocal<int[]> buffer,
-                                      int requiredSize) {
-        var data = buffer.get();
-        if (data.length < requiredSize) {
-            data = new int[requiredSize];
-            buffer.set(data);
-        }
-        return data;
+    public VertexRange getCutout(int boneIndex, int cubeIndex) {
+      return get(boneIndex, 0, cubeIndex);
     }
 
-    private static void checkIndex(int index, int count, String name) {
-        if (index < 0 || index >= count) {
-            throw new IndexOutOfBoundsException(
-                    name + " index " + index + " out of bounds for " + count);
-        }
+    public VertexRange getCutoutNoCulling(int boneIndex, int cubeIndex) {
+      return get(boneIndex, 1, cubeIndex);
     }
 
-    private static NativeBuffer borrowNativeBuffer(long ptr, int size) {
-        if (size == 0) {
-            return NativeBuffer.borrow(EMPTY_NATIVE_BUFFER);
-        }
-        if (ptr == 0) {
-            throw new IllegalStateException("Native buffer pointer is null");
-        }
-        return NativeBuffer.borrow(MemoryUtil.memByteBuffer(ptr, size));
+    public VertexRange getTranslucent(int boneIndex, int cubeIndex) {
+      return get(boneIndex, 2, cubeIndex);
     }
 
-    private static ShortBuffer borrowShortBuffer(long ptr, int size) {
-        if (size == 0) {
-            return EMPTY_SHORT_BUFFER;
-        }
-        if (ptr == 0) {
-            throw new IllegalStateException("Native short buffer pointer is null");
-        }
-        return MemoryUtil.memShortBuffer(ptr, size);
+    public VertexRange getTranslucentCulling(int boneIndex, int cubeIndex) {
+      return get(boneIndex, 3, cubeIndex);
     }
 
-    @Override
-    public void close() {
-        invalidate();
-        super.close();
+    private VertexRange get(int boneIndex, int partition, int cubeIndex) {
+      checkIndex(boneIndex, boneCount, "bone");
+      var partitionCubeCount = getPartitionCubeCountInternal(boneIndex, partition);
+      checkIndex(cubeIndex, partitionCubeCount, "cube");
+
+      var packedCubeIndex = 0;
+      for (var index = 0; index < boneIndex; ++index) {
+        packedCubeIndex = Math.addExact(packedCubeIndex, getBoneCubeCountUnchecked(index));
+      }
+      for (var index = 0; index < partition; ++index) {
+        packedCubeIndex =
+            Math.addExact(packedCubeIndex, getPartitionCubeCountInternal(boneIndex, index));
+      }
+      packedCubeIndex = Math.addExact(packedCubeIndex, cubeIndex);
+      return VertexRange.unpack(data, headerIntCount + packedCubeIndex * CUBE_INFO_INT_COUNT);
     }
 
-    private static native long nCreate();
-
-    private static native boolean nExtract(long state, long bakedModel,
-                                           float[] boneAttributes,
-                                           short[] locatorBoneIndices,
-                                           long[] output);
-
-    private static native boolean nCalculateRenderBoneInfo(long state, int[] dst);
-
-    private static native int[] nCalculateRenderCubeInfo(long state, int[] dst);
-
-    // 相对于最终 vertex buffer 的 offset；以及根据是否剔除和是否为负尺寸块计算的最大顶点数量。
-    public record VertexRange(long vertexOffset, long expectedVertexCount) {
-        public static VertexRange unpack(int[] data, int offset) {
-            return new VertexRange(
-                    Integer.toUnsignedLong(data[offset]),
-                    Integer.toUnsignedLong(data[offset + 1]));
-        }
+    private int getPartitionCubeCount(int boneIndex, int partition) {
+      checkIndex(boneIndex, boneCount, "bone");
+      return getPartitionCubeCountInternal(boneIndex, partition);
     }
 
-    public static final class BoneInfoView {
-        private final int[] data;
-        private final int boneCount;
-
-        private BoneInfoView(int[] data, int boneCount) {
-            this.data = data;
-            this.boneCount = boneCount;
-        }
-
-        public int boneCount() {
-            return boneCount;
-        }
-
-        public VertexRange getCutout(int boneIndex) {
-            return get(boneIndex, 0);
-        }
-
-        public VertexRange getCutoutNoCulling(int boneIndex) {
-            return get(boneIndex, 2);
-        }
-
-        public VertexRange getTranslucent(int boneIndex) {
-            return get(boneIndex, 4);
-        }
-
-        public VertexRange getTranslucentCulling(int boneIndex) {
-            return get(boneIndex, 6);
-        }
-
-        private VertexRange get(int boneIndex, int partitionOffset) {
-            checkIndex(boneIndex, boneCount, "bone");
-            return VertexRange.unpack(data,
-                    boneIndex * BONE_INFO_INT_COUNT + partitionOffset);
-        }
+    private int getPartitionCubeCountInternal(int boneIndex, int partition) {
+      var headerOffset = boneIndex * CUBE_INFO_HEADER_INT_COUNT + 1;
+      var packedCount = data[headerOffset + partition / 2];
+      return partition % 2 == 0 ? packedCount & 0xffff : packedCount >>> 16;
     }
 
-    public static final class CubeInfoView {
-        private final int[] data;
-        private final int boneCount;
-        private final int cubeCount;
-        private final int headerIntCount;
-
-        private CubeInfoView(int[] data, int boneCount, int cubeCount,
-                             int headerIntCount) {
-            this.data = data;
-            this.boneCount = boneCount;
-            this.cubeCount = cubeCount;
-            this.headerIntCount = headerIntCount;
-
-            var parsedCubeCount = 0;
-            for (var boneIndex = 0; boneIndex < boneCount; ++boneIndex) {
-                parsedCubeCount = Math.addExact(parsedCubeCount,
-                        getBoneCubeCountUnchecked(boneIndex));
-            }
-            if (parsedCubeCount != cubeCount) {
-                throw new IllegalStateException("Invalid native cube info");
-            }
-        }
-
-        public int boneCount() {
-            return boneCount;
-        }
-
-        public int cubeCount() {
-            return cubeCount;
-        }
-
-        public int getCutoutCubeCount(int boneIndex) {
-            return getPartitionCubeCount(boneIndex, 0);
-        }
-
-        public int getCutoutNoCullingCubeCount(int boneIndex) {
-            return getPartitionCubeCount(boneIndex, 1);
-        }
-
-        public int getTranslucentCubeCount(int boneIndex) {
-            return getPartitionCubeCount(boneIndex, 2);
-        }
-
-        public int getTranslucentCullingCubeCount(int boneIndex) {
-            return getPartitionCubeCount(boneIndex, 3);
-        }
-
-        public VertexRange getCutout(int boneIndex, int cubeIndex) {
-            return get(boneIndex, 0, cubeIndex);
-        }
-
-        public VertexRange getCutoutNoCulling(int boneIndex, int cubeIndex) {
-            return get(boneIndex, 1, cubeIndex);
-        }
-
-        public VertexRange getTranslucent(int boneIndex, int cubeIndex) {
-            return get(boneIndex, 2, cubeIndex);
-        }
-
-        public VertexRange getTranslucentCulling(int boneIndex,
-                                                 int cubeIndex) {
-            return get(boneIndex, 3, cubeIndex);
-        }
-
-        private VertexRange get(int boneIndex, int partition,
-                                int cubeIndex) {
-            checkIndex(boneIndex, boneCount, "bone");
-            var partitionCubeCount =
-                    getPartitionCubeCountInternal(boneIndex, partition);
-            checkIndex(cubeIndex, partitionCubeCount, "cube");
-
-            var packedCubeIndex = 0;
-            for (var index = 0; index < boneIndex; ++index) {
-                packedCubeIndex = Math.addExact(packedCubeIndex,
-                        getBoneCubeCountUnchecked(index));
-            }
-            for (var index = 0; index < partition; ++index) {
-                packedCubeIndex = Math.addExact(packedCubeIndex,
-                        getPartitionCubeCountInternal(boneIndex, index));
-            }
-            packedCubeIndex = Math.addExact(packedCubeIndex, cubeIndex);
-            return VertexRange.unpack(data,
-                    headerIntCount + packedCubeIndex * CUBE_INFO_INT_COUNT);
-        }
-
-        private int getPartitionCubeCount(int boneIndex, int partition) {
-            checkIndex(boneIndex, boneCount, "bone");
-            return getPartitionCubeCountInternal(boneIndex, partition);
-        }
-
-        private int getPartitionCubeCountInternal(int boneIndex,
-                                                  int partition) {
-            var headerOffset = boneIndex * CUBE_INFO_HEADER_INT_COUNT + 1;
-            var packedCount = data[headerOffset + partition / 2];
-            return partition % 2 == 0 ?
-                    packedCount & 0xffff : packedCount >>> 16;
-        }
-
-        private int getBoneCubeCountUnchecked(int boneIndex) {
-            return Math.addExact(
-                    Math.addExact(
-                            getPartitionCubeCountInternal(boneIndex, 0),
-                            getPartitionCubeCountInternal(boneIndex, 1)),
-                    Math.addExact(
-                            getPartitionCubeCountInternal(boneIndex, 2),
-                            getPartitionCubeCountInternal(boneIndex, 3)));
-        }
+    private int getBoneCubeCountUnchecked(int boneIndex) {
+      return Math.addExact(
+          Math.addExact(
+              getPartitionCubeCountInternal(boneIndex, 0),
+              getPartitionCubeCountInternal(boneIndex, 1)),
+          Math.addExact(
+              getPartitionCubeCountInternal(boneIndex, 2),
+              getPartitionCubeCountInternal(boneIndex, 3)));
     }
+  }
 }

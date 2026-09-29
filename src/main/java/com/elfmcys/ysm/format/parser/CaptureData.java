@@ -1,6 +1,9 @@
 package com.elfmcys.ysm.format.parser;
 
 import com.elfmcys.ysm.buffer.NativeBuffer;
+import com.elfmcys.ysm.buffer.ArrayBuffer;
+import com.elfmcys.ysm.buffer.BufferType;
+import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.format.vfs.VirtualFileSystem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -23,7 +26,7 @@ public interface CaptureData extends AutoCloseable {
 final class CapturedSourceData implements CaptureData, VirtualFileSystem {
     private final Map<String, DirectoryEntries> directories = new HashMap<>();
     private final Set<String> sourceFiles = new HashSet<>();
-    private final Map<String, NativeBuffer> capturedFiles = new HashMap<>();
+    private final Map<String, UniBuffer> capturedFiles = new HashMap<>();
     private VirtualFileSystem source;
     private State state = State.CAPTURING;
 
@@ -67,7 +70,7 @@ final class CapturedSourceData implements CaptureData, VirtualFileSystem {
     }
 
     @Override
-    public @Nullable NativeBuffer getFile(String fileName) {
+    public @Nullable UniBuffer getFile(String fileName) {
         checkOpen();
         var path = portablePath(fileName);
         if (!sourceFiles.contains(path)) {
@@ -217,24 +220,31 @@ final class CapturedSourceData implements CaptureData, VirtualFileSystem {
     private record DirectoryEntries(String[] files, String[] directories) {
     }
 
-    private record ReadOnlyBorrow(NativeBuffer underlying) implements NativeBuffer {
+    private record ReadOnlyBorrow(UniBuffer underlying) implements UniBuffer {
         @Override
-        public long ptr() {
-            return underlying.ptr();
-        }
+        public BufferType type() { return underlying.type(); }
 
         @Override
-        public NativeBuffer slice(int offset, int size) {
+        public UniBuffer copy() { return underlying.copy(); }
+
+        @Override
+        public NativeBuffer acquireNative() { return NativeBuffer.copyOf(nio()); }
+
+        @Override
+        public ArrayBuffer acquireArray() { return ArrayBuffer.copyOf(nio()); }
+
+        @Override
+        public UniBuffer slice(int offset, int size) {
             return new ReadOnlyBorrow(underlying.slice(offset, size));
         }
 
         @Override
-        public NativeBuffer acquire() {
+        public UniBuffer acquire() {
             return underlying.copy();
         }
 
         @Override
-        public NativeBuffer borrow() {
+        public UniBuffer borrow() {
             return new ReadOnlyBorrow(underlying);
         }
 

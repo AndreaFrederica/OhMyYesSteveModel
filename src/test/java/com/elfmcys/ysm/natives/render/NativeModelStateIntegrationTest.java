@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@EnabledIfEnvironmentVariable(named = "YSM_NATIVE_PATH", matches = ".+")
 @ExtendWith(NativeLibraryExtension.class)
 class NativeModelStateIntegrationTest {
     @Test
@@ -115,7 +114,7 @@ class NativeModelStateIntegrationTest {
                     assertFalse(state.isValid());
                     assertNull(state.getBonePoses());
                     assertNull(state.getRenderBoneIndices());
-                    assertThrows(IllegalStateException.class, state::get);
+                    assertThrows(IllegalStateException.class, () -> state.runtimeState().model());
                 }
             }
         }

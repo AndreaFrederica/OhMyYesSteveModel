@@ -3,11 +3,8 @@ package com.elfmcys.ysm.model.catalog.builtin;
 import com.elfmcys.ysm.buffer.ArrayBuffer;
 import com.elfmcys.ysm.buffer.BufferType;
 import com.elfmcys.ysm.client.animation.molang.CustomMolangParser;
-import com.elfmcys.ysm.client.sound.stream.CustomAudioStream;
-import com.elfmcys.ysm.client.sound.stream.OpusAudioStream;
-import com.elfmcys.ysm.client.sound.stream.VorbisAudioStream;
 import com.elfmcys.ysm.format.AssetLoadException;
-import com.elfmcys.ysm.format.media.SupportedAudioProbe;
+import cc.sirrus.ysmlib.audio.SupportedAudioProbe;
 import com.elfmcys.ysm.format.schema.file.AssetFileConstant;
 import com.elfmcys.ysm.format.schema.file.ChunkDataSource;
 import com.elfmcys.ysm.format.schema.file.PBRImageSources;
@@ -19,7 +16,9 @@ import com.elfmcys.ysm.model.resource.client.render.AnimationProtoMapper;
 import com.elfmcys.ysm.model.storage.ManagedContainer;
 import com.elfmcys.ysm.model.storage.ModelHashing;
 import com.elfmcys.ysm.natives.image.ImageSource;
-import com.elfmcys.ysm.natives.render.NativeBakedModel;
+import com.elfmcys.ysm.model.resource.client.render.RuntimeGeometryMapper;
+import cc.sirrus.ysmlib.YsmRuntime;
+import cc.sirrus.ysmlib.render.Geometry;
 import com.elfmcys.ysm.proto.mixel.asset.model.ModelData;
 import com.elfmcys.ysm.proto.mixel.asset.model.data.Animation;
 import com.elfmcys.ysm.proto.mixel.asset.model.data.GeoModel;
@@ -63,13 +62,17 @@ public final class BuiltinModelMaterializer {
                     for (var geoEntry : definition.geoModels().object2ObjectEntrySet()) {
                         var geo = GeoModel.parseFrom(
                                 ProtoSource.newInstance(geoEntry.getValue()));
-                        if (!NativeBakedModel.tryBake(geo, pixels, uv.width(), uv.height(),
-                                CURRENT_RAW_UV_VERSION,
-                                target.descriptor().settings().forceCulling(),
-                                false, hasPbr(texture))) {
-                            throw new IOException("Native tryBake rejected model target="
+                        try {
+                            var baked = YsmRuntime.bake().bake(RuntimeGeometryMapper.map(geo), pixels.nio(), uv.width(), uv.height(),
+                                    new Geometry.Options(CURRENT_RAW_UV_VERSION,
+                                    target.descriptor().settings().forceCulling(),
+                                    false, hasPbr(texture)));
+                            // Exercise the same cache representation consumed at runtime.
+                            YsmRuntime.bake().decode(ByteBuffer.wrap(YsmRuntime.bake().encode(baked)));
+                        } catch (IOException invalid) {
+                            throw new IOException("JVM bake rejected model target="
                                     + target.id() + " texture=" + textureName
-                                    + " geometry=" + geoEntry.getKey());
+                                    + " geometry=" + geoEntry.getKey(), invalid);
                         }
                     }
                 }
@@ -208,22 +211,15 @@ public final class BuiltinModelMaterializer {
                 continue;
             }
             try (var admitted = sound.readVerified(() -> false, chunks);
-                 var stream = decoder(admitted.encoded(), admitted.media())) {
-                while (stream.read(8192).hasRemaining()) {
+                 var stream = cc.sirrus.ysmlib.YsmRuntime.audio().open(admitted.encoded(), admitted.media())) {
+                var pcm = ByteBuffer.allocate(8192);
+                while (stream.read(pcm.clear()) != 0) {
                     // Decode every frame without retaining complete PCM.
                 }
-            } catch (UnsupportedAudioFileException | AssetLoadException failure) {
+            } catch (AssetLoadException failure) {
                 throw new IOException("Builtin sound cannot be decoded: " + sound.name(), failure);
             }
         }
-    }
-
-    private static CustomAudioStream decoder(
-            ByteBuffer encoded, SupportedAudioProbe.MediaInfo media)
-            throws IOException, UnsupportedAudioFileException {
-        return media.encoding() == SupportedAudioProbe.Encoding.OGG_OPUS
-                ? new OpusAudioStream(encoded, media)
-                : new VorbisAudioStream(encoded, media);
     }
 
     private static boolean hasPbr(PBRTextureSet texture) {

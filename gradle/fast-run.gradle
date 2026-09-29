@@ -1,6 +1,9 @@
 def fastRunProperty = 'ysm.fast_run'
 def fastRunWhitelistProperty = 'ysm.fast_run_whitelist'
-def fastRun = ysmLocalBooleanProperty(fastRunProperty, false)
+def fastRun = providers.gradleProperty(fastRunProperty).map { value ->
+    if (!(value in ['true', 'false'])) throw new GradleException("${fastRunProperty} must be true or false")
+    value.toBoolean()
+}.getOrElse(ysmLocalBooleanProperty(fastRunProperty, false))
 def fastRunWhitelist = new LinkedHashSet<String>()
 def clientRuntimeConfigurations = [
         'clientAdditionalRuntimeClasspath',

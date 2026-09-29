@@ -8,7 +8,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-@EnabledIfEnvironmentVariable(named = "YSM_NATIVE_PATH", matches = ".+")
 @ExtendWith(NativeLibraryExtension.class)
 class NativeRuntimeIntegrationTest {
     @Test
