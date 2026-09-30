@@ -1,4 +1,5 @@
-# Yes Steve Model
+# Oh My Yes Steve Model
+**鬼故事 上游也不稳定 且硅基话 我懒得且没时间写人肉文档了 看不明白直接呼叫agent吧**
 
 带有两个可安装 JAR 的自动构建发布于 [本 fork 的 Releases](https://github.com/AndreaFrederica/OhMyYesSteveModel/releases)；YSM 本体和 Oh my ysm lib 必须一起放入 `mods/`。构建方式与可选 native 加速的安装见[构建指南](docs/build.md)。
 

@@ -1,6 +1,6 @@
 # Oh my ysm lib 前置
 
-作者 **AndreaFrederica**。进入世界后按 **F3**，右侧显示实际加载的前置版本和各能力的当前 provider；AVIF 单独标注 `Chicory (JVM/WASM)`。Mod ID 为 `ysm_runtime`。
+进入世界后按 **F3**，右侧显示实际加载的前置版本和各能力的当前 provider；AVIF 单独标注 `Chicory (JVM/WASM)`。Mod ID 为 `ysm_runtime`。
 
 本项目是独立构建的 Java 17 运行库与 Forge 1.20/1.20.1 前置 Mod。本体只依赖接口和服务入口；前置负责提供实现。当前版本 `0.1.1` 是迁移中的开发制品，已接入归档、BLAKE3、zstd、图像、音频、V3 和 CPU 渲染能力；本体编译、资源生成和客户端 / 服务器启动均不再使用官方 native。
 
