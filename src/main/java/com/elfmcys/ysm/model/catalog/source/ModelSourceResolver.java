@@ -10,6 +10,9 @@ import com.elfmcys.ysm.model.storage.ConvertedObjectStore;
 import com.elfmcys.ysm.model.storage.ConvertedSourceIndex;
 import com.elfmcys.ysm.model.storage.ConvertedSourceIndexStore;
 import com.elfmcys.ysm.model.storage.ManagedContainer;
+import com.elfmcys.ysm.model.storage.LegacyConversionCache;
+import cc.sirrus.ysmlib.v3d.V3dCache;
+import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.natives.legacy.LegacyModelImportException;
 import com.elfmcys.ysm.natives.legacy.LegacyModelImporter;
 import java.io.IOException;
@@ -30,6 +33,7 @@ public final class ModelSourceResolver {
     private final LegacyModelImporter legacyImporter;
     private final ConvertedSourceIndexStore indexes;
     private final ConvertedObjectStore objects;
+    private final LegacyConversionCache legacyCache;
 
     public ModelSourceResolver(RawModelImporter importer,
                                ConvertedSourceIndexStore indexes,
@@ -45,6 +49,7 @@ public final class ModelSourceResolver {
         this.legacyImporter = Objects.requireNonNull(legacyImporter, "legacyImporter");
         this.indexes = Objects.requireNonNull(indexes, "indexes");
         this.objects = Objects.requireNonNull(objects, "objects");
+        this.legacyCache = objects.legacyCache(indexes.fullModVersion(), legacyImporter.cacheProfile());
     }
 
     public Resolution resolve(SourceObservation observation) throws CatalogBuildException {
@@ -54,7 +59,9 @@ public final class ModelSourceResolver {
             return validateDirect(observation, location);
         }
         if (observation.key().sourceKind() == ModelSourceKind.LEGACY_ARCHIVE) {
-            return resolveLegacy(observation, location);
+            var result = resolveLegacy(observation, location);
+            result.content().representation().close();
+            return new Resolution(result.entry(), result.convertedIndexEntry(), result.diagnostics());
         }
         if (observation.key().sourceKind() == ModelSourceKind.UNSUPPORTED_YSM) {
             throw new ModelSourceException("Unsupported .ysm container");
@@ -103,6 +110,10 @@ public final class ModelSourceResolver {
 
     public MaterializedResolution resolveMaterialized(SourceObservation observation)
             throws CatalogBuildException, IOException {
+        if (observation.key().sourceKind() == ModelSourceKind.LEGACY_ARCHIVE) {
+            return resolveLegacy(observation, new CatalogModelLocation(
+                    observation.key().root().rootKind(), observation.key().relativePath()));
+        }
         if (observation.key().sourceKind() == ModelSourceKind.DIRECT_CONTAINER) {
             var location = new CatalogModelLocation(observation.key().root().rootKind(),
                     observation.key().relativePath());
@@ -234,18 +245,65 @@ public final class ModelSourceResolver {
         }
     }
 
-    private Resolution resolveLegacy(
+    /** Cache-only worker path: never decodes an envelope or rebuilds a converted object. */
+    public Optional<MaterializedResolution> resolveCached(SourceObservation observation)
+            throws IOException {
+        if (observation.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE) {
+            return Optional.empty();
+        }
+        var source = V3dCache.capture(observation.absolutePath());
+        var location = new CatalogModelLocation(observation.key().root().rootKind(),
+                observation.key().relativePath());
+        // Receipts and objects are atomically published. Do not acquire the conversion
+        // lock here: a duplicate cold source must not block unrelated cache hits.
+        return legacyCache.find(source, location).map(content ->
+                cachedLegacyResolution(observation, content));
+    }
+
+    private MaterializedResolution cachedLegacyResolution(SourceObservation observation,
+                                                           ManagedContainer content) {
+        var identity = content.representation().identity();
+        var sourcePath = observation.key().root().rootKind().namespace()
+                + "/" + observation.key().relativePath().value();
+        return new MaterializedResolution(new CatalogIndexEntry(identity, content.location(), content.file()),
+                content, Optional.of(new ConvertedSourceIndex(identity, sourcePath,
+                indexes.fullModVersion())), List.of());
+    }
+
+    private MaterializedResolution resolveLegacy(
             SourceObservation observation, CatalogModelLocation location)
             throws CatalogBuildException {
+        try {
+            var source = V3dCache.capture(observation.absolutePath());
+            return legacyCache.withSourceLock(source, () -> resolveLegacyCaptured(observation, location, source));
+        } catch (CatalogBuildException failure) {
+            throw failure;
+        } catch (IOException failure) {
+            throw new CatalogInfrastructureException("Failed to access legacy source/cache", failure);
+        }
+    }
+
+    private MaterializedResolution resolveLegacyCaptured(SourceObservation observation,
+            CatalogModelLocation location, V3dCache.CapturedSource source) throws CatalogBuildException {
         var sourcePath = observation.key().root().rootKind().namespace()
                 + "/" + observation.key().relativePath().value();
         Path temporaryDirectory = null;
         try {
+            var existing = legacyCache.find(source, location);
+            if (existing.isPresent()) {
+                var content = existing.get();
+                YesSteveModel.LOGGER.debug("Legacy conversion cache hit source={} sha256={}", sourcePath, source.sha256());
+                return cachedLegacyResolution(observation, content);
+            }
             Files.createDirectories(objects.temporaryRoot());
             temporaryDirectory = Files.createTempDirectory(
                     objects.temporaryRoot(), "legacy-convert-");
-            var staged = legacyImporter.stage(
-                    observation.absolutePath(), temporaryDirectory);
+            final com.elfmcys.ysm.format.parser.RawCompileResult staged;
+            try {
+                staged = legacyImporter.stage(source, legacyCache.wireRoot(), temporaryDirectory);
+            } catch (IOException failure) {
+                throw new ModelSourceException("Failed to decode/project legacy source or V3D cache", failure);
+            }
             final ModelFileIdentity object;
             try {
                 object = objects.commit(staged, location);
@@ -258,8 +316,12 @@ public final class ModelSourceResolver {
             var catalogEntry = new CatalogIndexEntry(
                     object, location,
                     objects.objectPath(object.modelId(), object.containerId()));
-            return new Resolution(
-                    catalogEntry, Optional.of(sourceIndex), List.of());
+            var content = legacyCache.record(source, catalogEntry);
+            YesSteveModel.LOGGER.debug("Legacy conversion cache built source={} sha256={}", sourcePath, source.sha256());
+            return new MaterializedResolution(
+                    catalogEntry, content, Optional.of(sourceIndex), List.of());
+        } catch (CatalogBuildException failure) {
+            throw failure;
         } catch (LegacyModelImportException failure) {
             throw new ModelSourceException(
                     "Legacy model import failed with status " + failure.statusCode(), failure);

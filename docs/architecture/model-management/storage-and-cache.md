@@ -56,6 +56,16 @@ Raw conversion 的 index entry 为 `ModelId, ContainerId, rawRelativePath, fullM
 
 `AtomicSharedCache` 的同 key JVM/文件锁仍服务 baked 等独立派生 writer；direct container 不再是其消费者。不能由共享 helper 推定各 cache 的 identity、失效与清理语义已经统一。
 
+### V3 源哈希与转换复用
+
+V3 输入在导入前由 ysmlib `V3dCache.capture` 一次性取得有界、只读快照和源 SHA-256；哈希与实际解码使用同一份 bytes，不以长度、mtime 或历史 ModelId 代替源内容判定。`LegacyConversionCache` 在 `<game-dir>/ysm/cache/legacy/converted/<key>.receipt` 记录当前转换结果，key 包含源 SHA-256、完整本体版本、host staging profile、envelope profile 与 projection profile。普通 converted index/object 的布局与首次 prune 规则不变；每次命中仍生成当前来源的 index candidate。
+
+Receipt 只在 `.mxc` 提交且全部 payload 验证成功后原子发布，记录精确 `ModelFileIdentity` 和完整 stored-file SHA-256。命中时用同一打开句柄重读当前 schema/Manifest、核对精确身份、全文件哈希和读取前后的文件状态；字节与已验证制品相同才跳过扫描阶段的逐块 Zstd 解压。普通运行时按需 chunk 读取继续执行各自验证。损坏或缺失的 receipt/object 是 miss，不因读取失败删除原件；访问失败仍是错误。不同路径的相同源可以共享转换结果，实际来源和使用资格仍由 Catalog 决定。
+
+成品 miss 时，`YsmRuntime.v3dWire()` 在 `<game-dir>/ysm/cache/legacy/v3d/<source-sha256>-p<decoder-profile>.v3d` 复用验证过的 uncompressed wire，经 `LegacyImportProvider.importWire` 投影并重新生成 `.mxc`。只有 wire 缺失、损坏或 envelope profile 变化才重新解密解压；projection 或本体版本变化只使成品失效。同一源的 JVM/进程文件锁覆盖查找、V3D 物化、转换与 receipt 发布，避免并行 owner 重复导入。此自动缓存不生成工具用的 decoded JSON 工作区，不改变 `.mxc` 的运行语义权威。
+
+`legacy` 目录是独立可重建的派生缓存，暂不自动清理；首次 converted prune 不触及它。已被 prune 的 `.mxc` 会使对应 receipt miss，然后从 V3D 重建。删除该缓存会让下一次加载重新建立缓存。V1/V2 与 raw directory 的 capture/compile 管线不使用 V3 decoder。
+
 ## Remote storage
 
 Remote storage 不维护 index，当前 remote publication 是唯一发现入口：

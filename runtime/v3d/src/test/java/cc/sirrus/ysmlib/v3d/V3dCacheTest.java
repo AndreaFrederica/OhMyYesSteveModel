@@ -14,6 +14,22 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 class V3dCacheTest {
+    @Test void captureKeepsFingerprintAndDecodedInputTogetherAcrossSourceEdits() throws Exception {
+        var path = source();
+        var captured = V3dCache.capture(path);
+        var original = Files.readAllBytes(path);
+        Files.write(path, new byte[]{9, 8, 7});
+        var cache = new V3dCache(decoder(1));
+        var root = temp.resolve("captured");
+        assertArrayEquals(wire, cache.readWire(captured, root));
+        assertArrayEquals(wire, new V3dCache(decoder(1)).readWire(captured, root));
+        assertEquals(1, calls.get());
+        var generation = cache.materialize(captured, root);
+        assertEquals(captured.sha256(), V3dCache.validate(generation).source().sha256());
+        assertArrayEquals(original, Files.readAllBytes(generation.resolve("source/original.ysm")));
+        assertThrows(java.nio.ReadOnlyBufferException.class, () -> captured.bytes().put(0, (byte) 4));
+    }
+
     @Test void completeWorkspaceKeepsRecoveryIndependentOfEdits() throws Exception {
         byte[] historical;
         try (var stream = getClass().getResourceAsStream("/historical/v32.wire")) {

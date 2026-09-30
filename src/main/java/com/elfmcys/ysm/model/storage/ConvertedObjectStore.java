@@ -42,6 +42,10 @@ public final class ConvertedObjectStore {
         return convertedRoot().resolve(TEMPORARY_DIRECTORY);
     }
 
+    public LegacyConversionCache legacyCache(String fullModVersion, String profile) {
+        return new LegacyConversionCache(gameCacheRoot, this, cache, fullModVersion, profile);
+    }
+
     private Path convertedRoot() {
         return AssetPaths.convertedRoot(gameCacheRoot);
     }

@@ -2,7 +2,7 @@
 
 作者 **AndreaFrederica**。进入世界后按 **F3**，右侧显示实际加载的前置版本和各能力的当前 provider；AVIF 单独标注 `Chicory (JVM/WASM)`。Mod ID 为 `ysm_runtime`。
 
-本项目是独立构建的 Java 17 运行库与 Forge 1.20/1.20.1 前置 Mod。本体只依赖接口和服务入口；前置负责提供实现。当前版本 `0.1.0` 是迁移中的开发制品，已接入归档、BLAKE3、zstd、图像、音频、V3 和 CPU 渲染能力；本体编译、资源生成和客户端 / 服务器启动均不再使用官方 native。
+本项目是独立构建的 Java 17 运行库与 Forge 1.20/1.20.1 前置 Mod。本体只依赖接口和服务入口；前置负责提供实现。当前版本 `0.1.1` 是迁移中的开发制品，已接入归档、BLAKE3、zstd、图像、音频、V3 和 CPU 渲染能力；本体编译、资源生成和客户端 / 服务器启动均不再使用官方 native。
 
 Java 包名、Maven group 与内嵌依赖命名空间统一使用 `cc.sirrus.ysmlib`。
 
@@ -53,16 +53,16 @@ V1/V2 返回原始文件；V3 是 compiled wire，不进入同一个 archive API
 
 不需要 `YSM_NATIVE_PATH`，不编译或下载 Minecraft，也不应用主工程的 native 构建门禁。Forge 子模块只编译 loader 注解。`build` 包含归档测试、VFS/capture 测试，以及使用最终 shaded JAR 与 Minecraft 共享 JOML 的 ZIP/7z/BLAKE3/zstd/AVIF/Opus/Vorbis smoke test。算法模块本身不依赖 LWJGL。
 
-安装 `forge/build/libs/ysm-runtime-forge-0.1.0.jar` 到 `mods/`，与修改后的 YSM 本体同时使用。`-thin.jar`、`-sources.jar` 及内部模块 JAR 不是玩家安装包。客户端和服务器均声明必需依赖，版本范围为 `[0.1.0,0.2.0)`；不安装前置时由 Forge 报告缺失依赖。主仓库通过 composite build 编译依赖 core，并把完整前置加入开发运行 classpath，不会将运行库再次 shade 进 YSM。当前尚未发布 Maven 制品。
+安装 `forge/build/libs/ysm-runtime-forge-0.1.1.jar` 到 `mods/`，与修改后的 YSM 本体同时使用。`-thin.jar`、`-sources.jar` 及内部模块 JAR 不是玩家安装包。客户端和服务器均声明必需依赖，版本范围为 `[0.1.1,0.2.0)`；不安装前置时由 Forge 报告缺失依赖。主仓库通过 composite build 编译依赖 core，并把完整前置加入开发运行 classpath，不会将运行库再次 shade 进 YSM。当前尚未发布 Maven 制品。
 
 ## 命令行
 
 V3D 工具直接随前置提供，不需要安装 Minecraft 或 YSM 本体：
 
 ```powershell
-java -jar ysm-runtime-forge-0.1.0.jar decode model.ysm output
-java -jar ysm-runtime-forge-0.1.0.jar validate output/<generation>.v3d
-java -jar ysm-runtime-forge-0.1.0.jar restore output/<generation>.v3d restored.ysm
+java -jar ysm-runtime-forge-0.1.1.jar decode model.ysm output
+java -jar ysm-runtime-forge-0.1.1.jar validate output/<generation>.v3d
+java -jar ysm-runtime-forge-0.1.1.jar restore output/<generation>.v3d restored.ysm
 ```
 
 也可构建轻量独立工具：
@@ -71,9 +71,9 @@ java -jar ysm-runtime-forge-0.1.0.jar restore output/<generation>.v3d restored.y
 .\gradlew.bat -p runtime :ysm-runtime-tools:shadowJar
 ```
 
-产物 `tools/build/libs/ysm-runtime-tools-0.1.0.jar` 使用相同命令，不包含 Forge、图像或渲染栈。
+产物 `tools/build/libs/ysm-runtime-tools-0.1.1.jar` 使用相同命令，不包含 Forge、图像或渲染栈。
 
-库调用使用 `YsmRuntime.v3d().materialize(source, outputRoot)`；只有文件模块的应用可自行注入 envelope 与 decoded providers。`restore` 恢复原始文件，不编码修改后的 JSON。本体注册 `/ysm v3d export "..."`，写到游戏目录的 `ysm/export/v3d`。详见 [V3D 文档](../docs/architecture/asset-pipeline/v3d.md)。
+库调用使用 `YsmRuntime.v3d().materialize(source, outputRoot)`；只有文件模块的应用可自行注入 envelope 与 decoded providers。`restore` 恢复原始文件，不编码修改后的 JSON。本体注册 `/ysm v3d export "..."`，写到游戏目录的 `ysm/export/v3d`。正常模型导入则使用 `V3dCache.capture()`、`YsmRuntime.v3dWire().readWire()` 与 `LegacyImportProvider.importWire()`：源哈希和转换版本一致时直接复用已转换模型；成品失效时复用 V3D 的未压缩 wire，跳过 envelope 解密解压。缓存与解码、投影接口分离，JVM 实现可独立运行；修改 provider 的语义须递增相应 `profile()`。详见 [V3D 文档](../docs/architecture/asset-pipeline/v3d.md)。
 
 ## 契约与限制
 

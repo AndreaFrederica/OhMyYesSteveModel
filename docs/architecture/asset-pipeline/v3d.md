@@ -20,6 +20,8 @@ V3D 是 legacy V3 输入边缘的可逆 sidecar/workspace，当前目录 profile
 
 ## 缓存与发布
 
+正常 V3 导入现在使用两级复用：先按源 SHA-256 与转换 profile 复用已验证 `.mxc`；成品 miss 时通过 `YsmRuntime.v3dWire()` 和 `LegacyImportProvider.importWire()` 从已解压 wire 重新投影。自动缓存位于游戏目录 `ysm/cache/legacy`，与显式导出工作区分离。`capture()` 提供源 bytes 与哈希的同一不可变快照；`readWire()` 校验生成物并验证实际交给 projector 的 bytes。转换 receipt、失效规则和并发锁见 [Storage 与 cache](../model-management/storage-and-cache.md#v3-源哈希与转换复用)。
+
 `materialize(source, cacheRoot)` 返回 `<source-sha256>-p<decoder-profile>-d<parser-profile>.v3d`；仅 capture 模式不含 `-d`。同源同 profile 时，先校验支持的 manifest、固定文件路径、实际文件大小、两个 SHA-256、inner version 与完整 dependency metadata，全部符合才复用，不再 decode 或重写。历史 model identity 不替代 source freshness。
 
 构建使用 root 内的 `.v3d-pending-*` 临时目录，写完并重读校验后执行原子目录 rename。文件系统不支持原子 rename 时失败，不退化为递归复制。源或 profile 变化产生新的不可变 generation，已有有效目录不被替换。损坏的同名目录先原子移到 `.v3d-invalid-*`，发布失败时尝试恢复；隔离内容保留以便检查，不参与缓存命中。进程中断最多留下 pending/invalid 目录或缺失的目标，不发布半成品。该协议不承诺断电持久性；清理旧 generation/隔离内容由调用者负责。

@@ -35,4 +35,12 @@ public interface LegacyImportProvider {
   }
 
   Bundle importModel(ByteBuffer source) throws IOException;
+
+  /** Changes whenever projection semantics change, independently of the envelope decoder. */
+  default int profile() { return 1; }
+
+  /** Projects validated, uncompressed V3D wire without decoding the envelope again. */
+  default Bundle importWire(byte[] wire, long sourceSize) throws IOException {
+    throw new IOException("This legacy provider does not support decoded wire import");
+  }
 }

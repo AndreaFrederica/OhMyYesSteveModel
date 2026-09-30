@@ -56,6 +56,12 @@ public final class YsmRuntime {
     return V3D;
   }
 
+  private static final cc.sirrus.ysmlib.v3d.V3dCache V3D_WIRE =
+      new cc.sirrus.ysmlib.v3d.V3dCache(V3);
+
+  /** Import cache omits human-readable workspace exports. */
+  public static cc.sirrus.ysmlib.v3d.V3dCache v3dWire() { return V3D_WIRE; }
+
   private static final AudioProvider AUDIO = new JavaAudioProvider();
 
   private static final cc.sirrus.ysmlib.render.RenderProvider RENDER = configuredRender();

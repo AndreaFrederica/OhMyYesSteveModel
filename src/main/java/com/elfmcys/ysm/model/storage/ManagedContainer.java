@@ -8,6 +8,7 @@ import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.container.AssetContainerConstant;
 import com.elfmcys.ysm.format.container.AssetContainerView;
 import com.elfmcys.ysm.format.container.ByteArraySeekableChannel;
+import com.elfmcys.ysm.format.container.InlineChunkReader;
 import com.elfmcys.ysm.format.schema.file.ChunkDataSource;
 import com.elfmcys.ysm.format.schema.file.FileChunkDataSource;
 import com.elfmcys.ysm.format.schema.file.ResidentChunkDataSource;
@@ -20,6 +21,10 @@ import com.elfmcys.ysm.model.domain.ModelRepresentation;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -66,6 +71,54 @@ public final class ManagedContainer implements ModelContent {
                 new FileChunkDataSource(entry.backingFile(),
                         expectedFileSize(representation.view())));
     }
+
+    /** Only the converted-cache owner may supply a previously verified whole-file digest. */
+    static FingerprintedContainer openFingerprinted(CatalogIndexEntry entry,
+                                                     @Nullable String expectedSha256) throws IOException {
+        var file = entry.backingFile();
+        var before = FileStamp.capture(file);
+        try (var channel = FileChannel.open(file, StandardOpenOption.READ)) {
+            var representation = readRepresentation(channel, file.toString());
+            try {
+                if (!representation.identity().equals(entry.identity()))
+                    throw AssetLoadException.content("Cached container identity changed");
+                if (expectedSha256 == null) {
+                    for (var chunk : representation.view().getFileView().getAssetView()
+                            .getChunkTable().values()) {
+                        if (chunk.type().equals(AssetContainerConstant.VERIFICATION_CHUNK_TYPE)) continue;
+                        try (var ignored = InlineChunkReader.readStoredVerified(channel, chunk, BufferType.ARRAY)) {
+                            // Establish logical-content validation before recording the stored-byte hash.
+                        }
+                    }
+                }
+                var digest = sha256();
+                channel.position(0);
+                var block = ByteBuffer.allocate(64 * 1024);
+                while (channel.read(block) >= 0) {
+                    block.flip();
+                    digest.update(block);
+                    block.clear();
+                }
+                var actual = HexFormat.of().formatHex(digest.digest());
+                if (expectedSha256 != null && !expectedSha256.equals(actual))
+                    throw AssetLoadException.content("Cached container byte fingerprint changed");
+                if (!before.equals(FileStamp.capture(file)))
+                    throw AssetLoadException.content("Cached container changed during validation");
+                return new FingerprintedContainer(new ManagedContainer(file, entry.location(), representation,
+                        new FileChunkDataSource(file, expectedFileSize(representation.view()))), actual);
+            } catch (IOException | RuntimeException | Error failure) {
+                representation.close();
+                throw failure;
+            }
+        }
+    }
+
+    static MessageDigest sha256() {
+        try { return MessageDigest.getInstance("SHA-256"); }
+        catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+    }
+
+    record FingerprintedContainer(ManagedContainer content, String sha256) {}
 
     public static ManagedContainer openDirect(
             Path file, CatalogModelLocation location) throws IOException {

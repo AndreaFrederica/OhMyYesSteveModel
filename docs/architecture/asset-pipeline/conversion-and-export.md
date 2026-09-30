@@ -55,7 +55,7 @@ Current export 复制已验证的 stored stream bytes，不重编码音频；重
 
 ## 历史输入的单向投影
 
-来源发现按完整 header 唯一路由：raw v1/v2 进入 Java raw archive adapter，带 BOM 的 v3 进入 `LegacyModelImporter.stage()`，其他 `.ysm` 明确拒绝。Java 在完成 v3 路由后把文件一次性读入有界 direct buffer；ysmlib 的解码器从这个只读字节视图同步串接解密、dirty-zstd 还原、解压和 `container` 反序列化，再投影为 `ImportResult`。投影直接编码当前 `mixel.*` 消息；执行字段落在 `mixel.common.Program` 信封的 `source` 里（`ExpressionValue.program`、`InstructionKeyFrame.programs`、`AnimationReference.condition`、`Transition.condition`、`State.on_entry`/`on_exit`、`UserFunction.body`），写出的信封恒为 `format = 0` + `source`，与 Java 生产者逐字节一致。不维护第二套 legacy Proto，也不在 Java 侧做二次编译。
+来源发现按完整 header 唯一路由：raw v1/v2 进入 Java raw archive adapter，带 BOM 的 v3 进入历史转换 seam，其他 `.ysm` 明确拒绝。V3 先取得有界只读源快照与 SHA-256，按[转换缓存规则](../model-management/storage-and-cache.md#v3-源哈希与转换复用)检查已验证 `.mxc`。成品命中不运行导入；miss 时 `LegacyModelImporter.stage()` 使用 V3D wire 缓存，首次解密、dirty-zstd 还原与解压由 ysmlib envelope provider 完成。`LegacyImportProvider.importWire()` 从已验证的未压缩 bytes 反序列化并投影为 `Bundle`。投影直接编码当前 `mixel.*` 消息；执行字段落在 `mixel.common.Program` 信封的 `source` 里（`ExpressionValue.program`、`InstructionKeyFrame.programs`、`AnimationReference.condition`、`Transition.condition`、`State.on_entry`/`on_exit`、`UserFunction.body`），写出的信封恒为 `format = 0` + `source`，与 Java 生产者逐字节一致。不维护第二套 legacy Proto，也不在 Java 侧做二次编译。
 
 Java 校验返回协议、Manifest 身份、payload 类型与顺序、图像元信息和音频 descriptor，然后按 payload 角色校验 `StringData`／`ModelData` 可解析（解析结果只用于校验，随后丢弃），把 blob 原样交给 `ModelFileWriter` 写出当前 staging，不重新解析或重编译其中的 `Program.source`。声音作为 direct `stream-N` 原样保存，并再次用当前媒体 profile 核对 descriptor 与 bytes。重开后复验 identity、逻辑 payload、执行字段内容、音频和存储描述，成功才交给 converted storage。识别后发生的格式、投影、校验或结果协议错误只使该 source 失败，不能回退为另一种格式。临时 payload、response 和 staging 均由本次导入 owner 关闭或清理；历史 cache、session 和运行时管理对象不随 payload 进入新系统。
 
@@ -63,9 +63,9 @@ Java 校验返回协议、Manifest 身份、payload 类型与顺序、图像元�
 
 ### Legacy envelope 的输入契约
 
-在[调用方保障来源稳定](../../product-decisions/decisions/model-compatibility.md#bclegacy-source-stability-is-caller-owned)的契约下，Java 先按观察到的长度把已确认的 v3 文件完整读入 direct buffer。短读和文件访问失败在 Java 输入边缘分类，buffer 生命周期覆盖同步调用。ysmlib 侧仍独立检查源字节上限、header、summary、footer、格式 checksum 和内容预算，格式错误终止该导入。
+在[调用方保障来源稳定](../../product-decisions/decisions/model-compatibility.md#bclegacy-source-stability-is-caller-owned)的契约下，Java 先按同一打开句柄观察到的长度把已确认的 v3 文件完整读入有界 heap buffer。短读和文件访问失败在 Java 输入边缘分类，buffer 生命周期覆盖同步调用。ysmlib 侧仍独立检查源字节上限、header、summary、footer、格式 checksum 和内容预算，格式错误终止该导入。
 
-解码器不拥有文件或整份明文。它直接对输入字节计算 CityHash，并按 ChaCha chunk 保留解密、去混淆和 dirty-zstd 状态。小型反序列化读取由复用的明文 look-ahead buffer 聚合，大型 image/string 目标则由 zstd 直接写入调用方范围，避免额外 bulk copy。入口不创建线程或读写全局 importer 状态；上层线程池可并行执行独立导入。
+当前 JVM envelope provider 对私有输入副本校验 CityHash、执行 ChaCha 解密与 dirty-zstd 还原，返回受 256 MiB 预算约束的明文 byte array。V3D 保存 exact source 和未压缩 wire；projector 独立消费 wire。入口不创建线程或读写全局 importer 状态；上层线程池可并行处理不同来源，同一源的缓存发布由 owner 串行化。首次解码仍有输入和明文分配成本，缓存命中才避免这部分工作。
 
 历史 decoder 读出并校验每个 `Image` 字段后立即按[图像处理的位置](#图像处理的位置)准备目标表示，不让 RGBA32 留存在完整 `LegacyModel` 中。模型纹理和 PBR 走无损用途；GUI、作者头像、icon 和预览图分别走对应的非纹理用途。RGBA32 与 PNG 都先恢复为像素再按当前平台策略编码，其中非 Android 也不会仅因历史输入已经是 PNG 就跳过策略；合法的 JPEG、WebP 和 AVIF 等既有压缩表示仍按表中的复用条件处理。投影只校验准备结果并转移压缩后的 bytes；同一历史图像被多处引用时复用首次准备结果，不恢复或长期保留原始 RGBA32。
 

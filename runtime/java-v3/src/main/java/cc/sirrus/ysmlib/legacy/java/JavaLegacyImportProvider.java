@@ -22,6 +22,14 @@ public final class JavaLegacyImportProvider implements LegacyImportProvider {
   }
 
   public Bundle projectWire(byte[] wire, long sourceSize) throws IOException {
+    return importWire(wire, sourceSize);
+  }
+
+  @Override
+  public Bundle importWire(byte[] wire, long sourceSize) throws IOException {
+    if (wire.length < 4 || wire.length > 256 * 1024 * 1024
+        || sourceSize < 0 || sourceSize > V3EnvelopeProvider.SOURCE_LIMIT)
+      throw new IOException("Invalid historical wire budget");
     return new HistoricalProjector()
         .project(new HistoricalWireReader(wire, images).read(), sourceSize);
   }

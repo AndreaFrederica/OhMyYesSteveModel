@@ -17,7 +17,7 @@ issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
 [[dependencies.ysm]]
     modId="ysm_runtime"
     mandatory=true
-    versionRange="[0.1.0,0.2.0)"
+    versionRange="[0.1.1,0.2.0)"
     ordering="AFTER"
     side="BOTH"
 

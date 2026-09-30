@@ -24,7 +24,7 @@ import java.util.HexFormat;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Explicit sidecar operation. Does not participate in catalog or .mxc authority.
+/** Decoded sidecar storage shared by explicit tools and importers. Not catalog authority.
  * Callers serialize writes to a cache root and keep source files stable during a call.
  */
 public final class V3dCache {
@@ -51,21 +51,64 @@ public final class V3dCache {
      * Changed inputs get a new generation; existing valid generations are retained.
      */
     public Path materialize(Path source, Path cacheRoot) throws IOException {
+        return materialize(capture(source), cacheRoot);
+    }
+
+    /** One immutable capture drives both the fingerprint and subsequent decoding. */
+    public static final class CapturedSource {
+        private final ByteBuffer bytes;
+        private final String sha256;
+
+        private CapturedSource(ByteBuffer bytes) {
+            this.bytes = bytes.asReadOnlyBuffer();
+            this.sha256 = hash(bytes.duplicate());
+        }
+
+        public String sha256() { return sha256; }
+        public int size() { return bytes.remaining(); }
+        public ByteBuffer bytes() { return bytes.asReadOnlyBuffer(); }
+    }
+
+    public static CapturedSource capture(Path source) throws IOException {
+        try (var channel = FileChannel.open(source, StandardOpenOption.READ)) {
+            long size = channel.size();
+            if (size < 1 || size > V3EnvelopeProvider.SOURCE_LIMIT)
+                throw new IOException("Legacy source size is outside the supported range");
+            var bytes = ByteBuffer.allocate(Math.toIntExact(size));
+            readExact(channel, bytes);
+            if (channel.size() != size) throw new IOException("Source changed during capture");
+            return new CapturedSource(bytes.flip());
+        }
+    }
+
+    public int decoderProfile() { return decoder.profile(); }
+
+    /** Caller holds the cache-root writer lock, as for materialize(Path, Path). */
+    public byte[] readWire(CapturedSource source, Path cacheRoot) throws IOException {
+        var directory = materialize(source, cacheRoot);
+        var manifest = readJson(directory.resolve("v3d.json"), V3dManifest.class);
+        var wire = manifest.wire();
+        if (wire.rawSize() < 4 || wire.rawSize() > WIRE_BYTE_LIMIT)
+            throw new IOException("Invalid cached wire size");
+        var bytes = ByteBuffer.allocate(Math.toIntExact(wire.rawSize()));
+        try (var channel = FileChannel.open(directory.resolve(V3dManifest.WIRE_PATH),
+                StandardOpenOption.READ)) {
+            readExact(channel, bytes);
+            if (channel.size() != bytes.capacity()) throw new IOException("Cached wire changed");
+        }
+        if (!hash(bytes.flip()).equals(wire.sha256()))
+            throw new IOException("Cached wire changed during read");
+        return bytes.array();
+    }
+
+    public Path materialize(CapturedSource source, Path cacheRoot) throws IOException {
         int profile = decoder.profile();
         if (profile < 1) {
             throw new IllegalArgumentException("Decoder profile must be positive");
         }
-        long size = Files.size(source);
-        if (size < 1 || size > V3EnvelopeProvider.SOURCE_LIMIT) {
-            throw new IOException("Legacy source size is outside the supported range");
-        }
-        ByteBuffer bytes = ByteBuffer.allocate(Math.toIntExact(size));
-        try (var channel = FileChannel.open(source, StandardOpenOption.READ)) {
-            readExact(channel, bytes);
-            if (channel.size() != size) throw new IOException("Source changed during capture");
-        }
-        bytes.flip();
-        String sourceHash = hash(bytes.duplicate());
+        long size = source.size();
+        ByteBuffer bytes = source.bytes();
+        String sourceHash = source.sha256();
         Path root = cacheRoot.toAbsolutePath().normalize();
         Files.createDirectories(root);
         if (workspace != null && workspace.profile() < 1)

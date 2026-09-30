@@ -4,6 +4,7 @@ import com.elfmcys.ysm.buffer.BufferType;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import cc.sirrus.ysmlib.YsmRuntime;
 import cc.sirrus.ysmlib.legacy.LegacyImportProvider;
+import cc.sirrus.ysmlib.v3d.V3dCache;
 import java.util.ArrayList;
 import java.util.List;
 import com.elfmcys.ysm.format.container.AssetContainerConstant;
@@ -36,6 +37,29 @@ import java.util.Objects;
 
 /** Owns portable result validation and the mandatory staged legacy representation. */
 public final class LegacyModelImporter {
+    private final LegacyImportProvider provider;
+    private final V3dCache wireCache;
+
+    public LegacyModelImporter() {
+        this(YsmRuntime.legacy(), YsmRuntime.v3dWire());
+    }
+
+    public LegacyModelImporter(LegacyImportProvider provider, V3dCache wireCache) {
+        this.provider = Objects.requireNonNull(provider);
+        this.wireCache = Objects.requireNonNull(wireCache);
+    }
+
+    /** Host staging contract, envelope and projection all independently invalidate conversion. */
+    public String cacheProfile() {
+        return "stage-1-envelope-" + wireCache.decoderProfile() + "-project-" + provider.profile();
+    }
+
+    public RawCompileResult stage(V3dCache.CapturedSource source, Path cacheRoot,
+                                  Path outputDirectory) throws IOException {
+        return stageBundle(provider.importWire(wireCache.readWire(source, cacheRoot), source.size()),
+                outputDirectory);
+    }
+
     public RawCompileResult stage(Path source, Path outputDirectory) {
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(outputDirectory, "outputDirectory");
@@ -56,7 +80,7 @@ public final class LegacyModelImporter {
                     "Failed to read legacy model", failure);
         }
         try {
-            return stageBundle(YsmRuntime.legacy().importModel(bytes), outputDirectory);
+            return stageBundle(provider.importModel(bytes), outputDirectory);
         } catch (cc.sirrus.ysmlib.legacy.LegacyDecodingException failure) {
             var status = switch (failure.reason()) {
                 case UNSUPPORTED_VERSION -> NativeLegacyStatus.UNSUPPORTED_VERSION;

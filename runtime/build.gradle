@@ -3,7 +3,7 @@ plugins { id 'base' }
 subprojects {
     apply plugin: 'java-library'
     group = 'cc.sirrus.ysmlib'
-    version = '0.1.0'
+    version = '0.1.1'
     repositories { mavenCentral() }
     java {
         sourceCompatibility = JavaVersion.VERSION_17

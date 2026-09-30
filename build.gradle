@@ -234,10 +234,10 @@ def relocateProcessorAsmTask = tasks.register(
 
 dependencies {
     // Supplied by the separate prerequisite mod, never shaded into YSM itself.
-    compileOnly 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.0'
-    testImplementation 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.0'
-    testImplementation 'cc.sirrus.ysmlib:ysm-runtime-java-v3:0.1.0'
-    modRuntimeOnly('cc.sirrus.ysmlib:ysm-runtime-forge:0.1.0') { transitive = false }
+    compileOnly 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.1'
+    testImplementation 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.1'
+    testImplementation 'cc.sirrus.ysmlib:ysm-runtime-java-v3:0.1.1'
+    modRuntimeOnly('cc.sirrus.ysmlib:ysm-runtime-forge:0.1.1') { transitive = false }
     processorAsm 'org.ow2.asm:asm:9.7.1'
     processorAsm 'org.ow2.asm:asm-tree:9.7.1'
     compileOnly files(relocateProcessorAsmTask.flatMap { it.archiveFile })
@@ -690,7 +690,7 @@ tasks.register('modelManagementMockSystem', JavaExec) {
                  serverEntries.absolutePath,
                  sourceSets.mockClient.output.classesDirs.singleFile.absolutePath,
                  sourceSets.mockServer.output.classesDirs.singleFile.absolutePath,
-                 layout.projectDirectory.file('runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar').asFile.absolutePath,
+                 layout.projectDirectory.file('runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar').asFile.absolutePath,
                  'full'])
     }
 }
@@ -757,7 +757,7 @@ tasks.register('modelManagementMockExact100', JavaExec) {
                  serverEntries.absolutePath,
                  sourceSets.mockClient.output.classesDirs.singleFile.absolutePath,
                  sourceSets.mockServer.output.classesDirs.singleFile.absolutePath,
-                 layout.projectDirectory.file('runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar').asFile.absolutePath,
+                 layout.projectDirectory.file('runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar').asFile.absolutePath,
                  'exact-100'])
     }
 }
@@ -800,7 +800,7 @@ tasks.register('modelManagementMockForge', JavaExec) {
         args projectDir.absolutePath,
                 evidenceRoot.absolutePath,
                 modelManagementMockJavaRevision.get(),
-                layout.projectDirectory.file('runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar').asFile.absolutePath,
+                layout.projectDirectory.file('runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar').asFile.absolutePath,
                 modelManagementMockImplementationRevision.toString(),
                 layout.buildDirectory.file(
                         'moddev/runMockHostServer.cmd').get().asFile.absolutePath,

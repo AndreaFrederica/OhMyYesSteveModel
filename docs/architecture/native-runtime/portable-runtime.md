@@ -35,7 +35,7 @@
 - `RawModelImporter` 的文件来源经 `ArchiveFileSystem` 进入归档服务。
 - V3 provider 返回只读、拥有副本的 payload；宿主负责 `.mxc` 写入、重开校验与发布。
 
-V1/V2 返回原始文件；V3 是 compiled wire，不与 raw archive 共用同一 archive API。[V3D](../asset-pipeline/v3d.md) 仍是旁路缓存，wire capture 使用 Java envelope decoder。
+V1/V2 返回原始文件；V3 是 compiled wire，不与 raw archive 共用同一 archive API。[V3D](../asset-pipeline/v3d.md) 在导入边缘提供已解压 wire 缓存，首次 capture 使用 Java envelope decoder；成品或 wire 命中时跳过 envelope decode。运行语义仍由当前 `.mxc` 决定。
 
 ## 前置可见信息
 
