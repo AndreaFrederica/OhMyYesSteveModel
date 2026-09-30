@@ -52,6 +52,18 @@ jobs:
       - name: Build and test YSM
         run: bash ./gradlew build verifyMockHostPackaging -Pysm.fast_run=true --no-daemon --console=plain
 
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ env.RELEASE_TAG }}
+          path: |
+            build/test-results/**/*.xml
+            build/reports/tests/**
+            runtime/**/build/test-results/**/*.xml
+            runtime/**/build/reports/tests/**
+          if-no-files-found: warn
+
       - name: Stage installable jars and checksums
         shell: bash
         run: |
