@@ -5,6 +5,7 @@ import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.model.service.ClientModelService;
 import com.elfmcys.ysm.client.texture.CustomTextureManager;
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
+import com.elfmcys.ysm.network.forge.PlayerStateHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
@@ -33,6 +34,7 @@ public class ClientTickEvent {
             return;
         }
         tickCount++;
+        PlayerStateHandler.tickClient();
         CustomTextureManager.tick();
         ClientModelService.current().ifPresent(ClientModelService::tick);
         refreshRate = Minecraft.getInstance().getWindow().getRefreshRate();

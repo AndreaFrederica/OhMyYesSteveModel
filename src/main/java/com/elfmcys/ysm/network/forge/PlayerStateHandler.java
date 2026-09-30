@@ -30,6 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -38,8 +40,29 @@ import org.jetbrains.annotations.Nullable;
 
 public final class PlayerStateHandler {
     private static final int MAX_ANIMATION_ID_BYTES = 256;
+    /** Updates can arrive just before Minecraft inserts the tracked player entity. */
+    private static final Map<Integer, PlayerStateUpdate> PENDING_CLIENT_UPDATES =
+            new ConcurrentHashMap<>();
 
     private PlayerStateHandler() {
+    }
+
+    public static void clearPendingClientUpdates() {
+        PENDING_CLIENT_UPDATES.clear();
+    }
+
+    public static void tickClient() {
+        var level = Minecraft.getInstance().level;
+        if (level == null) {
+            return;
+        }
+        PENDING_CLIENT_UPDATES.forEach((entityId, update) -> {
+            if (level.getEntity(entityId) instanceof Player) {
+                if (PENDING_CLIENT_UPDATES.remove(entityId, update)) {
+                    applyClientUpdate(update);
+                }
+            }
+        });
     }
 
     public static PlayerStateUpdate.Builder newFull(
@@ -294,6 +317,7 @@ public final class PlayerStateHandler {
         var entityId = update.subject().entityId();
         var level = Minecraft.getInstance().level;
         if (level == null || !(level.getEntity(entityId) instanceof Player player)) {
+            PENDING_CLIENT_UPDATES.put(entityId, update);
             return;
         }
         player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {

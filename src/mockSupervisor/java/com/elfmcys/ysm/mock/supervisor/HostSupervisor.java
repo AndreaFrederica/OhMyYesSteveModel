@@ -155,6 +155,10 @@ public final class HostSupervisor {
         var input = new LinkedHashMap<String, Object>();
         input.put("actions", List.of(
                 "client-a:await-state(ACTIVE)", "client-b:await-state(LOCAL)",
+                "client-b:await-auto-catalog(autotest,12)",
+                "client-b:loading-settings-proof",
+                "client-b:open-catalog", "supervisor:add-auto-folder",
+                "client-b:await-pack-button(auto-added)",
                 "server:snapshot", "client-a:await-path(host/online)",
                 "client-a:select-path(host/online)",
                 "server:await-selection(YsmHostA,host/online)",
@@ -162,9 +166,11 @@ public final class HostSupervisor {
                 "client-a:runtime-audio-proof(vorbis)",
                 "supervisor:add-page-pack", "server:await-pack(host/)",
                 "client-a:page-pack-cover(host/)", "client-a:invalid-select",
-                "client-a:disconnect-reconnect", "client-a:late-old-owner",
+                "client-a:await-equipped(host/online)", "client-a:disconnect-reconnect",
+                "client-a:await-equipped(host/online)", "client-a:late-old-owner",
                 "server:late-old-owner(YsmHostA)", "client-b:set-slot(4)",
-                "server:await-slot(YsmHostB,4)", "all:snapshot", "all:normal-stop"));
+                "server:await-slot(YsmHostB,4)", "all:snapshot",
+                "both-clients:pair-render-proof-after-rejoin", "all:normal-stop"));
         input.put("fixtures", Map.of(
                 "pagePackCover", sha256(fixtureRoot.resolve("ysm-pack.png")),
                 "pagePackDescriptor", sha256(fixtureRoot.resolve("ysm-pack.json")),
@@ -172,6 +178,10 @@ public final class HostSupervisor {
                 "opus", sha256(project.resolve("src/test/resources/audio-contract/opus-under.ogg")),
                 "vorbis", sha256(project.resolve("src/test/resources/audio-contract/vorbis-under.ogg"))));
         input.put("isolated", true);
+        var external = externalModels();
+        var externalHashes = new LinkedHashMap<String, String>();
+        for (var file : external) externalHashes.put(file.getFileName().toString(), sha256(file));
+        input.put("externalRootModels", externalHashes);
         input.put("runtimeLibrarySha256", sha256(runtimeLibrary));
         input.put("roles", List.of("server", "client-a", "client-b"));
         input.put("usernames", List.of("YsmHostA", "YsmHostB"));
@@ -187,6 +197,30 @@ public final class HostSupervisor {
         prepareServer(serverGame);
         prepareClient(clientAGame, "AUTO");
         prepareClient(clientBGame, "LOCAL");
+        for (var file : externalModels()) {
+            var destination = clientBGame.resolve("ysm/custom").resolve(file.getFileName());
+            Files.createDirectories(destination.getParent());
+            Files.copy(file, destination);
+        }
+        for (var index = 0; index < 12; index++) {
+            var source = clientBGame.resolve("ysm/custom/autotest/model-" + index);
+            if (index < 6) source = processRoot.resolve("raw-fixtures/model-" + index);
+            installFixture("1_alex", source,
+                    "Automatic startup model " + index);
+            if (index < 6) {
+                var archive = clientBGame.resolve("ysm/custom/autotest-direct-" + index + ".zip");
+                Files.createDirectories(archive.getParent());
+                try (var output = new java.util.zip.ZipOutputStream(Files.newOutputStream(archive));
+                     var paths = Files.walk(source)) {
+                    for (var file : paths.filter(Files::isRegularFile).sorted().toList()) {
+                        output.putNextEntry(new java.util.zip.ZipEntry(
+                                source.relativize(file).toString().replace('\\', '/')));
+                        Files.copy(file, output);
+                        output.closeEntry();
+                    }
+                }
+            }
+        }
         if (Boolean.getBoolean("ysm.mockFirstPerson")) {
             var firstPersonJar = Path.of(System.getProperty("ysm.mockFirstPersonJar"));
             requireFile(firstPersonJar, "named FirstPerson test mod");
@@ -214,6 +248,18 @@ public final class HostSupervisor {
         awaitReady(clientB);
         expect(send(clientB, "02-b-local", "await-state", Map.of("state", "LOCAL")),
                 "facts.state", "LOCAL");
+        var automatic = send(clientB, "02-b-auto", "await-auto-catalog",
+                Map.of("prefix", "autotest", "count", "12"));
+        expect(automatic, "facts.modelScreenOpened", false);
+        expect(send(clientB, "02-b-scan", "await-local-scan", Map.of()),
+                "facts.modelScreenOpened", false);
+        send(clientB, "02-b-screen", "open-catalog", Map.of());
+        installFixture("2_steve", clientBGame.resolve("ysm/custom/auto-added/model"),
+                "Automatically added model");
+        expect(send(clientB, "02-b-refresh", "await-pack-button", Map.of("name", "auto-added")),
+                "facts.automaticRefresh", true);
+        expect(send(clientB, "02-b-loading", "loading-settings-proof", Map.of()),
+                "facts.controls", 5);
         var serverInitial = send(server, "03-server-initial", "snapshot", Map.of());
         expect(serverInitial, "facts.sessions.YsmHostA.active", true);
         expectNotTrue(serverInitial, "facts.sessions.YsmHostB.active");
@@ -231,6 +277,8 @@ public final class HostSupervisor {
                 at(serverInitial.json(), "facts.sessions.YsmHostA.connection").getAsString());
         observations.add("Correlated actual Forge hello/full and typed model selection across "
                 + "the client/server physical connection owners");
+        expect(send(clientA, "06-equipped", "await-equipped", Map.of("path", PUBLIC_PATH)),
+                "facts.modelScreenOpened", false);
         var renderProof = send(clientA, "06a-render", "runtime-render-proof", Map.of());
         boolean accelerated = Boolean.getBoolean("ysm.mockNative");
         expect(renderProof, "facts.renderer", accelerated ? "native-cpp-render-v1 (packed)" : "java-render");
@@ -281,6 +329,8 @@ public final class HostSupervisor {
 
         var reconnect = send(clientA, "10-reconnect", "disconnect-reconnect", Map.of());
         expectAtLeast(reconnect, "facts.currentOrdinal", 2);
+        expect(send(clientA, "10-equipped", "await-equipped", Map.of("path", PUBLIC_PATH)),
+                "facts.modelScreenOpened", false);
         var clientLate = send(clientA, "11-client-late", "late-old-owner", Map.of());
         expect(clientLate, "facts.oldGateAccepted", false);
         expect(clientLate, "facts.publicationUnchanged", true);
@@ -302,6 +352,31 @@ public final class HostSupervisor {
         var serverFinal = send(server, "17-server-final", "snapshot", Map.of());
         expect(serverFinal, "facts.sessions.YsmHostA.active", true);
         expectNotTrue(serverFinal, "facts.sessions.YsmHostB.active");
+
+        send(clientB, "17b-enable-sync", "enable-sync-reconnect", Map.of());
+        send(server, "17c-stage-a", "prepare-render-stage", Map.of("player", "YsmHostA"));
+        send(server, "17d-stage-b", "prepare-render-stage", Map.of("player", "YsmHostB"));
+        send(clientB, "17e-select-b", "select-path", Map.of("path", "host/second"));
+        send(server, "17f-selection-b", "await-selection",
+                Map.of("path", "host/second", "player", "YsmHostB"));
+        for (var client : List.of(clientA, clientB)) {
+            expect(send(client, "17g-observe-a", "await-player-model",
+                    Map.of("player", "YsmHostA", "path", PUBLIC_PATH)), "facts.present", true);
+            expect(send(client, "17h-observe-b", "await-player-model",
+                    Map.of("player", "YsmHostB", "path", "host/second")), "facts.present", true);
+        }
+        send(clientA, "17i-rejoin", "disconnect-reconnect", Map.of());
+        for (var client : List.of(clientA, clientB)) {
+            expect(send(client, "17j-rejoined-a", "await-player-model",
+                    Map.of("player", "YsmHostA", "path", PUBLIC_PATH)), "facts.present", true);
+            expect(send(client, "17k-rejoined-b", "await-player-model",
+                    Map.of("player", "YsmHostB", "path", "host/second")), "facts.present", true);
+        }
+        observations.add("Two ACTIVE clients agree on both players' authoritative and rendered models, including rejoin");
+        for (var client : List.of(clientA, clientB)) {
+            expect(send(client, "17l-pair-render", "pair-render-proof", Map.of()),
+                    "facts.bothRendered", true);
+        }
 
         send(clientA, "18-a-stop", "stop", Map.of());
         send(clientB, "19-b-stop", "stop", Map.of());
@@ -548,6 +623,7 @@ public final class HostSupervisor {
                 StandardCharsets.UTF_8);
         installFixture("1_alex", gameDirectory.resolve("ysm/custom/host/online"),
                 "Host Online");
+        installFixture("2_steve", gameDirectory.resolve("ysm/custom/host/second"), "Host Second");
         // A visible camera-relative background fixture, without changing shipped builtin models.
         var armPath = gameDirectory.resolve("ysm/custom/host/online/models/arm.json");
         var arm = JsonParser.parseString(Files.readString(armPath)).getAsJsonObject();
@@ -567,6 +643,18 @@ public final class HostSupervisor {
         Files.writeString(gameDirectory.resolve("options.txt"),
                 "pauseOnLostFocus:false\nguiScale:2\ntutorialStep:none\noverrideWidth:1280\noverrideHeight:720\n",
                 StandardCharsets.UTF_8);
+    }
+
+    /** Optional user corpus is copied into the isolated client, never modified in place. */
+    private List<Path> externalModels() throws IOException {
+        var configured = System.getenv("YSM_MOCK_CUSTOM_MODELS");
+        if (configured == null || configured.isBlank()) return List.of();
+        try (var files = Files.list(Path.of(configured))) {
+            return files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().toLowerCase(java.util.Locale.ROOT)
+                            .endsWith(".ysm"))
+                    .sorted().toList();
+        }
     }
 
     private void installFixture(String sourceName, Path destination, String displayName)

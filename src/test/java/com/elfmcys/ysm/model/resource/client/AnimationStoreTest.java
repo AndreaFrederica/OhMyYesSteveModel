@@ -19,6 +19,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AnimationStoreTest {
     @Test
+    void cancelledAnimationRemainsEligibleForTheNextRequest() {
+        var attempts = new AtomicInteger();
+        try (var store = AnimationStore.lazy(List.of("walk"), name -> {
+            if (attempts.getAndIncrement() == 0) {
+                throw new java.util.concurrent.CancellationException("request retired");
+            }
+            return com.elfmcys.ysm.proto.mixel.asset.model.data.Animation.newBuilder().setName(name).build();
+        }, source -> animation(source.name()))) {
+            assertNull(store.get("walk"));
+            assertEquals(AnimationStore.State.UNLOADED, store.state("walk"));
+            assertFalse(store.hasFailures());
+            assertEquals("walk", store.get("walk").name);
+            assertEquals(2, attempts.get());
+        }
+    }
+
+    @Test
     void loadsAndBindsOnlyTheFirstRequestedAnimation() {
         var loads = new HashMap<String, Integer>();
         var binds = new HashMap<String, Integer>();

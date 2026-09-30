@@ -121,7 +121,7 @@ public final class ModelRenderTargetLoader {
 
     public static LoadResult.Failed failure(Throwable cause) {
         final ResourceFailure.Kind kind;
-        if (cause instanceof CancellationException) {
+        if (ResourceFailure.isCancellation(cause)) {
             kind = ResourceFailure.Kind.TRANSIENT;
         } else if (cause instanceof AssetLoadException asset) {
             kind = asset.reason() == AssetLoadException.Reason.CONTENT

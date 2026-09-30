@@ -3,6 +3,7 @@ package com.elfmcys.ysm.model.resource.client.failure;
 import com.elfmcys.ysm.model.catalog.content.ModelContent;
 import com.elfmcys.ysm.model.domain.ModelFileIdentity;
 import com.elfmcys.ysm.model.resource.client.ModelResourceFailureGate;
+import com.elfmcys.ysm.model.resource.client.ResourceFailure;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -25,6 +26,9 @@ public final class ModelFailureRegistry {
 
             @Override
             public void fail(Throwable cause) {
+                // Losing one flight/session must not poison later consumers of the
+                // same texture or animation identity (including wrapped cancellation).
+                if (ResourceFailure.isCancellation(cause)) return;
                 if (failures.putIfAbsent(key, cause) == null) {
                     firstFailure.accept(cause);
                 }

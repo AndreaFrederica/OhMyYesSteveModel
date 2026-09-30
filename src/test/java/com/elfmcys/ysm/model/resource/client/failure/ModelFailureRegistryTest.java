@@ -46,6 +46,24 @@ class ModelFailureRegistryTest {
     }
 
     @Test
+    void cancellationDoesNotPoisonAnotherFlightOrEmitContentFailure() {
+        var registry = new ModelFailureRegistry();
+        var notifications = new AtomicInteger();
+        for (var stage : ModelFailureRegistry.Stage.values()) {
+            var gate = registry.gate(content, stage, "player/test", error -> notifications.incrementAndGet());
+            var cancelled = new java.util.concurrent.CancellationException("old request retired");
+            gate.fail(cancelled);
+            gate.fail(com.elfmcys.ysm.format.AssetLoadException.content("wrapped", cancelled));
+            assertTrue(gate.failure().isEmpty());
+            assertFalse(registry.hasMatching(content, stage, ignored -> true));
+            var corrupt = new IllegalArgumentException("actual bad content");
+            gate.fail(corrupt);
+            assertSame(corrupt, gate.failure().orElseThrow());
+        }
+        assertEquals(2, notifications.get());
+    }
+
+    @Test
     void concurrentFailuresKeepOneExactCauseAndNotifyOnce() {
         var registry = new ModelFailureRegistry();
         var notifications = new AtomicInteger();

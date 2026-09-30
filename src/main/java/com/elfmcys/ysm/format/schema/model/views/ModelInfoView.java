@@ -88,8 +88,12 @@ public final class ModelInfoView {
     }
 
     @NotNull
-    public String translateOr(String key, String locale, @NotNull String defaultValue) {
-        return Objects.requireNonNullElse(translate(key, locale), defaultValue);
+    public String translateOr(String key, String locale, @Nullable String defaultValue) {
+        // Historical and externally supplied manifests may omit a scalar fallback.  The
+        // catalog UI must still be renderable when both the translation and that field are
+        // absent; an empty string is the safe display value.
+        return Objects.requireNonNullElse(translate(key, locale),
+                Objects.requireNonNullElse(defaultValue, ""));
     }
 
     @Nullable

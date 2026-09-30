@@ -67,6 +67,8 @@ Ingress 在网络入口捕获 sender 与 exact `Connection`，排队到 owner th
 
 当前 Game Server 使用 `Entity#getId()` 构造 `EntityRef.entity_id`，并在当前 `level` 中解析；`EntityRef.player_id` 禁用。未来 Backend 即使启用稳定玩家路由键，也必须以已认证 transport peer 决定写入主体，路由键不能替代认证。尚未闭环的实机验证见[当前支持状态](../../status/support-and-verification.md)。
 
+多人回归还必须同时检查两层结果：服务端下发的 `model_id`，以及观察客户端实际加载完成的 `ModelRenderTarget.modelHash()`。前者一致只说明状态包已到达，后者才说明该客户端已找到对应内容并完成渲染资源；实体尚未进入当前 level、资源仍在加载或使用 fallback 时，测试应分别记录为同步或资源就绪问题。
+
 ## 追踪范围与输入补全
 
 Minecraft tracker 开始追踪时尝试发送当前 FULL，后续 tick 形成变化后尝试 DELTA；本地 reporter 的周期机会形成 FULL。每次都是独立 best-effort 通知，不因之前失败重放旧消息。可观察义务见[player-state-sync](../../product-decisions/decisions/player-state-sync.md)。

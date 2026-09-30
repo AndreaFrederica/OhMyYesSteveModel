@@ -44,6 +44,7 @@ public final class ClientSessionRuntime {
     public static synchronized ClientModelSession beginConnection(Connection connection) {
         Objects.requireNonNull(connection, "connection");
         closeCurrent();
+        PlayerStateHandler.clearPendingClientUpdates();
 
         var models = ClientModelService.instance();
         var sessionOwner = models.beginConnection();
@@ -405,6 +406,7 @@ public final class ClientSessionRuntime {
     private static boolean closeCurrent() {
         var owner = current;
         current = null;
+        PlayerStateHandler.clearPendingClientUpdates();
         if (owner == null) {
             return false;
         }

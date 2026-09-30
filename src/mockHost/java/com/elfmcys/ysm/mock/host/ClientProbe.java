@@ -52,6 +52,7 @@ public final class ClientProbe {
     private boolean connecting;
     private boolean reconnectRequested;
     private boolean stopAfterAck;
+    private boolean modelScreenOpened;
     private long frameBackgroundStart, duplicateBackgroundFrames;
 
     @SubscribeEvent
@@ -73,6 +74,7 @@ public final class ClientProbe {
             return;
         }
         minecraft = Minecraft.getInstance();
+        modelScreenOpened |= minecraft.screen instanceof com.elfmcys.ysm.client.gui.PlayerModelScreen;
         ticks++;
         try {
             publishReady();
@@ -87,6 +89,7 @@ public final class ClientProbe {
     public void onLogin(ClientPlayerNetworkEvent.LoggingIn event) {
         currentConnection = event.getConnection();
         connectionOrdinal++;
+        modelScreenOpened = false;
         connecting = false;
         reconnectRequested = false;
         try {
@@ -127,12 +130,14 @@ public final class ClientProbe {
                 || ClientModelService.current().isEmpty()) {
             return;
         }
+        var startupProjection = StartupProjectionProbe.verify(minecraft);
         ready = true;
         readyAt = ticks;
         io.ready(Map.of(
                 "available", true,
                 "clientThread", minecraft.isSameThread(),
-                "renderThread", RenderSystem.isOnRenderThread()));
+                "renderThread", RenderSystem.isOnRenderThread(),
+                "startupProjection", startupProjection));
     }
 
     private void connectWhenNeeded() throws IOException {
@@ -194,6 +199,26 @@ public final class ClientProbe {
         return switch (next.name()) {
             case "await-state" -> () -> awaitState(next.require("state"));
             case "snapshot" -> () -> snapshot();
+            case "await-auto-catalog" -> () -> awaitAutoCatalog(next.require("prefix"),
+                    Integer.parseInt(next.require("count")));
+            case "await-local-scan" -> () -> {
+                var catalog = com.elfmcys.ysm.model.ModelRuntime.system().catalog();
+                if (catalog.busy()) return null;
+                if (modelScreenOpened) throw new IllegalStateException("Scan required a model screen");
+                var facts = new LinkedHashMap<String, Object>(snapshot());
+                facts.put("modelScreenOpened", false);
+                facts.put("scanErrors", catalog.current().report().errors().stream()
+                        .map(Object::toString).toList());
+                return facts;
+            };
+            case "await-equipped" -> () -> awaitEquipped(next.require("path"));
+            case "open-catalog" -> () -> {
+                minecraft.setScreen(new com.elfmcys.ysm.client.gui.PlayerModelScreen());
+                return Map.of("opened", true);
+            };
+            case "await-pack-button" -> () -> awaitPackButton(next.require("name"));
+            case "loading-settings-proof" -> new LoadingSettingsProof();
+            case "pair-render-proof" -> new PairRenderProof();
             case "runtime-render-proof" -> new RuntimeRenderProof();
             case "runtime-first-person-proof" -> new FirstPersonProof();
             case "runtime-first-person-body-proof" -> new FirstPersonBodyProbe(io, () -> ticks);
@@ -206,6 +231,12 @@ public final class ClientProbe {
                         .setTextureId("").build());
                 return ClientModelService.instance().catalog().models().size();
             }, "invalidSelection");
+            case "enable-sync-reconnect" -> {
+                com.elfmcys.ysm.config.ClientConfig.NETWORK_SESSION_MODE.set(
+                        com.elfmcys.ysm.network.session.SessionMode.AUTO);
+                yield reconnect();
+            }
+            case "await-player-model" -> () -> awaitPlayerModel(next.require("player"), next.require("path"));
             case "disconnect-reconnect" -> reconnect();
             case "late-old-owner" -> () -> lateOldOwner();
             case "set-slot" -> () -> setSlot(Integer.parseInt(next.require("slot")));
@@ -244,6 +275,142 @@ public final class ClientProbe {
         result.put("sessionState", ClientSessionRuntime.state()
                 .map(Enum::name).orElse("NONE"));
         return result;
+    }
+
+    private Map<String, ?> awaitAutoCatalog(String prefix, int expectedCount) {
+        if (modelScreenOpened) {
+            throw new IllegalStateException("Startup scan required a model screen");
+        }
+        var count = ClientModelService.instance().catalog().models().values().stream()
+                .filter(entry -> entry.displayPath().startsWith(prefix)).count();
+        return count < expectedCount ? null : Map.of("count", count,
+                "modelScreenOpened", false, "prefix", prefix);
+    }
+
+    private Map<String, ?> awaitEquipped(String path) {
+        if (modelScreenOpened) {
+            throw new IllegalStateException("Selection restoration required a model screen");
+        }
+        var modelId = ClientModelService.instance().resolvePath(path).orElse(null);
+        var player = minecraft.player;
+        if (modelId == null || player == null) return null;
+        var capability = player.getCapability(
+                com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider.CAP).resolve().orElse(null);
+        if (capability == null || !modelId.equals(capability.getModelHash())
+                || !capability.isModelPresent()) return null;
+        return Map.of("path", path, "modelId", modelId.toString(),
+                "modelScreenOpened", false, "connectionOrdinal", connectionOrdinal);
+    }
+
+    private Map<String, ?> awaitPlayerModel(String name, String path) throws IOException {
+        if (minecraft.level == null) return null;
+        var player = minecraft.level.players().stream()
+                .filter(value -> value.getGameProfile().getName().equals(name)).findFirst().orElse(null);
+        var id = ClientModelService.instance().resolvePath(path).orElse(null);
+        if (player == null || id == null) return null;
+        var capability = player.getCapability(
+                com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider.CAP).resolve().orElse(null);
+        if (capability == null || !id.equals(capability.getModelHash())
+                || !capability.isModelPresent() || capability.getModelRenderTarget() == null
+                || !id.equals(capability.getModelRenderTarget().modelHash())) return null;
+        return Map.of("player", name, "entityId", player.getId(), "modelId", id.toString(),
+                "renderModelId", capability.getModelRenderTarget().modelHash().toString(),
+                "path", path, "present", true, "modelScreenOpened", modelScreenOpened);
+    }
+
+    private Map<String, ?> awaitPackButton(String name) throws IOException {
+        if (!(minecraft.screen instanceof com.elfmcys.ysm.client.gui.PlayerModelScreen screen)) {
+            // A catalog publication can rebuild/replace the screen during the same
+            // client tick. Restore the already requested catalog view and inspect the
+            // next live screen; this is not a folder interaction or a rescan trigger.
+            minecraft.setScreen(new com.elfmcys.ysm.client.gui.PlayerModelScreen());
+            return null;
+        }
+        var found = screen.children().stream()
+                .filter(com.elfmcys.ysm.client.gui.button.PackButton.class::isInstance)
+                .map(com.elfmcys.ysm.client.gui.button.PackButton.class::cast)
+                .anyMatch(button -> button.getMessage().getString().equals(name));
+        if (!found) return null;
+        try (var screenshot = net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+            screenshot.writeToFile(io.artifact("auto-catalog-refresh.png"));
+        }
+        minecraft.setScreen(null);
+        return Map.of("pack", name, "folderClicked", false, "automaticRefresh", true);
+    }
+
+    private final class PairRenderProof implements PendingAction {
+        private final int captureAt = ticks + 10;
+        private final net.minecraft.client.CameraType previous = minecraft.options.getCameraType();
+
+        private PairRenderProof() {
+            minecraft.setScreen(null);
+            minecraft.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
+        }
+
+        @Override
+        public Map<String, ?> poll() throws Exception {
+            if (ticks < captureAt) return null;
+            var first = awaitPlayerModel("YsmHostA", "host/online");
+            var second = awaitPlayerModel("YsmHostB", "host/second");
+            if (first == null || second == null) return null;
+            try (var screenshot = net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                screenshot.writeToFile(io.artifact("both-players-after-rejoin.png"));
+            } finally {
+                minecraft.options.setCameraType(previous);
+            }
+            return Map.of("playerA", first, "playerB", second, "bothRendered", true);
+        }
+    }
+
+    private final class LoadingSettingsProof implements PendingAction {
+        private int stage;
+        private int captureAt;
+
+        @Override
+        public Map<String, ?> poll() throws Exception {
+            if (stage == 0) {
+                var settings = new com.elfmcys.ysm.client.gui.ModelLoadingScreen(
+                        new com.elfmcys.ysm.client.gui.ConfigScreen(null));
+                minecraft.setScreen(settings);
+                var sliders = settings.children().stream()
+                        .filter(net.minecraftforge.client.gui.widget.ForgeSlider.class::isInstance).count();
+                if (sliders != 5) throw new IllegalStateException("Missing loading controls");
+                captureAt = ticks + 5;
+                stage++;
+                return null;
+            }
+            if (ticks < captureAt) return null;
+            if (stage == 1) {
+                try (var screenshot = net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                    screenshot.writeToFile(io.artifact("loading-settings.png"));
+                }
+                minecraft.setScreen(null);
+                com.elfmcys.ysm.model.ModelRuntime.system().catalog().reload();
+                captureAt = ticks + 3;
+                stage++;
+                return null;
+            }
+            try (var screenshot = net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                screenshot.writeToFile(io.artifact("loading-progress.png"));
+            }
+            var service = ClientModelService.instance();
+            return Map.of("controls", 5, "stage", service.scanProgress().stage().name(),
+                    "clientWorkers", com.elfmcys.ysm.config.ModelLoadingConfig.CLIENT_WORKERS.get(),
+                    "catalogWorkers", com.elfmcys.ysm.config.ModelLoadingConfig.CATALOG_WORKERS.get());
+        }
+    }
+
+    @SubscribeEvent
+    public void onScreenOpening(net.minecraftforge.client.event.ScreenEvent.Opening event) {
+        if (event.getNewScreen() instanceof com.elfmcys.ysm.client.gui.PlayerModelScreen) {
+            try {
+                io.event("model-screen-opened", action == null ? null : action.id(), Map.of(
+                        "source", java.util.Arrays.stream(new Throwable().getStackTrace())
+                                .map(StackTraceElement::toString).limit(32).toList()));
+            } catch (IOException failure) {
+                throw new java.io.UncheckedIOException(failure);
+            }
+        }
     }
 
     private Map<String, ?> awaitPath(String path) {

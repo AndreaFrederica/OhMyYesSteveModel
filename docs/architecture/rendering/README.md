@@ -66,6 +66,8 @@ flowchart TB
 
 `Native*` 前缀是迁移期保留的命名，其实现为 JVM 适配器，不再加载官方 native。保活与借用规则见[计算边界与内存](../native-runtime/jni-and-memory.md)；可取消绘制窗口见[游戏与扩展接入](../integration/README.md)。
 
+宿主投影在首个 `GameRenderer` tick 前也必须有效：进入世界时暂停并不阻止绘制。构造结束时，若原版当前与上一帧 FOV 倍率仍同时为零，适配层将两者初始化为中性值 1，避免生成 0° 透视。该修正只定义初始状态，不更改玩家 FOV 设置、后续插值或 Forge FOV 事件，也不在 renderer 收到非法输入后替换矩阵。故障证据与验证边界见[渲染已知问题](../../status/known-issues/rendering.md#正确性与失败处理)。
+
 ## 第一人称手臂
 
 Forge `RenderArmEvent` 由 `PlayerRenderer.renderRightHand/renderLeftHand` 发出，独立于第三人称的 `RenderPlayerEvent.Pre`。`ReplacePlayerHandRenderEvent` 在 capability、模型和手臂 locator 就绪后调用 `CustomFirstPersonArmRenderer`，只有接管成功才取消原版手臂；不取消整个 `RenderHandEvent`，物品绘制仍由 Minecraft 管理。

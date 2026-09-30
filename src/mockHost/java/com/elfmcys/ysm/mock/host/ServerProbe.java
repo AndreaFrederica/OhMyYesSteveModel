@@ -172,7 +172,7 @@ final class ServerProbe {
         }
         level.setDayTime(6000);
         level.setWeatherParameters(6000, 0, false, false);
-        player.connection.teleport(0.5, 200, 0.5, 180, 0);
+        player.connection.teleport(name.equals("YsmHostB") ? 2.5 : 0.5, 200, 0.5, 180, 0);
         return Map.of("stageReady", true);
     }
 

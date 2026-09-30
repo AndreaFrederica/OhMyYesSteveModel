@@ -2,6 +2,7 @@ package com.elfmcys.ysm.model.resource.client.render;
 
 import com.elfmcys.ysm.model.resource.client.ModelResourceFailureGate;
 import com.elfmcys.ysm.model.resource.client.ModelResourceFailures;
+import com.elfmcys.ysm.model.resource.client.ResourceFailure;
 import com.elfmcys.ysm.client.texture.CustomPBRTextureSet;
 import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.schema.file.PBRImageSources;
@@ -89,7 +90,7 @@ final class PreparedTextureSet implements BakedModelCache.TexturePixelsSupplier,
         try {
             return decoder.decode(source);
         } catch (IOException | RuntimeException error) {
-            failureGate.fail(error);
+            if (!ResourceFailure.isCancellation(error)) failureGate.fail(error);
             if (error instanceof IOException io) {
                 throw AssetLoadException.content(
                         "Failed to decode model texture component: " + component, io);

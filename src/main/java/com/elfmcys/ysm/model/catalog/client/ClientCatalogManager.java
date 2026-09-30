@@ -120,11 +120,16 @@ public final class ClientCatalogManager implements AutoCloseable {
 
     public synchronized void publishSession(ActivationSnapshot activation) {
         var previous = catalog;
+        var ready = activation.readyCatalog();
+        // A local scan may finish after the session publication. Reuse only an exact,
+        // already verified local representation; the remote entry still owns path,
+        // access and pack authority.
+        ready = upgradeExactLocalContent(ready, local.snapshot());
         var failed = activation.failures().stream().map(value ->
                 new ClientFailedCatalogEntry(value.publication().modelId(),
                         value.publication().path(), value.publication().access(),
                         value.failure().message())).toList();
-        catalog = new ClientCatalogSnapshot(activation.readyCatalog()
+        catalog = new ClientCatalogSnapshot(ready
                 .withIntrinsicDefaultFrom(local.snapshot()), failed);
         sessionPublished = true;
         notifyListener(new CatalogChange(previous, catalog));
@@ -153,7 +158,32 @@ public final class ClientCatalogManager implements AutoCloseable {
             var previous = catalog;
             catalog = new ClientCatalogSnapshot(transition.current());
             notifyListener(new CatalogChange(previous, catalog));
+        } else {
+            var previous = catalog;
+            var upgraded = upgradeExactLocalContent(catalog.catalog(), transition.current());
+            if (!upgraded.equals(catalog.catalog())) {
+                catalog = new ClientCatalogSnapshot(upgraded, catalog.failed());
+                notifyListener(new CatalogChange(previous, catalog));
+            }
         }
+    }
+
+    private static CatalogSnapshot upgradeExactLocalContent(
+            CatalogSnapshot published, CatalogSnapshot localSnapshot) {
+        var records = new LinkedHashMap<Hash256, com.elfmcys.ysm.model.catalog.snapshot.CatalogRecord>();
+        published.byModelId().forEach((modelId, remote) -> {
+            var localRecord = localSnapshot.byModelId().get(modelId);
+            if (localRecord != null
+                    && remote.binding().content() instanceof com.elfmcys.ysm.model.resource.client.remote.RemoteModelContent
+                    && remote.binding().content().representation().identity()
+                    .equals(localRecord.binding().content().representation().identity())) {
+                records.put(modelId, new com.elfmcys.ysm.model.catalog.snapshot.CatalogRecord(
+                        remote.entry(), remote.location(), localRecord.binding()));
+            } else {
+                records.put(modelId, remote);
+            }
+        });
+        return new CatalogSnapshot(records, published.packs(), published.report());
     }
 
     private void notifyListener(CatalogChange change) {

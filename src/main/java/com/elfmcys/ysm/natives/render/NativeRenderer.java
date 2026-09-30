@@ -10,9 +10,11 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 
 public class NativeRenderer {
+  private static boolean invalidMatrixLogged;
   public static void render(
       VertexConsumer vertexConsumer,
       PoseStack.Pose pose,
@@ -38,12 +40,28 @@ public class NativeRenderer {
       int color,
       RenderContextType contextType) {
     var renderer = cc.sirrus.ysmlib.YsmRuntime.render().renderer();
+    var modelMatrix = pose.pose();
+    var normalMatrix = pose.normal();
+    var view = RenderSystem.getModelViewMatrix();
+    var projection = RenderSystem.getProjectionMatrix();
+    if ((!modelMatrix.isFinite() || !normalMatrix.isFinite() || !view.isFinite() || !projection.isFinite())
+        && !invalidMatrixLogged) {
+      invalidMatrixLogged = true;
+      var window = Minecraft.getInstance().getWindow();
+      com.elfmcys.ysm.YesSteveModel.LOGGER.error(
+          "Invalid YSM render matrices: modelFinite={}, normalFinite={}, viewFinite={}, projectionFinite={}, "
+              + "model={}, normal={}, view={}, projection={}, window={}x{}, gui={}x{}, camera={}, context={}",
+          modelMatrix.isFinite(), normalMatrix.isFinite(), view.isFinite(), projection.isFinite(),
+          invalidValues(modelMatrix), invalidValues(normalMatrix), invalidValues(view), invalidValues(projection),
+          window.getWidth(), window.getHeight(), window.getGuiScaledWidth(), window.getGuiScaledHeight(),
+          Minecraft.getInstance().options.getCameraType(), contextType);
+    }
     var parameters =
         new cc.sirrus.ysmlib.render.Renderer.Parameters(
-            pose.pose(),
-            pose.normal(),
-            RenderSystem.getModelViewMatrix(),
-            RenderSystem.getProjectionMatrix(),
+            modelMatrix,
+            normalMatrix,
+            view,
+            projection,
             packColor(color),
             light,
             overlay,
@@ -77,6 +95,29 @@ public class NativeRenderer {
             ((byte) (normal >>> 16)) / 127f);
       }
     }
+  }
+
+  private static String invalidValues(org.joml.Matrix4fc matrix) {
+    var values = new float[16];
+    matrix.get(values);
+    return invalidValues(values);
+  }
+
+  private static String invalidValues(org.joml.Matrix3fc matrix) {
+    var values = new float[9];
+    matrix.get(values);
+    return invalidValues(values);
+  }
+
+  private static String invalidValues(float[] values) {
+    var result = new StringBuilder();
+    for (int index = 0; index < values.length; index++) {
+      if (!Float.isFinite(values[index])) {
+        if (result.length() > 0) result.append(',');
+        result.append(index).append('=').append(values[index]);
+      }
+    }
+    return result.length() == 0 ? "finite" : result.toString();
   }
 
   @SuppressWarnings("resource")

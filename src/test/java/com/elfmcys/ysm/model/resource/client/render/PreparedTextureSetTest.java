@@ -21,6 +21,36 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PreparedTextureSetTest {
     @Test
+    void cancelledDecodeDoesNotBlockNewCandidateUsingTheSameTextureGate() throws Exception {
+        var fixture = new Fixture();
+        var recorded = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var gate = new com.elfmcys.ysm.model.resource.client.ModelResourceFailureGate() {
+            public java.util.Optional<Throwable> failure() { return java.util.Optional.ofNullable(recorded.get()); }
+            public void fail(Throwable cause) { recorded.compareAndSet(null, cause); }
+        };
+        var failures = new ModelResourceFailures() {
+            public com.elfmcys.ysm.model.resource.client.ModelResourceFailureGate texture(String resource) { return gate; }
+            public com.elfmcys.ysm.model.resource.client.ModelResourceFailureGate animation(String resource) { return gate; }
+        };
+        var sources = new PBRImageSources(fixture.uv, fixture.normal, fixture.specular);
+        try (var cancelled = new PreparedTextureSet(sources, "test/", failures, source -> {
+            throw new CancellationException("Remote chunk read was cancelled");
+        })) {
+            assertThrows(CancellationException.class, cancelled::get);
+        }
+        org.junit.jupiter.api.Assertions.assertNull(recorded.get());
+        try (var retry = new PreparedTextureSet(sources, "test/", failures, fixture::decode)) {
+            retry.prepare(() -> false);
+            assertEquals(List.of("uv", "normal", "specular"), fixture.decodeOrder);
+        }
+        fixture.assertAllClosed();
+        var wrapped = com.elfmcys.ysm.format.AssetLoadException.content("wrapped cancellation",
+                new CancellationException("retired"));
+        assertEquals(com.elfmcys.ysm.model.resource.client.ResourceFailure.Kind.TRANSIENT,
+                ModelRenderTargetLoader.failure(wrapped).failure().kind());
+    }
+
+    @Test
     void cacheHitMaterializesBaseWithoutDecodingItTwice() throws Exception {
         var fixture = new Fixture();
         try (var prepared = fixture.prepared()) {

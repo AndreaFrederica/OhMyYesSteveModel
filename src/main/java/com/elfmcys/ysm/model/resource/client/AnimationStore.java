@@ -107,6 +107,9 @@ public final class AnimationStore extends Object2ReferenceOpenHashMap<String, An
                 slots.put(name, new Slot(State.READY, value));
                 return value;
             } catch (Exception error) {
+                if (ResourceFailure.isCancellation(error)) {
+                    return fallback == null ? null : fallback.get(name);
+                }
                 failureGate.fail(error);
                 slots.put(name, new Slot(State.FAILED, null));
                 return fallback == null ? null : fallback.get(name);

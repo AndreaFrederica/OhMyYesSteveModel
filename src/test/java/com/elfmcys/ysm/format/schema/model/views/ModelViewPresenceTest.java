@@ -54,6 +54,13 @@ class ModelViewPresenceTest {
     }
 
     @Test
+    void translationWithMissingFallbackRemainsRenderable() {
+        var view = view(emptyInfo(), player());
+
+        assertEquals("", view.translateOr("missing", "zh_cn", null));
+    }
+
+    @Test
     void treatsEmptyRenderTargetCollectionsWithoutMutatingMessage() {
         var descriptor = player();
 
