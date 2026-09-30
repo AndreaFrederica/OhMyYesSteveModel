@@ -1,5 +1,7 @@
 # Yes Steve Model
 
+带有两个可安装 JAR 的自动构建发布于 [本 fork 的 Releases](https://github.com/AndreaFrederica/OhMyYesSteveModel/releases)；YSM 本体和 Oh my ysm lib 必须一起放入 `mods/`。构建方式与可选 native 加速的安装见[构建指南](docs/build.md)。
+
 本 fork 使用独立前置 **Oh my ysm lib**（`ysm_runtime`，作者 AndreaFrederica）替代官方 YSM native。编译、内置资源生成和运行都接入我们的库；各能力提供 JVM 基线，可用的自建 native 优先加速。当前 native 覆盖 BLAKE3、zstd 和 packed 顶点输出，其余能力仍使用 JVM。
 
 ## 我们的特性与理念
@@ -10,7 +12,7 @@
 |---|---|
 | YSM 主体 | Minecraft / Forge 接入、模型与资源生命周期、动画、网络同步、游戏渲染和命令；编译与运行均通过我们的前置，不再要求官方 YSM native |
 | Oh my ysm lib | 独立前置 Mod 与可复用 Java 17 算法模块，命名空间 `cc.sirrus.ysmlib`；接口、JVM 实现与可选 native provider 分开，算法模块不依赖 Minecraft |
-| 模型与格式 | V1/V2 原始归档与 V3 编译格式保持独立；提供归档、BLAKE3、zstd、V3 导入及 V3D 工作区工具 |
+| 模型与格式 | V1/V2 原始归档与 V3 编译格式保持独立；V3 按内容哈希复用已转换模型和 V3D 解压缓存，避免每次启动重新导入；提供归档、BLAKE3、zstd 与 V3D 工作区工具 |
 | 图像与声音 | PNG/JPEG/WebP/AVIF/ZTX 解码、ZTX 编码、Ogg Opus/Vorbis 解码；AVIF 使用 Chicory 在 JVM 内执行 WASM，无宿主 JNI 解码依赖 |
 | 渲染 | JVM 烘焙与帧状态，Java / C++ packed 顶点输出；已恢复左右手、独立背景模型和通过 FirstPerson 驱动的全身兼容 |
 | 使用与调试 | 后台模型处理与 V3D 导出，游戏指令和独立 CLI；F3 显示前置版本与各能力当前 provider，回退情况如实显示 |
@@ -38,6 +40,10 @@
 | 尚待验证 | Linux、macOS、Android/社区启动器、其他架构、旧版 Windows 和更多 shader / Mod 组合；目前不承诺这些环境开箱即用 |
 
 我们的方向是让 native 成为性能选择，让平台适配不再被官方 YSM native 制品是否存在所阻塞。具体平台基线和验证缺口以[支持状态](docs/status/support-and-verification.md)为准。
+
+## 后台模型加载
+
+进入世界后自动扫描 `ysm/custom`，无需打开模型文件夹触发。屏幕加载条显示文件发现、处理进度、等待队列、错误和收尾状态；按需资源加载单独统计。模型界面 → 设置 → **后台模型加载** 可调整并发、扫描预取量和每 tick 提交预算，关闭设置页后自动保存。默认冷加载扫描 1 个线程、客户端加载 2 个线程；V3 成品缓存命中通过独立后台通道推进，不占冷加载预取槽位，仍保留分批发布预算。以降低后台工作对游戏帧率的影响为目标，更低的负载通常也意味着更长的加载时间。软预算不能拆分单次大纹理上传，实际流畅度仍需在对应模型集上验证。
 
 ## 构建与安装
 

@@ -1,0 +1,86 @@
+name: Build and release YSM with Oh my ysm lib
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build and release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]
+          git tag --points-at HEAD | grep -Fx -- "$RELEASE_TAG"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test the prerequisite mod
+        run: ./gradlew -p runtime build --no-daemon --console=plain
+
+      - name: Build and test YSM
+        run: ./gradlew build verifyMockHostPackaging -Pysm.fast_run=true --no-daemon --console=plain
+
+      - name: Stage installable jars and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ysm_jars < <(find build/libs -maxdepth 1 -type f \
+            -name 'ysm-*-forge+mc*.jar' ! -name '*-javadoc.jar' ! -name '*-sources.jar' | sort)
+          mapfile -t lib_jars < <(find runtime/forge/build/libs -maxdepth 1 -type f \
+            -name 'ysm-runtime-forge-*.jar' ! -name '*-thin.jar' ! -name '*-sources.jar' | sort)
+          ((${#ysm_jars[@]} == 1 && ${#lib_jars[@]} == 1))
+          test "$(stat -c%s "${ysm_jars[0]}")" -gt 1000000
+          test "$(stat -c%s "${lib_jars[0]}")" -gt 1000000
+          mkdir -p release
+          cp -- "${ysm_jars[0]}" "${lib_jars[0]}" release/
+          cd release
+          sha256sum ./*.jar > SHA256SUMS
+
+      - name: Publish GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_args=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release/*.jar release/SHA256SUMS --clobber
+          else
+            gh release create "$RELEASE_TAG" release/*.jar release/SHA256SUMS \
+              --verify-tag --title "YSM $RELEASE_TAG" --generate-notes \
+              --notes 'Install both JARs in mods/ (Forge 1.20.1, Java 17). Verify SHA256SUMS. Native acceleration is optional; both mods work with the JVM baseline.' \
+              "${release_args[@]}"
+          fi

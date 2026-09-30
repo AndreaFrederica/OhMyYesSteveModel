@@ -40,9 +40,11 @@ Linux/macOS 上对应命令为 `./gradlew`；具备构建工具链不代表该�
 | 制品 | 当前路径 |
 |---|---|
 | YSM 本体，`shadowJar` 发行包 | `build/libs/ysm-3.0-dev-forge+mc1.20.1.jar` |
-| Oh my ysm lib 必需前置 | `runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar` |
+| Oh my ysm lib 必需前置 | `runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar` |
 
 不要安装 `build/devlibs/`、thin、sources 或内部算法模块 JAR；同一实例中每个 Mod 只保留一份。本体不嵌入前置，也不打包官方 DLL/SO/dylib。只构建安装包可使用 `.\gradlew.bat shadowJar '-Pysm.fast_run=true'`，但该命令不等于完整测试。
+
+GitHub Release 由版本 tag（例如 `v3.0.0-dev.1`）触发的 Action 构建。它在 Java 17 上先运行前置的完整 `build`，再以精简协作依赖模式运行本体 `build` 和发行包验证，只上传上述两个可安装 JAR 及 `SHA256SUMS`。失败不会创建 Release；同一 tag 重跑会更新制品。也可在 Actions 中指定已有 tag 手动重跑。下载后将两个 JAR 一起安装到 `mods/`；可选自建 native 加速按下节单独构建和安装。
 
 左右手由 YSM 提供；第一人称全身由可选 FirstPerson 模组驱动，已验证版本为 `firstperson-forge-2.2.3-mc1.20.jar`（仓库 `libs/` 内）。它只安装到客户端；前置本身不要求安装 FirstPerson。
 
@@ -76,9 +78,9 @@ Pop-Location
 V3D 工具现属于 ysmlib，可直接运行前置 JAR（Java 17，无需 Minecraft、本体或 Gradle）：
 
 ```powershell
-java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar decode models/example.ysm decoded
-java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar validate decoded/<generation>.v3d
-java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar restore decoded/<generation>.v3d restored.ysm
+java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar decode models/example.ysm decoded
+java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar validate decoded/<generation>.v3d
+java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.1.jar restore decoded/<generation>.v3d restored.ysm
 ```
 
 独立轻量工具可用下述命令构建：
@@ -87,7 +89,7 @@ java -jar runtime/forge/build/libs/ysm-runtime-forge-0.1.0.jar restore decoded/<
 .\gradlew.bat -p runtime :ysm-runtime-tools:shadowJar
 ```
 
-产物为 `runtime/tools/build/libs/ysm-runtime-tools-0.1.0.jar`，命令相同。
+产物为 `runtime/tools/build/libs/ysm-runtime-tools-0.1.1.jar`，命令相同。
 
 游戏内使用 `/ysm v3d export "migration-test/_Riru.ysm"`，源路径相对 `ysm/custom`，输出在 `ysm/export/v3d`；`validate` / `restore` 接受生成的工作区目录名。命令要求单人房主或 OP 2 级权限，后台执行；多人环境读取服务端本地文件。
 
@@ -110,6 +112,8 @@ V3D 是显式旁路操作，不修改 Catalog；restore 拒绝覆盖目标文件
 ```
 
 额外检查身体与腿部非空输出、第一人称头部隐藏、切回第三人称的头部恢复和禁用自身模型后的原版回退，并保存对应截图。
+
+客户端 ready 之前还会检查真实 `GameRenderer` 在首次 tick 前的投影：正常初始视角必须有限，临时恢复原版零倍率必须复现非法投影，后续动态 FOV 和手持物 FOV 仍使用原版计算。探针只在独立测试客户端中运行，结束时恢复暂改字段；结果记录在客户端 `ready.json` 的 `startupProjection` 中。
 
 默认宿主验收强制 JVM。自建 native 可通过 `-Pysm.mockNative=true` 启用，配合 `-Pysm.mockNativeDir=<加速库构建目录>` 指定同平台的 codec 与 render 制品。该模式同时断言 native provider 和成功 packed draw 计数；启用 FirstPerson 时，在视角切换后再次检查，不能仅凭没有崩溃认定加速通过。缺失加速库导致的 Java 回退会使此验收失败。
 
