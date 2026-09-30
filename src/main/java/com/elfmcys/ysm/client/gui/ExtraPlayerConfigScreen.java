@@ -1,10 +1,10 @@
 package com.elfmcys.ysm.client.gui;
 
 import com.elfmcys.ysm.config.ExtraPlayerScreenConfig;
+import com.elfmcys.ysm.client.gui.button.CallbackCheckbox;
 import com.elfmcys.ysm.util.RenderUtil;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -52,14 +52,10 @@ public class ExtraPlayerConfigScreen extends Screen {
 
         Component name = Component.translatable("gui.yes_steve_model.hide_or_show");
         int nameWidth = this.font.width(name) + 24;
-        this.addRenderableWidget(new Checkbox((this.width - nameWidth) / 2, this.height + yOffset, nameWidth, 20,
-                name, ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER.get(), true) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER.set(this.selected());
-            }
-        });
+        this.addRenderableWidget(new CallbackCheckbox((this.width - nameWidth) / 2,
+                this.height + yOffset, nameWidth, 20, name,
+                ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER.get(), true,
+                ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER::set));
     }
 
     @Override

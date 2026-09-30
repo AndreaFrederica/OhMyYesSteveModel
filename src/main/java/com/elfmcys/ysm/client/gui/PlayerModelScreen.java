@@ -6,6 +6,7 @@ import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.capability.StarModelsCapabilityProvider;
 import com.elfmcys.ysm.client.event.DownloadScreenInterModEvent;
 import com.elfmcys.ysm.client.gui.button.CatalogModelButton;
+import com.elfmcys.ysm.client.gui.button.CallbackCheckbox;
 import com.elfmcys.ysm.client.gui.button.FailedCatalogModelButton;
 import com.elfmcys.ysm.client.gui.button.FlatColorButton;
 import com.elfmcys.ysm.client.gui.button.FlatIconButton;
@@ -38,7 +39,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -172,16 +172,12 @@ public class PlayerModelScreen extends Screen {
                     ignored -> backToParent()).setTooltips("gui.back"));
         }
 
-        addRenderableWidget(new Checkbox(x + 5, y - 22, 20, 20,
+        addRenderableWidget(new CallbackCheckbox(x + 5, y - 22, 20, 20,
                 Component.translatable("gui.yes_steve_model.show_model_id_first"),
-                ClientConfig.SHOW_MODEL_ID_FIRST.get(), true) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                ClientConfig.SHOW_MODEL_ID_FIRST.set(selected());
+                ClientConfig.SHOW_MODEL_ID_FIRST.get(), true, selected -> {
+                ClientConfig.SHOW_MODEL_ID_FIRST.set(selected);
                 ClientConfig.SHOW_MODEL_ID_FIRST.save();
-            }
-        });
+        }));
 
         addCategoryButton(x + 328, 32, CatalogBrowserState.Category.ALL, "gui.yes_steve_model.all_models");
         addCategoryButton(x + 308, 48, CatalogBrowserState.Category.AUTH, "gui.yes_steve_model.auth_models");
