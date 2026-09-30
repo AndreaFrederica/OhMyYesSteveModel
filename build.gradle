@@ -358,6 +358,11 @@ dependencies {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
+    doFirst {
+        classpath = files(com.elfmcys.ysm.gradle.ForgeDevelopmentClasspath.unsigned(
+                classpath.files, temporaryDir.toPath().resolve('unsigned-forge'),
+                jarName -> logger.lifecycle("Using unsigned Forge development classpath for ${name}: ${jarName}")))
+    }
 }
 
 // TLM's matrix helpers call Minecraft methods. Plain JUnit has no ModLauncher

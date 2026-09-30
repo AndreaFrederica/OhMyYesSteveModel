@@ -1,15 +1,10 @@
 package com.elfmcys.ysm.gradle;
 
 import java.io.IOException;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
 import javax.inject.Inject;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -103,7 +98,9 @@ public abstract class BuiltinModelToolTask extends DefaultTask {
         Files.createDirectories(workDirectory);
 
         var arguments = arguments(output, workDirectory);
-        var toolClasspath = unsignedForgeClasspath(workDirectory);
+        var toolClasspath = ForgeDevelopmentClasspath.unsigned(getToolClasspath().getFiles(),
+                workDirectory, name -> getLogger().lifecycle(
+                        "Using unsigned Forge development classpath for {}: {}", getName(), name));
         getExecOperations().javaexec(spec -> {
             spec.setClasspath(getProject().files(toolClasspath));
             spec.getMainClass().set("com.elfmcys.ysm.tool.BuiltinModelIndexTool");
@@ -115,53 +112,6 @@ public abstract class BuiltinModelToolTask extends DefaultTask {
             throw new GradleException("Builtin model tool did not produce its declared output: "
                     + output);
         }
-    }
-
-    private List<File> unsignedForgeClasspath(Path workDirectory) throws IOException {
-        var result = new ArrayList<File>();
-        var index = 0;
-        for (var file : getToolClasspath().getFiles()) {
-            if (!file.isFile() || !file.getName().startsWith("forge-")
-                    || !file.getName().endsWith(".jar")) {
-                result.add(file);
-                continue;
-            }
-            try (var archive = new ZipFile(file)) {
-                if (archive.stream().noneMatch(entry -> isSignature(entry.getName()))) {
-                    result.add(file);
-                    continue;
-                }
-                // The dev Forge jar contains transformed classes. Its original signing
-                // metadata no longer describes those bytes and cannot enter this tool JVM.
-                var unsigned = workDirectory.resolve("unsigned-forge-" + index++ + ".jar");
-                try (var output = new ZipOutputStream(Files.newOutputStream(unsigned))) {
-                    var entries = archive.entries();
-                    while (entries.hasMoreElements()) {
-                        var entry = entries.nextElement();
-                        if (isSignature(entry.getName())
-                                || entry.getName().equalsIgnoreCase("META-INF/MANIFEST.MF")) {
-                            continue;
-                        }
-                        output.putNextEntry(new ZipEntry(entry.getName()));
-                        try (var input = archive.getInputStream(entry)) {
-                            input.transferTo(output);
-                        }
-                        output.closeEntry();
-                    }
-                }
-                getLogger().lifecycle("Using unsigned Forge development classpath for {}: {}",
-                        getName(), file.getName());
-                result.add(unsigned.toFile());
-            }
-        }
-        return result;
-    }
-
-    private static boolean isSignature(String name) {
-        var upper = name.toUpperCase(Locale.ROOT);
-        return upper.startsWith("META-INF/") && (upper.endsWith(".SF")
-                || upper.endsWith(".RSA") || upper.endsWith(".DSA")
-                || upper.endsWith(".EC"));
     }
 
     private List<String> arguments(Path output,

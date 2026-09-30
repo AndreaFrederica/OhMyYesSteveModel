@@ -51,7 +51,7 @@ GitHub Release 由版本 tag（例如 `v3.0.0-dev.1`）触发的 Action 构建�
 发行包使用 Java 17 基线类，不从被合并的依赖自动继承 `Multi-Release` 标记。`verifyMockHostPackaging` 同时拒绝声明多版本却不含版本条目的 JAR，避免 Forge 的 SecureJarHandler 在扫描发行包时因缺少 `META-INF/versions` 而启动失败。前置同时提供格式版本 15 的 `pack.mcmeta`，避免独立实例首次加载时出现缺失资源包元数据警告。
 
 内置默认资源和索引仍由完整生成、materialization、校验任务产生；不跳过这些步骤。普通测试使用仓库中的冻结音频样本，重新生成样本才需要 FFmpeg。V3 全 32 版本样本来自上游独立 C++ 测试写入器，普通构建无需 C++ 编译器。
-内置资源生成工具在独立 JVM 中读取 Forge 开发类；若开发 JAR 经过字节码变换仍携带旧签名，工具只对自己的临时 classpath 剥离该失效签名，不修改原始依赖或发行 JAR。
+内置资源生成工具和 JUnit 测试在独立 JVM 中读取 Forge 开发类；若开发 JAR 经过字节码变换仍携带旧签名，它们只对各自的临时 classpath 剥离该失效签名，不修改原始依赖或发行 JAR。
 
 ## 可选 native 构建与安装
 
