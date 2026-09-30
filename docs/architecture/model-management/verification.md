@@ -13,6 +13,10 @@ Mock 表示测试宿主和输入适配，不表示另写一套模型管理实现
 
 Classpath 的 full 与 exact-100 各执行两次受控回放并核对输入身份及结果。域内 workload 与物理 exact-100 是不同验证半径，不能互相冒充，也不能据场景名称推导持续并发性能承诺。性能目标适用范围由[验证政策](../../governance/verification-policy.md)定义。
 
+Forge host 包含不打开模型 GUI 的十二模型自动扫描（根级 archive 与子目录各半）、已打开列表的文件夹自动刷新，以及重连后已选模型自动恢复检查。可通过 `YSM_MOCK_CUSTOM_MODELS` 环境变量提供额外样本目录；supervisor 记录其根级 `.ysm` 文件哈希，并只复制到隔离客户端，原样本和玩家存档不参与写入。该场景不替代集成服务端冷启动及其他加载器、整合包的验收。
+
+后台加载改动另由低并发/零预取的 catalog 回归验证完整遍历、逐项进度、坏文件计数和关闭时待处理 inventory 的终结；缓存通道回归用超过预检窗口的未命中来源与被阻塞的冷 worker，验证后续成品命中仍能发布、冷解码保持指定并发、计数闭合，并验证缓存损坏或源哈希变化只转冷路径、预检本身不做解码/重建；render cache 回归验证单次慢 host publication 后不继续消费整批。Forge host 的 `loading-settings-proof` 检查五项设置控件并保存真实设置页、重新扫描时的 HUD 截图。纹理准备、动画槽和 failure registry 另验证取消（含包装后的取消）不污染后续同内容请求，真实错误仍冻结。双客户端回归检查双方实际 render target 的 model ID，不能仅以服务端选择记录或客户端 capability 相同判定显示一致。`pair-render-proof` 在重连后确认两名玩家的实际 target，再各自捕获同屏截图供视觉核验；截图与模型 ID 断言互为补充。这些验证不构成大量用户模型下的帧率/GC 性能结论。
+
 ## 构建与进程 ownership
 
 `mockSupport` 提供证据数据与记录工具；`mockSupervisor` 只依赖 support 与自身工具依赖，不加载生产业务或任一 endpoint。`mockCommon` 复用生产能力，`mockClient` 与 `mockServer` 各自增加 side endpoint；运行清单要求本侧 endpoint 存在且对侧 endpoint 不在 classpath 中。`mockHost` 仅加入专用开发启动配置。

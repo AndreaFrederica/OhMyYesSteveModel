@@ -1,92 +1,96 @@
 package com.elfmcys.ysm.client.gui.overlay;
 
-import com.elfmcys.ysm.model.service.ClientModelService;
 import com.elfmcys.ysm.config.LoadingStateScreenConfig;
-import net.minecraft.ChatFormatting;
+import com.elfmcys.ysm.model.catalog.CatalogScanProgress;
+import com.elfmcys.ysm.model.service.ClientModelService;
+import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.client.gui.overlay.ForgeGui;
 import net.minecraftforge.client.gui.overlay.IGuiOverlay;
 
 public class LoadingStateScreen implements IGuiOverlay {
+    private static CatalogScanProgress lastProgress = CatalogScanProgress.IDLE;
+    private static long lastChange;
+
     @Override
-    public void render(ForgeGui gui, GuiGraphics guiGraphics, float partialTick, int screenWidth, int screenHeight) {
-        if (LoadingStateScreenConfig.DISABLE_LOADING_STATE_SCREEN.get()) {
-            return;
-        }
-
-        // 根据配置决定位置
-        LoadingStateScreenConfig.Position position = LoadingStateScreenConfig.LOADING_STATE_POSITION.get();
-        int x, y, barX, barY;
-        // 渲染一个 150 长度的进度条
-        int barWidth = 150;
-        int barHeight = 10;
-        switch (position) {
-            case TOP_LEFT -> {
-                x = 10;
-                y = 10;
-                barX = 10;
-                barY = 22;
-            }
-            case TOP_CENTER -> {
-                x = screenWidth / 2;
-                y = 10;
-                barX = (screenWidth - barWidth) / 2;
-                barY = 22;
-            }
-            case TOP_RIGHT -> {
-                x = screenWidth - 10;
-                y = 10;
-                barX = screenWidth - 10 - barWidth;
-                barY = 22;
-            }
-            case BOTTOM_LEFT -> {
-                x = 10;
-                y = screenHeight - 30;
-                barX = 10;
-                barY = screenHeight - 8 - barHeight;
-            }
-            case BOTTOM_CENTER -> {
-                x = screenWidth / 2;
-                y = screenHeight - 85;
-                barX = (screenWidth - barWidth) / 2;
-                barY = screenHeight - 63 - barHeight;
-            }
-            case BOTTOM_RIGHT -> {
-                x = screenWidth - 10;
-                y = screenHeight - 30;
-                barX = screenWidth - 10 - barWidth;
-                barY = screenHeight - 8 - barHeight;
-            }
-            default -> {
-                x = screenWidth / 2;
-                y = 10;
-                barX = (screenWidth - barWidth) / 2;
-                barY = 22;
-            }
-        }
-
-        var service = ClientModelService.current().orElse(null);
-        if (service == null) {
-            return;
-        }
-        var loading = service.loadingCount();
-        if (loading > 0) {
-            MutableComponent text = Component.translatable("gui.yes_steve_model.sync_hint.title")
-                    .append(Component.translatable("gui.yes_steve_model.sync_hint.loading_models", loading,
-                            service.catalog().models().size()).withStyle(ChatFormatting.YELLOW));
-            this.drawStringAtPosition(gui, guiGraphics, text, x, y, screenWidth);
-        }
+    public void render(ForgeGui gui, GuiGraphics graphics, float partialTick, int width, int height) {
+        // Screens draw over the HUD. Their Post event draws this panel once, above the screen.
+        if (Minecraft.getInstance().screen == null) renderProgress(graphics, width, height);
     }
 
-    private void drawStringAtPosition(ForgeGui gui, GuiGraphics guiGraphics, MutableComponent text, int x, int y, int screenWidth) {
-        int textWidth = gui.getFont().width(text);
-        int drawX = switch (LoadingStateScreenConfig.LOADING_STATE_POSITION.get()) {
-            case TOP_LEFT, BOTTOM_LEFT -> x;
-            case TOP_CENTER, BOTTOM_CENTER -> (screenWidth - textWidth) / 2;
-            case TOP_RIGHT, BOTTOM_RIGHT -> x - textWidth;
+    public static void renderProgress(GuiGraphics graphics, int width, int height) {
+        if (LoadingStateScreenConfig.DISABLE_LOADING_STATE_SCREEN.get()) return;
+        var service = ClientModelService.current().orElse(null);
+        if (service == null) return;
+        var progress = service.scanProgress();
+        var now = Util.getMillis();
+        if (!progress.equals(lastProgress)) {
+            lastProgress = progress;
+            lastChange = now;
+        }
+        var showScan = progress.active() || (progress.stage() != CatalogScanProgress.Stage.IDLE
+                && now - lastChange < 5_000);
+        var loading = service.loadingCount();
+        if (!showScan && loading == 0) return;
+
+        var panelWidth = Math.min(360, width - 20);
+        var panelHeight = showScan ? (loading > 0 ? 51 : 39) : 27;
+        var position = LoadingStateScreenConfig.LOADING_STATE_POSITION.get();
+        var x = switch (position) {
+            case TOP_LEFT, BOTTOM_LEFT -> 10;
+            case TOP_RIGHT, BOTTOM_RIGHT -> width - panelWidth - 10;
+            default -> (width - panelWidth) / 2;
         };
-        guiGraphics.drawString(gui.getFont(), text, drawX, y, 0xFFFFFF);
+        var y = switch (position) {
+            case TOP_LEFT, TOP_CENTER, TOP_RIGHT -> 10;
+            case BOTTOM_CENTER -> Math.max(10, height - panelHeight - 55);
+            default -> Math.max(10, height - panelHeight - 10);
+        };
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 400);
+        graphics.fill(x, y, x + panelWidth, y + panelHeight, 0xCC101820);
+        var title = showScan ? switch (progress.stage()) {
+            case DISCOVERING -> label("discovering");
+            case FINALIZING -> label("finalizing", progress.completed(), progress.total());
+            case COMPLETE -> label("complete", progress.completed(), progress.total());
+            case FAILED -> label("failed", progress.completed(), progress.total());
+            default -> label("progress", progress.completed(), progress.total());
+        } : label("runtime", loading, service.activeWorkerCount(), service.queuedTaskCount());
+        line(graphics, title, x + 5, y + 4, panelWidth - 10);
+        int barX = x + 5, barY = y + 16, barWidth = panelWidth - 10;
+        graphics.fill(barX, barY, barX + barWidth, barY + 5, 0xFF404850);
+        if (showScan && progress.stage() != CatalogScanProgress.Stage.DISCOVERING) {
+            int filled = progress.total() == 0 ? barWidth
+                    : (int) ((long) barWidth * progress.completed() / progress.total());
+            graphics.fill(barX, barY, barX + filled, barY + 5,
+                    progress.stage() == CatalogScanProgress.Stage.FAILED ? 0xFFFF8060 : 0xFF60C8A0);
+        } else {
+            int segment = barWidth / 5;
+            int offset = (int) ((now / 12) % (barWidth - segment + 1));
+            graphics.fill(barX + offset, barY, barX + offset + segment, barY + 5, 0xFF70B8FF);
+        }
+        if (showScan) {
+            line(graphics, label("queue", progress.waiting(), progress.inFlight(), progress.errors()),
+                    x + 5, y + 26, panelWidth - 10);
+            if (loading > 0) line(graphics, label("runtime", loading, service.activeWorkerCount(),
+                    service.queuedTaskCount()), x + 5, y + 38, panelWidth - 10);
+        }
+        graphics.pose().popPose();
+    }
+
+    private static Component label(String key, Object... args) {
+        return Component.translatable("gui.yes_steve_model.loading." + key, args);
+    }
+
+    private static void line(GuiGraphics graphics, Component text, int x, int y, int width) {
+        var font = Minecraft.getInstance().font;
+        float scale = Math.min(1F, (float) width / Math.max(1, font.width(text)));
+        graphics.pose().pushPose();
+        graphics.pose().translate(x, y, 0);
+        graphics.pose().scale(scale, scale, 1);
+        graphics.drawString(font, text, 0, 0, 0xFFFFFF);
+        graphics.pose().popPose();
     }
 }

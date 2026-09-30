@@ -88,6 +88,11 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
         notifications = new ModelFailureNotificationAggregator(scheduler);
     }
 
+    public void configurePublicationBudget(java.util.function.IntSupplier count,
+                                           java.util.function.IntSupplier millis) {
+        renderTargets.configurePublicationBudget(count, millis);
+    }
+
     public synchronized CompletableFuture<Void> startRequired(
             CompletableFuture<ClientCatalogManager.LocalCatalogState> localInitialization) {
         if (closed) {

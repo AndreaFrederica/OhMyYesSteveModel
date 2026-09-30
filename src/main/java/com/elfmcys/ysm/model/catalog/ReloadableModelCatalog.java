@@ -15,6 +15,8 @@ import com.elfmcys.ysm.model.catalog.source.CatalogRootKind;
 import com.elfmcys.ysm.model.catalog.source.ModelCatalogSource;
 import com.elfmcys.ysm.model.catalog.source.ModelDirectoryWatcher;
 import com.elfmcys.ysm.model.catalog.source.ModelSourceResolver;
+import com.elfmcys.ysm.model.catalog.source.ModelSourceKind;
+import com.elfmcys.ysm.model.catalog.source.SourceObservation;
 import com.elfmcys.ysm.model.catalog.source.SourceChangeSet;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.model.domain.ModelPackDescriptor;
@@ -29,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -52,7 +55,7 @@ import java.util.stream.Collectors;
 /** Process catalog authority with one incremental, owner-tick-committed scan at a time. */
 public final class ReloadableModelCatalog implements AutoCloseable {
     private static final int MAX_INPUTS = 100_000;
-    private static final int DISPOSITIONS_PER_TICK = 32;
+    private static final int CACHE_ADMISSION = 16;
 
     /** Unreachable converted root of a composition that owns no converted storage. */
     private static final Path DETACHED_CONVERTED_ROOT = Path.of(".").toAbsolutePath().normalize()
@@ -67,6 +70,8 @@ public final class ReloadableModelCatalog implements AutoCloseable {
     private final AtomicBoolean watcherReloadRequested = new AtomicBoolean();
 
     private volatile CatalogCandidate current;
+    private volatile Supplier<CatalogLoadingPolicy> loadingPolicy = () -> CatalogLoadingPolicy.DEFAULT;
+    private volatile CatalogScanProgress progress = CatalogScanProgress.IDLE;
     private ModelDirectoryWatcher watcher;
     private ActiveScan active;
     private boolean scanningEnabled;
@@ -106,6 +111,14 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         return current.snapshot();
     }
 
+    public void configureLoading(Supplier<CatalogLoadingPolicy> policy) {
+        loadingPolicy = Objects.requireNonNull(policy, "policy");
+    }
+
+    public CatalogScanProgress progress() {
+        return progress;
+    }
+
     public CatalogIndexSnapshot index() {
         return current.index();
     }
@@ -121,13 +134,6 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 return completedFailure("Catalog owner is closed");
             }
             if (!scanningEnabled) {
-                try {
-                    watcher = roots.isEmpty() ? null
-                            : new ModelDirectoryWatcher(roots, this::watcherChanged);
-                } catch (IOException failure) {
-                    return completedFailure("Failed to start model directory watcher: "
-                            + failure.getMessage());
-                }
                 scanningEnabled = true;
             }
         }
@@ -150,7 +156,10 @@ public final class ReloadableModelCatalog implements AutoCloseable {
             scan = new ActiveScan(++scanSequence, current, firstScan);
             firstScan = false;
             active = scan;
+            progress = new CatalogScanProgress(CatalogScanProgress.Stage.DISCOVERING,
+                    0, 0, 0, 0, 0);
         }
+        YesSteveModel.LOGGER.info("Starting model catalog scan {}", scan.sequence);
         scan.start();
         return scan.completion;
     }
@@ -172,8 +181,13 @@ public final class ReloadableModelCatalog implements AutoCloseable {
     }
 
     public void tick() {
-        if (watcherReloadRequested.getAndSet(false)) {
-            reload();
+        synchronized (this) {
+            // A watcher hint may describe files absent from the active scan's inventory.
+            // Keep it until a new scan can be admitted instead of consuming it on BUSY.
+            if (!closed && scanningEnabled && active == null
+                    && watcherReloadRequested.getAndSet(false)) {
+                reload();
+            }
         }
         final ActiveScan scan;
         synchronized (this) {
@@ -212,8 +226,17 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 return;
             }
             active = null;
+            progress = new CatalogScanProgress(status == ReloadStatus.COMMITTED
+                    ? CatalogScanProgress.Stage.COMPLETE : CatalogScanProgress.Stage.FAILED,
+                    Math.max(0, scan.expectedOutcomes), scan.disposedOutcomes,
+                    0, 0, current.snapshot().report().errorCount());
         }
-        scan.completion.complete(result(status, message));
+        var result = result(status, message);
+        YesSteveModel.LOGGER.info(
+                "Finished model catalog scan {} status={} models={} errors={} elapsedMs={} message={}",
+                scan.sequence, status, result.modelCount(), result.errorCount(),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - scan.startedAtNanos), message);
+        scan.completion.complete(result);
     }
 
     private CompletableFuture<ReloadResult> completedFailure(String message) {
@@ -235,6 +258,7 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 return;
             }
             closed = true;
+            progress = CatalogScanProgress.IDLE;
             scan = active;
             active = null;
             currentWatcher = watcher;
@@ -263,13 +287,27 @@ public final class ReloadableModelCatalog implements AutoCloseable {
     }
 
     private final class ActiveScan {
+        private final long sequence;
+        private final long startedAtNanos = System.nanoTime();
         private final CatalogCandidate previous;
         private final boolean pruneOpportunity;
         private final CompletableFuture<ReloadResult> completion = new CompletableFuture<>();
         private final ExecutorService executor;
+        private final ExecutorService cacheExecutor;
+        private final int workerCount;
+        private final boolean createWatcher;
+        private volatile ModelDirectoryWatcher createdWatcher;
+        private int submittedOutcomes;
+        private int nextCacheSource;
+        private int nextPack;
+        private int cacheInFlight;
+        private int coldInFlight;
+        private List<SourceObservation> cacheSources = List.of();
+        private final ArrayDeque<SourceObservation> coldSources = new ArrayDeque<>();
+        private final ConcurrentLinkedQueue<SourceObservation> cacheMisses = new ConcurrentLinkedQueue<>();
         private final List<ConvertedSourceIndex> convertedIndexes = new ArrayList<>();
         private final Set<Path> retainedConverted = new LinkedHashSet<>();
-        private final ConcurrentLinkedQueue<Object> outcomes =
+        private final ConcurrentLinkedQueue<ScanOutcome> outcomes =
                 new ConcurrentLinkedQueue<>();
         private final AtomicInteger completedOutcomes = new AtomicInteger();
         private final Map<CatalogModelLocation, CatalogRecord> effectiveRecords =
@@ -297,14 +335,22 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
         private ActiveScan(long sequence, CatalogCandidate previous,
                            boolean pruneOpportunity) {
+            this.sequence = sequence;
             this.previous = previous;
             this.pruneOpportunity = pruneOpportunity;
-            executor = Executors.newFixedThreadPool(Math.max(2,
-                    Runtime.getRuntime().availableProcessors() / 2), runnable -> {
+            createWatcher = watcher == null && !roots.isEmpty();
+            workerCount = loadingPolicy.get().workers();
+            executor = Executors.newFixedThreadPool(workerCount, runnable -> {
                 var thread = new Thread(runnable, "YSM Catalog Scan " + sequence);
                 thread.setDaemon(true);
                 thread.setPriority(Math.max(Thread.MIN_PRIORITY,
                         Thread.NORM_PRIORITY - 1));
+                return thread;
+            });
+            cacheExecutor = Executors.newSingleThreadExecutor(runnable -> {
+                var thread = new Thread(runnable, "YSM Catalog Cache " + sequence);
+                thread.setDaemon(true);
+                thread.setPriority(Math.max(Thread.MIN_PRIORITY, Thread.NORM_PRIORITY - 1));
                 return thread;
             });
         }
@@ -315,6 +361,12 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
         private void discover() {
             try {
+                // Recursive watch registration performs directory I/O too; keep it
+                // in discovery instead of freezing the joining client's owner tick.
+                if (createWatcher) {
+                    createdWatcher = new ModelDirectoryWatcher(roots,
+                            ReloadableModelCatalog.this::watcherChanged);
+                }
                 var value = reconciler.discoverIncremental();
                 var count = Math.addExact(value.sources().size(), value.packs().size());
                 if (count > MAX_INPUTS) {
@@ -322,14 +374,6 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 }
                 expectedOutcomes = count;
                 discovery = value;
-                for (var source : value.sources()) {
-                    executor.execute(() -> resolve(() ->
-                            reconciler.resolveIncremental(source)));
-                }
-                for (var pack : value.packs()) {
-                    executor.execute(() -> resolve(() ->
-                            reconciler.resolveIncremental(pack)));
-                }
             } catch (Throwable failure) {
                 fail(failure);
             }
@@ -337,7 +381,7 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
         private void resolve(Supplier<Object> operation) {
             try {
-                outcomes.add(operation.get());
+                outcomes.add(new ScanOutcome(operation.get(), false));
             } catch (Throwable failure) {
                 fail(failure);
             } finally {
@@ -345,16 +389,36 @@ public final class ReloadableModelCatalog implements AutoCloseable {
             }
         }
 
+        private void probeCache(SourceObservation source) {
+            try {
+                var cached = reconciler.resolveCachedIncremental(source);
+                if (cached.isPresent()) {
+                    outcomes.add(new ScanOutcome(cached.get(), true));
+                    completedOutcomes.incrementAndGet();
+                } else {
+                    cacheMisses.add(source);
+                }
+            } catch (Throwable failure) {
+                fail(failure);
+            }
+        }
+
         private synchronized void fail(Throwable failure) {
             if (discoveryFailure == null) {
                 discoveryFailure = failure;
                 executor.shutdownNow();
+                cacheExecutor.shutdownNow();
             }
         }
 
         private void tick() {
+            var limits = loadingPolicy.get();
+            var batchStarted = System.nanoTime();
+            adoptWatcher();
             if (discoveryFailure != null) {
-                if (executor.isTerminated()) {
+                if (executor.isTerminated() && cacheExecutor.isTerminated()) {
+                    // Discovery may have published the watcher after the first check.
+                    adoptWatcher();
                     disposePendingOutcomes();
                     finish(this, ReloadStatus.FAILED, message(discoveryFailure));
                 }
@@ -366,17 +430,28 @@ public final class ReloadableModelCatalog implements AutoCloseable {
             }
             if (!discoveryApplied) {
                 applyDiscovery(discovered);
+                cacheSources = discovered.sources().stream()
+                        .filter(source -> source.key().sourceKind() == ModelSourceKind.LEGACY_ARCHIVE)
+                        .toList();
+                discovered.sources().stream()
+                        .filter(source -> source.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE)
+                        .forEach(coldSources::addLast);
                 discoveryApplied = true;
                 if (!errors.isEmpty()) {
                     publishProjection(discovered.startedAt());
                 }
                 publishedOutcomes = 0;
             }
-            for (var disposed = 0; disposed < DISPOSITIONS_PER_TICK; disposed++) {
-                var outcome = outcomes.poll();
-                if (outcome == null) {
+            for (var disposed = 0; disposed < limits.publicationsPerTick(); disposed++) {
+                if (disposed > 0 && System.nanoTime() - batchStarted
+                        >= TimeUnit.MILLISECONDS.toNanos(limits.publicationMillis())) break;
+                var completed = outcomes.poll();
+                if (completed == null) {
                     break;
                 }
+                if (completed.cached()) cacheInFlight--;
+                else coldInFlight--;
+                var outcome = completed.value();
                 if (outcome instanceof CatalogReconciler.ResolvedSource source) {
                     applySource(source);
                 } else if (outcome instanceof CatalogReconciler.ResolvedPack pack) {
@@ -392,15 +467,56 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 publishProjection(discovered.startedAt());
                 publishedOutcomes = disposedOutcomes;
             }
+            // Misses retain only discovery metadata, never decoded source bytes.
+            // Waiting for cold admission must not block probes of later warm sources.
+            for (SourceObservation miss; (miss = cacheMisses.poll()) != null;) {
+                cacheInFlight--;
+                submittedOutcomes--;
+                coldSources.addLast(miss);
+            }
+            while (nextCacheSource < cacheSources.size() && cacheInFlight < CACHE_ADMISSION
+                    && discoveryFailure == null) {
+                var source = cacheSources.get(nextCacheSource++);
+                cacheInFlight++;
+                submittedOutcomes++;
+                try {
+                    cacheExecutor.execute(() -> probeCache(source));
+                } catch (java.util.concurrent.RejectedExecutionException failure) {
+                    fail(failure);
+                }
+            }
+            // Completed-but-unpublished content counts against its own lane's limit.
+            var admissionLimit = workerCount + limits.queued();
+            while ((!coldSources.isEmpty() || nextPack < discovered.packs().size())
+                    && coldInFlight < admissionLimit && discoveryFailure == null) {
+                submittedOutcomes++;
+                coldInFlight++;
+                try {
+                    if (!coldSources.isEmpty()) {
+                        var source = coldSources.removeFirst();
+                        executor.execute(() -> resolve(() -> reconciler.resolveIncremental(source)));
+                    } else {
+                        var pack = discovered.packs().get(nextPack++);
+                        executor.execute(() -> resolve(() -> reconciler.resolveIncremental(pack)));
+                    }
+                } catch (java.util.concurrent.RejectedExecutionException failure) {
+                    fail(failure);
+                }
+            }
+            progress = new CatalogScanProgress(disposedOutcomes == expectedOutcomes
+                    ? CatalogScanProgress.Stage.FINALIZING : CatalogScanProgress.Stage.LOADING,
+                    expectedOutcomes, disposedOutcomes, expectedOutcomes - submittedOutcomes,
+                    submittedOutcomes - disposedOutcomes, errors.size());
             if (expectedOutcomes >= 0
                     && completedOutcomes.get() == expectedOutcomes
                     && disposedOutcomes == expectedOutcomes
-                    && !finalizerScheduled) {
+                    && !finalizerScheduled && discoveryFailure == null) {
                 finalizerScheduled = true;
+                cacheExecutor.shutdown();
                 executor.execute(() -> finalizeScan(discovered));
             }
             var terminal = finalOutcome;
-            if (terminal != null && executor.isTerminated()) {
+            if (terminal != null && executor.isTerminated() && cacheExecutor.isTerminated()) {
                 if (terminal.failure != null) {
                     errors.add(ModelScanError.infrastructure(
                             CatalogRootKind.CUSTOM, convertedRoot.toString(),
@@ -421,6 +537,15 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                         publishProjection(discovered.startedAt());
                     }
                     finish(this, ReloadStatus.COMMITTED, "");
+                }
+            }
+        }
+
+        private void adoptWatcher() {
+            synchronized (ReloadableModelCatalog.this) {
+                if (!closed && createdWatcher != null) {
+                    watcher = createdWatcher;
+                    createdWatcher = null;
                 }
             }
         }
@@ -569,13 +694,16 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
         private void cancelAndAwait() {
             executor.shutdownNow();
+            cacheExecutor.shutdownNow();
             var interrupted = false;
-            while (!executor.isTerminated()) {
+            while (!executor.isTerminated() || !cacheExecutor.isTerminated()) {
                 try {
                     executor.awaitTermination(1, TimeUnit.DAYS);
+                    cacheExecutor.awaitTermination(1, TimeUnit.DAYS);
                 } catch (InterruptedException ignored) {
                     interrupted = true;
                     executor.shutdownNow();
+                    cacheExecutor.shutdownNow();
                 }
             }
             disposePendingOutcomes();
@@ -585,8 +713,12 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         }
 
         private void disposePendingOutcomes() {
-            for (Object outcome; (outcome = outcomes.poll()) != null;) {
-                if (outcome instanceof CatalogReconciler.ResolvedSource source
+            var abandonedWatcher = createdWatcher;
+            createdWatcher = null;
+            if (abandonedWatcher != null) abandonedWatcher.close();
+            cacheMisses.clear();
+            for (ScanOutcome outcome; (outcome = outcomes.poll()) != null;) {
+                if (outcome.value() instanceof CatalogReconciler.ResolvedSource source
                         && source.error() == null) {
                     try {
                         source.content().representation().close();
@@ -665,6 +797,8 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
     private record PackKey(CatalogRootKind root, String hierarchy) {
     }
+
+    private record ScanOutcome(Object value, boolean cached) {}
 
     private record FinalOutcome(ConvertedCacheCoordinator.PruneResult prune,
                                 Throwable failure) {

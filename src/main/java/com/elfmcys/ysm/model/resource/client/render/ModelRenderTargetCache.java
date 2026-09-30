@@ -52,7 +52,8 @@ public final class ModelRenderTargetCache implements AutoCloseable {
     private final Consumer<ModelRenderTarget> rejectedTargetCloser;
     private final Consumer<Throwable> contractViolationReporter;
     private final HostTexturePublisher texturePublisher;
-    private final IntSupplier dispositionLimit;
+    private IntSupplier dispositionLimit;
+    private IntSupplier dispositionMillis = () -> Integer.MAX_VALUE;
     private final IntSupplier unusedLimit;
     private boolean closed;
 
@@ -286,7 +287,10 @@ public final class ModelRenderTargetCache implements AutoCloseable {
             throw new IllegalStateException(
                     "Model result disposition limit must be positive");
         }
+        var started = System.nanoTime();
+        var budgetNanos = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(dispositionMillis.getAsInt());
         for (var disposed = 0; disposed < limit; disposed++) {
+            if (disposed > 0 && System.nanoTime() - started >= budgetNanos) break;
             final Completion completion;
             synchronized (lock) {
                 completion = completions.poll();
@@ -300,6 +304,12 @@ public final class ModelRenderTargetCache implements AutoCloseable {
             acceptTerminal(completion.flight, completion.outcome, completion.error);
         }
         evictUnused();
+    }
+
+    /** Configured by the host; required bootstrap publication is deliberately unaffected. */
+    public void configurePublicationBudget(IntSupplier count, IntSupplier millis) {
+        dispositionLimit = Objects.requireNonNull(count, "count");
+        dispositionMillis = Objects.requireNonNull(millis, "millis");
     }
 
     public int loadingCount() {

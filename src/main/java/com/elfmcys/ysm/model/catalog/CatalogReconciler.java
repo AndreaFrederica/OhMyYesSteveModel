@@ -132,9 +132,20 @@ public final class CatalogReconciler {
     }
 
     ResolvedSource resolveIncremental(SourceObservation observation) {
+        return resolveIncremental(observation, false);
+    }
+
+    /** Empty means cold work is required; cache failures retain ordinary scan diagnostics. */
+    Optional<ResolvedSource> resolveCachedIncremental(SourceObservation observation) {
+        return Optional.ofNullable(resolveIncremental(observation, true));
+    }
+
+    private ResolvedSource resolveIncremental(SourceObservation observation, boolean cacheOnly) {
         ModelSourceResolver.MaterializedResolution result = null;
         try {
-            result = resolver.resolveMaterialized(observation);
+            result = cacheOnly ? resolver.resolveCached(observation).orElse(null)
+                    : resolver.resolveMaterialized(observation);
+            if (result == null) return null;
             if (builtinContract != null
                     && observation.key().root().rootKind() == CatalogRootKind.BUILTIN) {
                 var expected = builtinContract.require(observation.key().relativePath());

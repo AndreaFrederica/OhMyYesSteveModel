@@ -56,6 +56,39 @@ class ModelRenderTargetCacheTest {
     }
 
     @Test
+    void slowPublicationDefersLaterResultsAndLiveCountLimitStillApplies() throws Exception {
+        try (var cache = new ModelRenderTargetCache()) {
+            cache.configurePublicationBudget(() -> 4, () -> 1);
+            ModelRenderTargetCache.CurrentLookup slowLookup = (identity, key, request) -> {
+                // Simulate one indivisible host upload exceeding the soft budget.
+                var started = System.nanoTime();
+                while (System.nanoTime() - started < 5_000_000) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(1_000_000);
+                }
+                return true;
+            };
+            var leases = new java.util.ArrayList<com.elfmcys.ysm.model.resource.client.ResourceLease>();
+            for (int i = 0; i < 3; i++) {
+                var id = hash(70 + i);
+                var loaded = target();
+                leases.add(cache.getOrStart(request(id), content(id), key(),
+                        ignored -> ready(loaded), slowLookup, OWNER));
+            }
+            cache.tick();
+            assertEquals(1, cache.readyCount());
+            assertEquals(2, cache.loadingCount());
+            cache.configurePublicationBudget(() -> 1, () -> 100);
+            cache.tick();
+            assertEquals(2, cache.readyCount());
+            assertEquals(1, cache.loadingCount());
+            cache.tick();
+            assertEquals(3, cache.readyCount());
+            assertEquals(0, cache.loadingCount());
+            leases.forEach(com.elfmcys.ysm.model.resource.client.ResourceLease::close);
+        }
+    }
+
+    @Test
     void multiConsumerReadyReuseAndEvictionOnlyDropCacheReachability() throws Exception {
         var hash = hash(1);
         var content = content(hash);

@@ -1,5 +1,8 @@
 package com.elfmcys.ysm.model.service;
 
+import com.elfmcys.ysm.config.ModelLoadingConfig;
+import com.elfmcys.ysm.model.catalog.CatalogScanProgress;
+
 import com.elfmcys.ysm.AssetPaths;
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.client.sound.stream.AudioStreamProvider;
@@ -91,7 +94,7 @@ public final class ClientModelService implements AutoCloseable {
     }
 
     private static BootstrapCandidate createCandidate() {
-        var threadCount = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+        var threadCount = ModelLoadingConfig.CLIENT_WORKERS.get();
         var candidateWorkers = new ScheduledThreadPoolExecutor(threadCount, runnable -> {
             var thread = new Thread(runnable, "YSM Client Model Worker");
             thread.setDaemon(true);
@@ -106,6 +109,7 @@ public final class ClientModelService implements AutoCloseable {
         Closeable candidateExportRegistration = null;
         try {
             var system = ModelRuntime.system();
+            system.catalog().configureLoading(ModelLoadingConfig::catalogPolicy);
             var storage = system.storage();
             var gameCacheRoot = storage.gameCacheRoot();
             var shared = storage.cache();
@@ -126,6 +130,9 @@ public final class ClientModelService implements AutoCloseable {
                     candidateCatalog, renderTargetLoader,
                     defaultAnimations, candidateWorkers,
                     ClientModelService::executeOnRenderThread, contentStore);
+            candidateTargets.configurePublicationBudget(
+                    ModelLoadingConfig.PUBLICATIONS_PER_TICK::get,
+                    ModelLoadingConfig.PUBLICATION_MILLIS::get);
             var previewStore = new PreviewStore(gameCacheRoot, shared);
             var previews = new ClientPreviewGenerator(candidateCatalog, candidateTargets,
                     renderTargetLoader, previewStore,
@@ -360,6 +367,10 @@ public final class ClientModelService implements AutoCloseable {
     }
 
     public void tick() {
+        if (ModelLoadingConfig.CLIENT_WORKERS != null) {
+            var configured = ModelLoadingConfig.CLIENT_WORKERS.get();
+            if (workers.getCorePoolSize() != configured) workers.setCorePoolSize(configured);
+        }
         var system = ModelRuntime.system();
         system.tickCatalog();
         system.tickServerRuntime();
@@ -372,6 +383,18 @@ public final class ClientModelService implements AutoCloseable {
 
     public int loadingCount() {
         return renderTargetManager.loadingCount();
+    }
+
+    public CatalogScanProgress scanProgress() {
+        return ModelRuntime.system().catalog().progress();
+    }
+
+    public int activeWorkerCount() {
+        return workers.getActiveCount();
+    }
+
+    public int queuedTaskCount() {
+        return workers.getQueue().size();
     }
 
     @Override

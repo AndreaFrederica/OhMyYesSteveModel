@@ -54,3 +54,11 @@ Selection 和运行资源请求分别持有自己的连续需求状态。当前�
 模型卡错误、导入 diagnostics、animation failure 与 session failure 分属不同范围，传播规则见[失败处理](../model-management/failure-and-recovery.md)。
 
 预览与模型选择的产品语义见[创作与选择需求](../../product-decisions/requirements/req-create-and-select-models.md)，本页不重新定义选择、权限或下载策略。
+
+## 后台加载设置与提示
+
+模型界面 → 设置 →「后台模型加载」提供扫描并发、客户端加载并发、扫描预取队列、每批提交项数和软耗时预算。设置页关闭时保存到 `config/ysm-client.toml` 的 `[model_loading]`；扫描并发下次扫描生效，其余在后续 tick 应用。设置页同时显示待入队/处理中数量和客户端资源任务数量。进度显示开关和六个屏幕位置沿用原加载状态选项。
+
+HUD 用真实扫描输入的已处理/总量画进度条，目录发现阶段使用不定进度，收尾另有标签；完成/失败保持 5 秒。错误数单列，完成扫描不代表每个文件成功，也不代表所有模型已上传 GPU。没有扫描、但仍有按需资源加载时显示资源 pending 与活动任务数，使用不定进度而不构造错误百分比。打开普通 Minecraft Screen 时在 `ScreenEvent.Render.Post` 显示同一提示，避免被进世界界面盖住；加载设置页自带队列读数，不重复覆盖。
+
+并发、容量和预算的实际边界见[加载容量与进度](../model-management/reload-and-publication.md#加载容量与进度)。

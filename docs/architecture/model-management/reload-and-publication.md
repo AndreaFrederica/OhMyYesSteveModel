@@ -2,6 +2,8 @@
 
 进程级 `ReloadableModelCatalog` 是 local content 的唯一 writer。构造只安装 intrinsic default 与 builtin 描述，不扫描普通目录、不访问 shared converted。client join 或 server start 在取得 converted 消费资格后调用 `startScanning()`。后续 watcher 和显式 reload 只请求同一入口；同一时刻最多一个 active scan，重入返回 `BUSY`。
 
+Watcher 在 active scan 期间收到的变化合并为一个待扫描标记，保留到当前 scan 完成后由下一次 owner tick 消费。它可能指向当前 inventory 尚未观察的新增文件，不能因 `BUSY` 丢弃；显式 reload 的重入结果仍为 `BUSY`。扫描覆盖游戏目录下 `ysm/custom` 的根级模型文件和子目录，与是否打开模型 GUI 无关。
+
 Catalog、client runtime 与 server runtime 各有独立有限执行容量。每个 worker task 接受冻结输入并连续执行一条 worker-safe、有限、不会等待 owner thread、其他 worker、网络或 host callback 的处理链。跨 owner queue 只运输 immutable terminal fact；长期业务状态由对应 owner 的 tick 提交。Host publication 已完成后可产生新的独立工作，但原 worker 必须已终态。
 
 ## 增量 scan
@@ -35,9 +37,23 @@ stateDiagram-v2
 
 Local snapshot 的 observer 在 authority commit 后逐个通知；一个 observer 失败不能回滚 current 或阻止其他 observer。Catalog close 只在进程级关闭时停止 watcher、取消并等待自己的 active scan executor，再撤 current 引用；游戏退出或断开连接不会关闭进程 Catalog。
 
+## 加载容量与进度
+
+客户端组合层注入 `CatalogLoadingPolicy`，领域 catalog 不读取 Forge CLIENT 配置。默认扫描 1 个 worker、客户端模型/资产 2 个 worker，不再按 CPU 核数的一半分别扩张。Dedicated catalog 使用同一保守默认策略；客户端设置不控制独立服务端。递归 watcher 注册和目录发现一起在扫描 worker 执行，避免进入世界的 owner tick 遍历磁盘目录。
+
+发现结果保留最多 100,000 项 inventory。冷加载在 owner tick 按 `扫描 worker 数 + 预取量` 接纳工作，默认 1 个 worker、预取 4 项，即总计 5 项，不是 5 个同时执行的线程。已完成、尚未提交的 outcome 也占容量；降低容量时先消化已有工作，不丢弃剩余输入，不让 worker 等待 owner。扫描并发在下次扫描生效；预取量、提交预算和客户端 worker 数在后续 tick 生效。
+
+V3 成品缓存由独立的单线程 cache executor 检查源 SHA-256、版本凭据和成品字节指纹，命中不占冷加载容量。该通道最多接纳 16 项（含待提交结果），仍共享 owner 发布预算；它不执行 envelope 解码或 V3D 重投影。未命中或成品损坏只提交原 source observation，由 owner 转入冷加载队列，释放缓存通道容量，避免冷转换阻挡后面的命中项。排队 miss 不持有源字节或解码内容，仍受总 inventory 上限约束。检查发生访问错误时保留来源诊断。V1/V2、raw 目录和 direct container 仍走冷加载容量，不凭 size/mtime 推断缓存有效。两个 executor 都必须物理终结才能结束或释放 active scan。
+
+Catalog 和客户端 render resource 的结果批次分别受项数及软耗时限制，默认每批最多 2 项、2 ms。每批至少允许一个结果推进；一次完整 catalog 投影/observer 通知或单模型纹理上传不能抢占，可能超出软预算。该设置不限制 native codec 内部线程，也不承诺消除磁盘、GC 或大型模型的所有卡顿。必需 default bootstrap 保留原完整初始化门禁，不依赖普通 tick 预算队列。
+
+`CatalogScanProgress` 是只读 owner 观察，区分 discovery、文件处理、索引/prune 收尾、完成和失败。计数单位是 source 文件与 pack 描述输入，失败项也计入已处理；`已处理 + 待入队 + 处理中/待提交 = 总输入`（处理阶段）。总数未知时不报告百分比。客户端资源 pending、工作线程忙碌及排队任务另列，不能与本地扫描总数混用，也不冒充服务端下载字节进度。显示和操作入口见[客户端展示](../client-presentation/README.md#后台加载设置与提示)。
+
 ## Local 与 remote 投影
 
 `ClientCatalogManager` 始终订阅进程 Catalog 并保存最新完整 local index/snapshot。进入 remote session 时，公开 client view 先切到 intrinsic default，再由当前 `RemotePublicationSnapshot` 和 entry activation 形成 session projection。Local Catalog 继续扫描、发布和持有完整内容，不进入 index-only 模式。
+
+Remote publication 到达时如果本地扫描尚未完成，公开项可以暂时使用 remote metadata/presentation。后续 local snapshot 到达后，只有在 `ModelId` 与 `containerId` 完全相同且本地内容已完整验证时，才把该项的 content binding 升级为本地内容；服务端下发的 path、access、pack 和授权边界始终保留。这样本地已有模型不会因为 publication 时序而重复请求缺失 preview，也不会把同视觉但不同身份的文件混入服务端目录。
 
 Disconnect 先使 exact connection 的 admission、request 和迟到效果失效，再撤销 remote projection 并直接发布最新 local snapshot。该过程不 materialize、restore 或等待共享 worker，也不清空已完成 resource cache。新的 connection 只建立自己的查询表和请求资格；同内容/profile 的合法已完成资源可以继续复用。
 

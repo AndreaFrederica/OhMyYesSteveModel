@@ -79,6 +79,137 @@ class ReloadableModelCatalogTest {
     }
 
     @Test
+    void cachedSourcesPassAFullColdQueueIncludingMissesBeyondTheProbeWindow() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        var coldStarted = new java.util.concurrent.CountDownLatch(1);
+        var releaseCold = new java.util.concurrent.CountDownLatch(1);
+        var decodes = new AtomicInteger();
+        var coldThread = new AtomicReference<Thread>();
+        var envelope = new cc.sirrus.ysmlib.legacy.V3EnvelopeProvider() {
+            public int profile() { return 1; }
+            public byte[] decode(java.nio.ByteBuffer source, int limit) throws java.io.IOException {
+                decodes.incrementAndGet();
+                coldThread.set(Thread.currentThread());
+                coldStarted.countDown();
+                try {
+                    if (!releaseCold.await(10, TimeUnit.SECONDS)) throw new java.io.IOException("Test timeout");
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new java.io.IOException(interrupted);
+                }
+                throw new java.io.IOException("Deliberate cold-source failure");
+            }
+        };
+        var importer = new com.elfmcys.ysm.natives.legacy.LegacyModelImporter(
+                cc.sirrus.ysmlib.YsmRuntime.legacy(), new cc.sirrus.ysmlib.v3d.V3dCache(envelope));
+        var cacheRoot = temp.resolve("cache");
+        var objects = new ConvertedObjectStore(cacheRoot);
+        var resolver = new ModelSourceResolver(new RawModelImporter(DefaultAnimationFilter.keepAll()),
+                importer, new ConvertedSourceIndexStore(cacheRoot, "catalog-owner-test"), objects);
+        // More misses than cache admission: none may pin a cache slot while cold work waits.
+        for (int i = 0; i < 24; i++) legacySource(root.resolve(String.format("a-cold-%02d.ysm", i)), i);
+        var warm = legacySource(root.resolve("z-warm.ysm"), 100);
+        var identity = identity(firstFixture);
+        var object = objects.objectPath(identity.modelId(), identity.containerId());
+        Files.createDirectories(object.getParent());
+        Files.copy(firstFixture, object);
+        var entry = new CatalogIndexEntry(identity,
+                new CatalogModelLocation(CatalogRootKind.CUSTOM, new ModelPath("z-warm.ysm")), object);
+        objects.legacyCache("catalog-owner-test", importer.cacheProfile())
+                .record(cc.sirrus.ysmlib.v3d.V3dCache.capture(warm), entry).representation().close();
+        try (var fixture = open(root, resolver)) {
+            fixture.catalog().configureLoading(() -> new CatalogLoadingPolicy(1, 4, 2, 2));
+            var completion = fixture.catalog().startScanning();
+            try {
+                var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while ((!fixture.catalog().current().byModelId().containsKey(identity.modelId())
+                        || coldStarted.getCount() != 0) && System.nanoTime() < deadline) {
+                    fixture.catalog().tick();
+                    var progress = fixture.catalog().progress();
+                    if (progress.stage() == CatalogScanProgress.Stage.LOADING) {
+                        assertEquals(progress.total(), progress.completed() + progress.waiting() + progress.inFlight());
+                        assertTrue(progress.inFlight() <= 21, "Both lanes include unpublished results in admission");
+                    }
+                    Thread.onSpinWait();
+                }
+                assertTrue(fixture.catalog().current().byModelId().containsKey(identity.modelId()),
+                        "Warm model must publish while the cold worker is blocked");
+                assertEquals(0, coldStarted.getCount());
+                assertNotSame(Thread.currentThread(), coldThread.get());
+                assertEquals(1, decodes.get(), "Cold conversions still use one worker");
+                assertFalse(completion.isDone());
+            } finally {
+                releaseCold.countDown();
+            }
+            assertEquals(ReloadStatus.COMMITTED, fixture.finish(completion).status());
+            assertEquals(25, fixture.catalog().progress().completed());
+            assertEquals(24, fixture.catalog().progress().errors());
+            assertEquals(24, decodes.get(), "Cache hit never invokes the decoder");
+        }
+    }
+
+    private static Path legacySource(Path path, int discriminator) throws Exception {
+        return Files.write(path, new byte[]{(byte) 0xef, (byte) 0xbb, (byte) 0xbf,
+                'Y', 'S', 'G', 'P', (byte) discriminator});
+    }
+
+    @Test
+    void boundedAdmissionReportsEveryInputIncludingFailuresAndFinishesWithoutUi() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        Files.copy(firstFixture, root.resolve("first.mxc"));
+        Files.copy(secondFixture, root.resolve("second.mxc"));
+        for (int i = 0; i < 12; i++) Files.writeString(root.resolve("bad-" + i + ".mxc"), "broken");
+        try (var fixture = open(root)) {
+            fixture.catalog().configureLoading(() -> new CatalogLoadingPolicy(1, 0, 1, 1));
+            var completion = fixture.catalog().startScanning();
+            assertEquals(CatalogScanProgress.Stage.DISCOVERING, fixture.catalog().progress().stage());
+            int lastCompleted = 0;
+            boolean sawWaiting = false;
+            var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!completion.isDone() && System.nanoTime() < deadline) {
+                fixture.catalog().tick();
+                var progress = fixture.catalog().progress();
+                assertTrue(progress.inFlight() <= 1, "Completed but unpublished inputs count against capacity");
+                assertTrue(progress.completed() >= lastCompleted);
+                assertTrue(progress.completed() - lastCompleted <= 1);
+                if (progress.stage() == CatalogScanProgress.Stage.LOADING) {
+                    assertEquals(progress.total(), progress.completed() + progress.waiting() + progress.inFlight());
+                    sawWaiting |= progress.waiting() > 0;
+                }
+                lastCompleted = progress.completed();
+                Thread.onSpinWait();
+            }
+            assertEquals(ReloadStatus.COMMITTED, completion.get(1, TimeUnit.SECONDS).status());
+            assertTrue(sawWaiting);
+            var terminal = fixture.catalog().progress();
+            assertEquals(CatalogScanProgress.Stage.COMPLETE, terminal.stage());
+            assertEquals(14, terminal.total());
+            assertEquals(14, terminal.completed());
+            assertEquals(12, terminal.errors());
+            assertEquals(3, fixture.catalog().current().byModelId().size());
+        }
+    }
+
+    @Test
+    void closingWithAnUnadmittedInventoryTerminatesAndClearsProgress() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        for (int i = 0; i < 20; i++) Files.writeString(root.resolve("bad-" + i + ".mxc"), "broken");
+        try (var fixture = open(root)) {
+            fixture.catalog().configureLoading(() -> new CatalogLoadingPolicy(1, 0, 1, 1));
+            var completion = fixture.catalog().startScanning();
+            var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (fixture.catalog().progress().waiting() == 0 && System.nanoTime() < deadline) {
+                fixture.catalog().tick();
+                Thread.onSpinWait();
+            }
+            assertTrue(fixture.catalog().progress().waiting() > 0);
+            fixture.catalog().close();
+            assertEquals(ReloadStatus.FAILED, completion.get(1, TimeUnit.SECONDS).status());
+            assertEquals(CatalogScanProgress.IDLE, fixture.catalog().progress());
+        }
+    }
+
+    @Test
     void scanningRequiresActivationAndBusyRequestsAreIgnored() throws Exception {
         var root = Files.createDirectories(temp.resolve("models"));
         Files.copy(firstFixture, root.resolve("first.mxc"));
@@ -197,6 +328,43 @@ class ReloadableModelCatalogTest {
     }
 
     @Test
+    void fileChangesDuringAnActiveScanAreAutomaticallyScannedAfterwards() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        Files.copy(firstFixture, root.resolve("first.mxc"));
+        try (var fixture = open(root)) {
+            var initial = fixture.catalog().startScanning();
+            var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (fixture.catalog().current().byModelId().size() != 2
+                    && System.nanoTime() < deadline) {
+                fixture.catalog().tick();
+                Thread.onSpinWait();
+            }
+            assertEquals(2, fixture.catalog().current().byModelId().size());
+            assertTrue(fixture.catalog().busy());
+            // Discovery is already frozen; this file requires a later scan.
+            Files.copy(secondFixture, root.resolve("second.mxc"));
+            fixture.catalog().watcherChanged(new SourceChangeSet(
+                    Set.of(root.resolve("second.mxc")), false));
+            fixture.catalog().tick();
+            // Final verification may observe the added file and reject the old inventory.
+            // Both completion orders must retain the hint for the next scan.
+            assertTrue(Set.of(ReloadStatus.COMMITTED, ReloadStatus.FAILED)
+                    .contains(fixture.finish(initial).status()));
+
+            deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while ((fixture.catalog().current().byModelId().size() != 3 || fixture.catalog().busy())
+                    && System.nanoTime() < deadline) {
+                fixture.catalog().tick();
+                Thread.onSpinWait();
+            }
+            assertEquals(3, fixture.catalog().current().byModelId().size(),
+                    "A file change must not require opening a screen or manually reloading");
+            assertFalse(fixture.catalog().busy());
+            assertEquals(0, fixture.catalog().current().report().errorCount());
+        }
+    }
+
+    @Test
     void completeInventoryRetainsObservedPacksAtScanTerminal() throws Exception {
         var root = Files.createDirectories(temp.resolve("models"));
         Files.writeString(root.resolve("ysm-pack.json"),
@@ -308,6 +476,10 @@ class ReloadableModelCatalogTest {
                 DefaultAnimationFilter.keepAll()),
                 new ConvertedSourceIndexStore(cacheRoot, "catalog-owner-test"),
                 new ConvertedObjectStore(cacheRoot));
+        return open(root, resolver);
+    }
+
+    private CatalogFixture open(Path root, ModelSourceResolver resolver) throws Exception {
         var intrinsicDefault = openIndexed(defaultFixture,
                 new CatalogModelLocation(CatalogRootKind.BUILTIN,
                         new ModelPath("default")));

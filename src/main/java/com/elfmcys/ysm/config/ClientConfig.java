@@ -24,6 +24,7 @@ public class ClientConfig {
         init(builder);
         ExtraPlayerScreenConfig.init(builder);
         LoadingStateScreenConfig.init(builder);
+        ModelLoadingConfig.init(builder);
         return builder.build();
     }
 
