@@ -47,10 +47,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build and test the prerequisite mod
-        run: ./gradlew -p runtime build --no-daemon --console=plain
+        run: bash ./gradlew -p runtime build --no-daemon --console=plain
 
       - name: Build and test YSM
-        run: ./gradlew build verifyMockHostPackaging -Pysm.fast_run=true --no-daemon --console=plain
+        run: bash ./gradlew build verifyMockHostPackaging -Pysm.fast_run=true --no-daemon --console=plain
 
       - name: Stage installable jars and checksums
         shell: bash
