@@ -316,6 +316,11 @@ class ReloadableModelCatalogTest {
             assertEquals(1, fixture.catalog().current().byModelId().size());
 
             fixture.catalog().tick();
+            var admissionDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (!fixture.catalog().busy() && System.nanoTime() < admissionDeadline) {
+                fixture.catalog().tick();
+                Thread.onSpinWait();
+            }
             assertTrue(fixture.catalog().busy());
             var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (fixture.catalog().busy() && System.nanoTime() < deadline) {
@@ -325,6 +330,132 @@ class ReloadableModelCatalogTest {
             assertFalse(fixture.catalog().busy());
             assertEquals(2, fixture.catalog().current().byModelId().size());
         }
+    }
+
+    @Test
+    void scopedRefreshRetainsUnchangedContentAndARepeatedHintDoesNotLoadItAgain() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        var first = Files.copy(firstFixture, root.resolve("first.mxc"));
+        var second = Files.copy(secondFixture, root.resolve("second.mxc"));
+        try (var fixture = open(root)) {
+            fixture.finish(fixture.catalog().startScanning());
+            var firstContent = fixture.catalog().current().binding(identity(firstFixture).modelId()).orElseThrow().content();
+            var secondContent = fixture.catalog().current().binding(identity(secondFixture).modelId()).orElseThrow().content();
+            var bad = Files.writeString(root.resolve("bad.mxc"), "invalid container");
+            fixture.catalog().sourceEdited(bad);
+            finishWatcher(fixture.catalog());
+            assertEquals(1, fixture.catalog().progress().total());
+            assertSame(firstContent, fixture.catalog().current().binding(identity(firstFixture).modelId()).orElseThrow().content());
+            assertSame(secondContent, fixture.catalog().current().binding(identity(secondFixture).modelId()).orElseThrow().content());
+            assertEquals(1, fixture.catalog().current().report().errorCount());
+
+            fixture.catalog().watcherChanged(new SourceChangeSet(Set.of(bad), false));
+            finishWatcher(fixture.catalog());
+            assertEquals(0, fixture.catalog().progress().total(), "A duplicate hint must not revalidate even a failed source");
+            assertEquals(1, fixture.catalog().current().report().errorCount(), "Skipping a source must retain its diagnostics");
+            Files.delete(bad);
+            fixture.catalog().sourceEdited(bad);
+            finishWatcher(fixture.catalog());
+            assertEquals(0, fixture.catalog().current().report().errorCount());
+
+            Files.delete(first);
+            fixture.catalog().sourceEdited(first);
+            finishWatcher(fixture.catalog());
+            assertFalse(fixture.catalog().current().binding(identity(firstFixture).modelId()).isPresent());
+            assertSame(secondContent, fixture.catalog().current().binding(identity(secondFixture).modelId()).orElseThrow().content());
+            assertEquals(1, fixture.catalog().index().entries().size());
+        }
+    }
+
+    @Test
+    void explicitReloadIsFullEvenWhenDirtyHintsArePending() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        Files.copy(firstFixture, root.resolve("first.mxc"));
+        try (var fixture = open(root)) {
+            fixture.finish(fixture.catalog().startScanning());
+            Files.copy(secondFixture, root.resolve("second.mxc"));
+            fixture.catalog().watcherChanged(new SourceChangeSet(Set.of(root.resolve("unrelated")), false));
+            fixture.finish(fixture.catalog().reload());
+            assertEquals(3, fixture.catalog().current().byModelId().size());
+            fixture.catalog().tick();
+            assertFalse(fixture.catalog().busy(), "An explicit scan consumes already queued hints");
+        }
+    }
+
+    @Test
+    void conflictLoserCanBecomeAvailableAfterTheWinnerIsDeleted() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        Files.copy(firstFixture, root.resolve("first.mxc"));
+        Files.copy(firstFixture, root.resolve("duplicate.mxc"));
+        try (var fixture = open(root)) {
+            fixture.finish(fixture.catalog().startScanning());
+            var winner = fixture.catalog().index().entries().get(0).location().path().value();
+            var removed = root.resolve(winner);
+            Files.delete(removed);
+            fixture.catalog().sourceEdited(removed);
+            finishWatcher(fixture.catalog());
+            assertEquals(2, fixture.catalog().current().byModelId().size());
+            assertEquals(0, fixture.catalog().current().report().errorCount());
+            assertFalse(fixture.catalog().index().entries().get(0).location().path().value().equals(winner));
+        }
+    }
+
+    @Test
+    void editingOneGeneralModelPreservesOtherConvertedIndexesAndCachedContent() throws Exception {
+        var root = Files.createDirectories(temp.resolve("models"));
+        var first = Files.createDirectories(root.resolve("first")).resolve("avatar.pmx");
+        var second = Files.createDirectories(root.resolve("second")).resolve("avatar.pmx");
+        var sample = Path.of("runtime/java-mmd/src/test/resources/mmd-oracle/skin.pmx");
+        Files.copy(sample, first);
+        Files.copy(sample, second);
+        var profiles = cc.sirrus.ysmlib.YsmRuntime.scenes();
+        var original = cc.sirrus.ysmlib.scene.SceneModelProfile.defaults(.08, 18, 0);
+        var changed = cc.sirrus.ysmlib.scene.SceneModelProfile.defaults(.1, 18, 0);
+        var sidecar = first.resolveSibling("avatar.pmx.omysm.json");
+        Files.write(sidecar, profiles.writeModelProfile(original).copy());
+        var indexes = new ConvertedSourceIndexStore(temp.resolve("cache"), "catalog-owner-test");
+        var resolver = new ModelSourceResolver(new RawModelImporter(DefaultAnimationFilter.keepAll()),
+                indexes, new ConvertedObjectStore(temp.resolve("cache")));
+        try (var fixture = open(root, resolver)) {
+            fixture.finish(fixture.catalog().startScanning());
+            assertEquals(3, fixture.catalog().current().byModelId().size());
+            assertEquals(2, indexes.read().size());
+            var untouched = fixture.catalog().index().entries().stream()
+                    .filter(entry -> entry.location().path().value().equals("second/avatar.pmx"))
+                    .findFirst().orElseThrow();
+            var content = fixture.catalog().current().binding(untouched.modelId()).orElseThrow().content();
+            Files.write(sidecar, profiles.writeModelProfile(changed).copy());
+            fixture.catalog().sourceEdited(sidecar);
+            fixture.catalog().watcherChanged(new SourceChangeSet(Set.of(sidecar), false));
+            finishWatcher(fixture.catalog());
+            assertEquals(1, fixture.catalog().progress().total());
+            assertEquals(2, indexes.read().size(), "A partial refresh must retain untouched conversion receipts");
+            assertSame(content, fixture.catalog().current().binding(untouched.modelId()).orElseThrow().content());
+            fixture.catalog().watcherChanged(new SourceChangeSet(Set.of(sidecar), false));
+            finishWatcher(fixture.catalog());
+            assertEquals(0, fixture.catalog().progress().total());
+            assertEquals(2, indexes.read().size());
+            Files.delete(first);
+            fixture.catalog().sourceEdited(first);
+            finishWatcher(fixture.catalog());
+            assertEquals(1, indexes.read().size());
+            assertSame(content, fixture.catalog().current().binding(untouched.modelId()).orElseThrow().content());
+        }
+    }
+
+    private void finishWatcher(ReloadableModelCatalog catalog) throws Exception {
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!catalog.busy() && System.nanoTime() < deadline) {
+            catalog.tick();
+            Thread.onSpinWait();
+        }
+        assertTrue(catalog.busy(), "The coalesced dirty set must be admitted");
+        while (catalog.busy() && System.nanoTime() < deadline) {
+            catalog.tick();
+            Thread.onSpinWait();
+        }
+        assertFalse(catalog.busy());
+        assertEquals(CatalogScanProgress.Stage.COMPLETE, catalog.progress().stage());
     }
 
     @Test

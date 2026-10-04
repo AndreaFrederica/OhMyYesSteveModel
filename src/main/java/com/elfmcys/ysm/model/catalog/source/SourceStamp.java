@@ -18,12 +18,16 @@ import java.util.Objects;
 
 public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDirectory {
     static File captureFile(Path path) throws IOException {
+        return captureFile(path, new java.util.HashMap<>());
+    }
+
+    static File captureFile(Path path, java.util.Map<Path, RawDirectory> dependencyStamps) throws IOException {
         var attributes = Files.readAttributes(path, BasicFileAttributes.class,
                 LinkOption.NOFOLLOW_LINKS);
         if (!attributes.isRegularFile() || attributes.isSymbolicLink()) {
             throw new IOException("Model source is not a regular non-link file: " + path);
         }
-        String key=Objects.toString(attributes.fileKey(), "");
+        String key=Objects.toString(attributes.fileKey(), "") + "|mtime=" + attributes.lastModifiedTime();
         String name=path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
         if(java.util.List.of(".pmx",".pmd",".vrm",".gltf",".glb",".fbx",".unitypackage",".yscene").stream().anyMatch(name::endsWith)) {
             Path profile=path.resolveSibling(path.getFileName()+".omysm.json");
@@ -32,11 +36,36 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
                 if(!p.isRegularFile() || p.isSymbolicLink()) throw new IOException("Model profile is not a regular non-link file: "+profile);
                 key+="|profile="+p.size()+":"+p.lastModifiedTime()+":"+Objects.toString(p.fileKey(),"");
             }
+            if (!name.endsWith(".unitypackage") && !name.endsWith(".yscene")) {
+                var parent = path.toAbsolutePath().normalize().getParent();
+                var stamp = dependencyStamps.get(parent);
+                if (stamp == null) {
+                    stamp = captureDependencies(parent);
+                    dependencyStamps.put(parent, stamp);
+                }
+                key += "|dependencies=" + stamp.metadataDigest();
+            }
         }
         return new File(attributes.size(), attributes.lastModifiedTime().toMillis(),key);
     }
 
     static RawDirectory captureDirectory(Path root) throws IOException {
+        return captureDirectory(root, false);
+    }
+
+    /** Metadata only, matching the loose scene importer's dependency collection. */
+    static RawDirectory captureDependencies(Path root) throws IOException {
+        return captureDirectory(root, true);
+    }
+
+    static boolean isSceneDependency(Path file) {
+        var name = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        return java.util.List.of(".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp",
+                ".bin", ".vmd", ".vpd", ".vrma", ".gltf", ".glb")
+                .stream().anyMatch(name::endsWith);
+    }
+
+    private static RawDirectory captureDirectory(Path root, boolean dependenciesOnly) throws IOException {
         var entries = new ArrayList<DirectoryEntry>();
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
             @Override
@@ -44,7 +73,7 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
                                                      BasicFileAttributes attributes)
                     throws IOException {
                 rejectLink(directory, attributes);
-                if (!directory.equals(root)) {
+                if (!dependenciesOnly && !directory.equals(root)) {
                     entries.add(DirectoryEntry.directory(relative(root, directory), attributes));
                 }
                 return FileVisitResult.CONTINUE;
@@ -57,7 +86,9 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
                 if (!attributes.isRegularFile()) {
                     throw new IOException("Unsupported entry in raw model source: " + file);
                 }
-                entries.add(DirectoryEntry.file(relative(root, file), attributes));
+                if (!dependenciesOnly || isSceneDependency(file)) {
+                    entries.add(DirectoryEntry.file(relative(root, file), attributes));
+                }
                 return FileVisitResult.CONTINUE;
             }
 
@@ -121,7 +152,7 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
         static DirectoryEntry file(String path, BasicFileAttributes attributes) {
             return new DirectoryEntry(path, 1, attributes.size(),
                     attributes.lastModifiedTime().toMillis(),
-                    Objects.toString(attributes.fileKey(), ""));
+                    Objects.toString(attributes.fileKey(), "") + "|mtime=" + attributes.lastModifiedTime());
         }
 
         static DirectoryEntry directory(String path, BasicFileAttributes attributes) {

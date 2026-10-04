@@ -89,6 +89,11 @@ public final class ModelDirectoryWatcher implements AutoCloseable {
                         continue;
                     }
                     var path = directory.resolve(relative).toAbsolutePath().normalize();
+                    if (ModelSourceDiscovery.isEditorTemporaryFile(path)) continue;
+                    // Child events describe content changes. Directory mtime MODIFY
+                    // would otherwise turn those exact events into subtree scans.
+                    if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY
+                            && Files.isDirectory(path)) continue;
                     if (relevant(path)) {
                         changed.add(path);
                     }

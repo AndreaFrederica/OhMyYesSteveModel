@@ -150,7 +150,8 @@ public final class CatalogReconciler {
             var prior = previous.completeRoots().get(root.rootKind());
             var dirty = changes.paths().stream()
                     .filter(path -> path.startsWith(root.path().toAbsolutePath().normalize())
-                            || root.path().toAbsolutePath().normalize().startsWith(path))
+                            || root.path().toAbsolutePath().normalize().startsWith(path)
+                            || prior != null && path.startsWith(prior.root().canonicalAbsoluteRoot()))
                     .collect(Collectors.toUnmodifiableSet());
             RootInventoryState inventory = dirty.isEmpty() && prior != null
                     ? prior
@@ -278,7 +279,8 @@ public final class CatalogReconciler {
             if (expected == null) continue;
             var dirty = changes.paths().stream()
                     .filter(path -> path.startsWith(root.path().toAbsolutePath().normalize())
-                            || root.path().toAbsolutePath().normalize().startsWith(path))
+                            || root.path().toAbsolutePath().normalize().startsWith(path)
+                            || path.startsWith(expected.root().canonicalAbsoluteRoot()))
                     .collect(Collectors.toUnmodifiableSet());
             if (dirty.isEmpty()) continue;
             var actual = ModelSourceDiscovery.inventoryChanged(root, expected, dirty);
@@ -294,6 +296,10 @@ public final class CatalogReconciler {
                                  Collection<ConvertedSourceIndex> entries)
             throws CatalogInfrastructureException {
         resolver.replaceIndex(rootNamespaces, entries);
+    }
+
+    List<ConvertedSourceIndex> retainedIndexes(Collection<SourceObservation> sources) throws IOException {
+        return resolver.retainedIndexes(sources);
     }
 
     Map<Hash256, CatalogRecord> fixedRecords() {

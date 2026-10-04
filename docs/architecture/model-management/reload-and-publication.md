@@ -2,7 +2,18 @@
 
 进程级 `ReloadableModelCatalog` 是 local content 的唯一 writer。构造只安装 intrinsic default 与 builtin 描述，不扫描普通目录、不访问 shared converted。client join 或 server start 在取得 converted 消费资格后调用 `startScanning()`。后续 watcher 和显式 reload 只请求同一入口；同一时刻最多一个 active scan，重入返回 `BUSY`。
 
-Watcher 在 active scan 期间收到的变化合并为一个待扫描标记，保留到当前 scan 完成后由下一次 owner tick 消费。它可能指向当前 inventory 尚未观察的新增文件，不能因 `BUSY` 丢弃；显式 reload 的重入结果仍为 `BUSY`。扫描覆盖游戏目录下 `ysm/custom` 的根级模型文件和子目录，与是否打开模型 GUI 无关。
+Watcher 与编辑器保存共用待处理路径集合，最后一次通知后等待 120 ms 静默窗口，由 owner tick 启动局部刷新。active scan 期间的变化保留到后续刷新，不能因 `BUSY` 丢弃。编辑器原子写入的 `.omysm-*.tmp` 不产生刷新，目录 mtime 的 MODIFY 也不代替子文件事件。显式 reload 始终完整发现与验证，并消费此前已排队的提示；重入仍返回 `BUSY`。扫描覆盖游戏目录下 `ysm/custom` 的根级模型文件和子目录，与是否打开模型 GUI 无关。
+
+## 变化范围与复用
+
+正常文件事件只重新观察该文件；逐模型 sidecar 指向对应源模型，pack manifest/cover 只更新该 pack。raw 模型内的变化更新所属 raw 模型；目录新增、删除和 raw header 分类改变才重新发现对应子树。配置根与 canonical 根之间显式换算路径，避免目录联接下的编辑器通知失去归属。根 identity 改变、watcher overflow、首次扫描和手动 reload 回到完整发现，不能仅凭目录 mtime 推断嵌套文件未变。
+
+完整 inventory 保留未涉及路径的观察，只把新增、stamp 改变的来源和 pack 放入处理队列。未变项不重新打开、哈希、解析或转换，已发布 content 和转换索引继续保留；其错误与警告也保留，不能因为跳过来源而吞掉诊断。冲突来源在其他来源变化后重新考虑，允许删除冲突赢家后发布剩余候选。删除只根据闭合观察提交；失败 scope 不删除旧有效项。
+
+通用松散模型还观察导入器收集范围内的贴图、buffer 和动作元数据。相关依赖变化只使能够包含该路径的模型失效；同一发现批次内，相同模型目录共用依赖 stamp。这个过程不读依赖内容来做快速哈希。真正进入 capture/转换后，内容身份包含依赖路径和字节摘要，避免只改贴图或 VMD 却命中旧包。当前依赖收集按扩展名覆盖模型目录子树，尚不是各格式最小引用闭包，因此同目录变体可能一起刷新。
+
+扫描日志区分 full 与 changed-paths，并列出 dirty path 数、需要加载的来源/pack 数和保留来源数；进度总数只计本次实际处理输入。无内容变化的重复通知可以结束为零输入，不重新发布相同 content。高精度 mtime 和 fileKey 用于元数据比较；外部工具刻意恢复全部元数据或文件系统没有提供事件时，需要显式完整 reload。
+
 
 Catalog、client runtime 与 server runtime 各有独立有限执行容量。每个 worker task 接受冻结输入并连续执行一条 worker-safe、有限、不会等待 owner thread、其他 worker、网络或 host callback 的处理链。跨 owner queue 只运输 immutable terminal fact；长期业务状态由对应 owner 的 tick 提交。Host publication 已完成后可产生新的独立工作，但原 worker 必须已终态。
 

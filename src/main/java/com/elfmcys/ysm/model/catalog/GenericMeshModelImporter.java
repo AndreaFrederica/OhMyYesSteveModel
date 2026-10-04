@@ -75,6 +75,24 @@ public final class GenericMeshModelImporter {
             // prefab changes.
             return new Captured(hash, source, true, null,profile);
         }
+        if (!name.endsWith(".yscene")) {
+            // Model identity must change when bundled textures or motions change.
+            // Only selected sources reach capture; directory discovery uses metadata.
+            var root = source.toAbsolutePath().normalize().getParent();
+            var facts = new java.io.ByteArrayOutputStream();
+            try (var output = new java.io.DataOutputStream(facts);
+                 var paths = Files.walk(root)) {
+                output.write(hash.bytes());
+                for (var path : paths.filter(path -> !path.equals(source.toAbsolutePath().normalize()))
+                        .filter(com.elfmcys.ysm.model.catalog.source.SourceStamp::isSceneDependency)
+                        .filter(path -> Files.isRegularFile(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                        .sorted().toList()) {
+                    output.writeUTF(root.relativize(path).toString().replace('\\', '/'));
+                    output.write(ModelHashing.blake3(path).bytes());
+                }
+            }
+            hash = ModelHashing.blake3(facts.toByteArray());
+        }
         return new Captured(hash, source, false, null,profile);
     }
 

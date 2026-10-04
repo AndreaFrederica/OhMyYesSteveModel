@@ -2,6 +2,7 @@ package com.elfmcys.ysm.model.storage;
 
 import com.elfmcys.ysm.buffer.ArrayBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
+import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.natives.Blake3;
 import java.io.IOException;
@@ -37,8 +38,9 @@ public final class ModelHashing {
         try (var channel = FileChannel.open(file, StandardOpenOption.READ)) {
             Hash256 hash;
             try {
-                var source = channel.map(FileChannel.MapMode.READ_ONLY, 0, size);
-                hash = new Hash256(Blake3.computeHash(source));
+                try (var source = NativeBuffer.mapFile(channel, 0, size)) {
+                    hash = new Hash256(Blake3.computeHash(source));
+                }
             } catch (UnsupportedOperationException unsupported) {
                 // Zip/Jar file systems do not expose map(). Keep the fallback bounded so
                 // a provider that cannot map a large source cannot recreate the old spike.

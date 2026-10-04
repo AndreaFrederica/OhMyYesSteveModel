@@ -94,6 +94,8 @@ Remote storage 只保留已验证 bytes，不携带 session authority。`RemoteM
 
 读取优先使用声明且有效的内嵌 thumbnail，再探测独立 cache。坏 cache 只造成当前图片 miss，不删除文件、不标记模型损坏。后续有效图经同目录临时文件、完整验证与原子替换提交；失败保留旧文件且不撤回有效内存图。该 cache 当前没有自动扫描或定时清理，长期空间成本独立于 target 30/60 和 converted 首次 prune。
 
+通用来源的转换记录纳入高精度模型/sidecar 元数据和相关依赖 metadata digest；实际来源身份包含收集到的依赖路径与字节摘要。相关来源变化时才重新捕获内容，局部刷新保留未涉及来源的转换记录。私有转换 profile 在该身份算法改变时失效，首次使用需生成对应 profile 的制品；后续命中仍受完整版本和来源 stamp 校验。文件摘要的 mmap 在计算后显式释放，不能依赖 GC 才允许 Windows 编辑器改写源文件。
+
 ## 通用网格派生缓存
 
 来源转换继续复用 converted `.mxc`。GENERAL_MESH 的生产加载使用 Lib `SceneDiskCache`，由宿主指定 game-local cache root 下的 `scene` 目录及完整 Mod 版本。配置 `SceneCacheMiB` 默认 4096 MiB，单条派生物最多 1024 MiB；写入时按访问时间淘汰派生文件，跨进程预算锁不阻塞源加载。GPU 对象、播放器和活动物理世界不持久化。

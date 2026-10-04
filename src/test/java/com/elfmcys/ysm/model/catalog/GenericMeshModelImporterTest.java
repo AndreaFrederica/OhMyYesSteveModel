@@ -16,6 +16,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GenericMeshModelImporterTest {
+    @Test
+    void textureAndMotionChangesInvalidateIdentityWithoutChangingThePmx(@TempDir Path temp) throws Exception {
+        var source = temp.resolve("avatar.pmx");
+        Files.copy(Path.of("runtime/java-mmd/src/test/resources/mmd-oracle/skin.pmx"), source);
+        var importer = new GenericMeshModelImporter();
+        var original = importer.capture(source).modelHash();
+        var pixels = Files.writeString(temp.resolve("color.png"), "first pixels");
+        var withTexture = importer.capture(source).modelHash();
+        org.junit.jupiter.api.Assertions.assertNotEquals(original, withTexture);
+        Files.writeString(pixels, "changed pixels");
+        var changedTexture = importer.capture(source).modelHash();
+        org.junit.jupiter.api.Assertions.assertNotEquals(withTexture, changedTexture);
+        var motion = Files.writeString(temp.resolve("motion.vmd"), "motion");
+        org.junit.jupiter.api.Assertions.assertNotEquals(changedTexture, importer.capture(source).modelHash());
+        Files.delete(motion);
+        assertEquals(changedTexture, importer.capture(source).modelHash());
+    }
+
     @Test void sidecarMetadataUsesTheOrdinaryYsmManifestIncludingAvatarAndLinks(@TempDir Path temp)throws Exception {
         var source=temp.resolve("avatar.pmx");Files.copy(Path.of("runtime/java-mmd/src/test/resources/mmd-oracle/skin.pmx"),source);
         var png=java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=");Files.write(temp.resolve("author.png"),png);

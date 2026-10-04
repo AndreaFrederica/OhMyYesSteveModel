@@ -32,7 +32,7 @@ import java.util.Set;
 
 public final class ModelSourceResolver {
     /** Invalidates generic scene containers whenever their manifest/statistics contract changes. */
-    private static final String GENERIC_CACHE_PROFILE = ".generic-v7/";
+    private static final String GENERIC_CACHE_PROFILE = ".generic-v8/";
     private final RawModelImporter importer;
     private final GenericMeshModelImporter genericImporter;
     private final LegacyModelImporter legacyImporter;
@@ -348,6 +348,14 @@ public final class ModelSourceResolver {
                     file.size(), file.lastModifiedMillis(), file.fileKey());
         }
         return new ConvertedSourceIndex(identity, rawRelativePath, version);
+    }
+
+    /** Retains untouched source mappings without reopening their model files. */
+    public List<ConvertedSourceIndex> retainedIndexes(java.util.Collection<SourceObservation> observations)
+            throws IOException {
+        var stored = indexes.read();
+        return observations.stream().map(ModelSourceResolver::rawRelativePath)
+                .map(stored::get).filter(Objects::nonNull).toList();
     }
 
     private static String rawRelativePath(SourceObservation observation) {
