@@ -22,7 +22,9 @@ public class ReplacePlayerArmRender {
         LocalPlayer player = event.getLocalPlayer();
         if (player == null) return;
         player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-            if (!cap.isInitializedAndEnabled() || cap.getModelRenderTarget() == null || cap.getModelVariant() == null) return;
+            if (!cap.isInitializedAndEnabled() || cap.getModelRenderTarget() == null
+                    || (cap.getModelVariant() == null
+                    && cap.getModelRenderTarget().generalMeshResources() == null)) return;
             HumanoidArm arm = event.getArm();
             PoseStack poseStack = event.getStack();
             GeoBone bone = event.getBone();

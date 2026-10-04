@@ -75,6 +75,17 @@ public class CustomFirstPersonArmEntity extends CustomEntity<LocalPlayer> {
         return mainModelEntity;
     }
 
+    @Override protected boolean ownsSceneInstance() { return false; }
+
+    @Override public com.elfmcys.ysm.client.renderer.GeneralMeshInstance getGeneralMeshInstance() {
+        return getModelRenderTarget()==mainModelEntity.getModelRenderTarget()?mainModelEntity.getGeneralMeshInstance():null;
+    }
+
+    @Override public com.elfmcys.ysm.client.renderer.GeneralMeshInstance updateGeneralMesh(float partialTicks) {
+        checkModelUpdate();
+        return getModelRenderTarget()==mainModelEntity.getModelRenderTarget()?mainModelEntity.updateGeneralMesh(partialTicks):null;
+    }
+
     @Override
     public void checkModelUpdate() {
         if (!Objects.equals(mainModelEntity.getModelHash(), getModelHash())) {

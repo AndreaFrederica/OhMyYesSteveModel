@@ -56,7 +56,7 @@ public class CustomProjectileEntity extends CustomEntity<Projectile> {
         var model = ready.target();
         if (!isFallback) {
             var projectileResources = model.projectileResources();
-            if (projectileResources != null) {
+            if (projectileResources != null || model.generalMeshResources()!=null) {
                 return new ResourceHolder(lease, false);
             }
         }
@@ -92,17 +92,19 @@ public class CustomProjectileEntity extends CustomEntity<Projectile> {
 
     @Override
     public Animation getAnimation(String name) {
+        if(isGeneralMesh()) return null;
         return projectileResources.animations().get(name);
     }
 
     @Override
     public @Nullable AnimationControllerData getAnimationControllerData(String animationControllerName) {
+        if(isGeneralMesh()) return null;
         return projectileResources.controllers().get(animationControllerName);
     }
 
     @Override
     public boolean isModelPresent() {
-        return super.isModelPresent() && projectileResources != null && getResourceHolder().isLoaded();
+        return super.isModelPresent() && (projectileResources != null || isGeneralMesh()) && getResourceHolder().isLoaded();
     }
 
     @Override

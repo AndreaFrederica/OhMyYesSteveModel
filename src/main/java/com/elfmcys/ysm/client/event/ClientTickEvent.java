@@ -16,10 +16,12 @@ import net.minecraftforge.fml.common.Mod;
 public class ClientTickEvent {
     private static int tickCount;
     private static int refreshRate = 60;
+    private static long renderSequence;
 
     @SubscribeEvent
     public static void onRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
+            renderSequence++;
             CustomTextureManager.uploadFrame();
             ClientModelService.current().ifPresent(ClientModelService::beginRenderFrame);
         }
@@ -51,6 +53,8 @@ public class ClientTickEvent {
     public static int getTickCount() {
         return tickCount;
     }
+
+    public static long renderSequence() { return renderSequence; }
 
     public static int getRefreshRate() {
         return refreshRate;

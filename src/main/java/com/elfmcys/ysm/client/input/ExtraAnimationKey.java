@@ -61,8 +61,9 @@ public class ExtraAnimationKey {
                 player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
                     var model = cap.getModelRenderTarget();
                     int index = EXTRA_ANIMATION_KEYS.indexOf(key);
+                    if (model == null) return;
                     var info = model.info();
-                    var animations = info.getExtraAnimations();
+                    var animations = com.elfmcys.ysm.client.animation.GeneralAnimationActions.entries(model);
                     if (animations.size() > index) {
                         String keyName = animations.get(index).key();
                         if ("#return".equals(keyName)) {

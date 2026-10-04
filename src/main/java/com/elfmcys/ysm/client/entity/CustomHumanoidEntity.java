@@ -228,6 +228,7 @@ public abstract class CustomHumanoidEntity<T extends LivingEntity> extends Custo
             return;
         }
         var playerResources = getModelRenderTarget().playerResources();
+        if(playerResources==null) { modelVariant=null;return; }
         var variant = isModelPresent() ? playerResources.variants().get(textureName) : null;
         if (variant == null) {
             variant = playerResources.defaultVariant();
@@ -249,15 +250,18 @@ public abstract class CustomHumanoidEntity<T extends LivingEntity> extends Custo
     @Nullable
     @Override
     public Animation getAnimation(String name) {
+        if(isGeneralMesh()) return null;
         return getModelRenderTarget().playerResources().animations().get(name);
     }
 
     @Override
     public @Nullable AnimationControllerData getAnimationControllerData(String name) {
+        if(isGeneralMesh()) return null;
         return getModelRenderTarget().playerResources().animationControllers().get(name);
     }
 
     public String getTextureName() {
+        if(isGeneralMesh()) return "";
         return isModelPresent() ? textureName : getModelRenderTarget().playerResources().defaultTextureName();
     }
 

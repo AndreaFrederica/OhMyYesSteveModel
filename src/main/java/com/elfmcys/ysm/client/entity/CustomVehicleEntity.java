@@ -68,7 +68,7 @@ public class CustomVehicleEntity extends CustomEntity<Entity> {
         }
         var model = ready.target();
         var vehicleResources = model.vehicleResources();
-        if (vehicleResources != null) {
+        if (vehicleResources != null || model.generalMeshResources()!=null) {
             return new ResourceHolder(lease, isFallback);
         }
         return null;
@@ -104,17 +104,19 @@ public class CustomVehicleEntity extends CustomEntity<Entity> {
 
     @Override
     public Animation getAnimation(String name) {
+        if(isGeneralMesh()) return null;
         return vehicleResources.animations().get(name);
     }
 
     @Override
     public @Nullable AnimationControllerData getAnimationControllerData(String animationControllerName) {
+        if(isGeneralMesh()) return null;
         return vehicleResources.controllers().get(animationControllerName);
     }
 
     @Override
     public boolean isModelPresent() {
-        return super.isModelPresent() && vehicleResources != null && getResourceHolder().isLoaded();
+        return super.isModelPresent() && (vehicleResources != null || isGeneralMesh()) && getResourceHolder().isLoaded();
     }
 
     @Override

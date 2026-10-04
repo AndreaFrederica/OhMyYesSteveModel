@@ -48,7 +48,8 @@ public class ReplacePlayerHandRenderEvent {
         player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
             if (!cap.isInitializedAndEnabled()
                     || cap.getModelRenderTarget() == null
-                    || cap.getModelVariant() == null) {
+                    || (cap.getModelVariant() == null
+                    && cap.getModelRenderTarget().generalMeshResources() == null)) {
                 status = "model pending or disabled";
                 return;
             }

@@ -7,6 +7,7 @@ import com.elfmcys.ysm.model.resource.client.ResourceLease;
 import com.elfmcys.ysm.model.resource.client.ResourceRequest;
 import com.elfmcys.ysm.model.catalog.content.ModelContent;
 import com.elfmcys.ysm.model.domain.Hash256;
+import com.elfmcys.ysm.YesSteveModel;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
@@ -62,6 +63,8 @@ final class EntityModelBinding implements AutoCloseable {
     private boolean onlineStarted;
     private boolean terminalFailure;
     private boolean failureReported;
+    @Nullable
+    private Throwable failureCause;
 
     EntityModelBinding() {
         this(new ClientModelAccess(), EntityModelBinding::monotonicMillis);
@@ -138,7 +141,8 @@ final class EntityModelBinding implements AutoCloseable {
                 desiredLease = models.getOrStart(request);
             } catch (RuntimeException failure) {
                 terminalFailure = true;
-                reportFailureOnce(content, fallbackRenderTargetId);
+                failureCause = failure;
+                reportFailureOnce(content, fallbackRenderTargetId, failure);
             }
         }
 
@@ -153,12 +157,15 @@ final class EntityModelBinding implements AutoCloseable {
                     models.reportActiveModelUse(request);
                 } else {
                     terminalFailure = true;
-                    reportFailureOnce(content, fallbackRenderTargetId);
+                    failureCause = new IllegalStateException(
+                            "Resource factory did not create a model holder");
+                    reportFailureOnce(content, fallbackRenderTargetId, failureCause);
                 }
             } else if (result instanceof AcquireResult.Failed failed) {
                 desiredLease = null;
                 terminalFailure = true;
-                reportFailureOnce(content, fallbackRenderTargetId);
+                failureCause = failed.failure().cause();
+                reportFailureOnce(content, fallbackRenderTargetId, failureCause);
             }
         }
 
@@ -208,6 +215,7 @@ final class EntityModelBinding implements AutoCloseable {
             offlineLoad = models.getOrStartOffline(request);
         } catch (RuntimeException failure) {
             terminalFailure = true;
+            failureCause = failure;
         }
     }
 
@@ -230,10 +238,12 @@ final class EntityModelBinding implements AutoCloseable {
             }
         } catch (CancellationException failure) {
             terminalFailure = true;
-            reportFailureOnce(content, fallbackRenderTargetId);
+            failureCause = failure;
+            reportFailureOnce(content, fallbackRenderTargetId, failure);
         } catch (CompletionException failure) {
             terminalFailure = true;
-            reportFailureOnce(content, fallbackRenderTargetId);
+            failureCause = failure;
+            reportFailureOnce(content, fallbackRenderTargetId, failure);
         }
     }
 
@@ -307,8 +317,23 @@ final class EntityModelBinding implements AutoCloseable {
 
     private void reportFailureOnce(ModelContent content,
                                    @Nullable String fallbackRenderTargetId) {
+        reportFailureOnce(content, fallbackRenderTargetId, failureCause);
+    }
+
+    private void reportFailureOnce(ModelContent content,
+                                   @Nullable String fallbackRenderTargetId,
+                                   @Nullable Throwable cause) {
         if (!failureReported) {
             models.reportActiveModelFailure(content, hasFallback(fallbackRenderTargetId));
+            if (cause == null) {
+                YesSteveModel.LOGGER.error(
+                        "Failed to install active model modelId={} without a failure cause",
+                        content.modelId());
+            } else {
+                YesSteveModel.LOGGER.error(
+                        "Failed to install active model modelId={} fallbackKept={}",
+                        content.modelId(), resourceHolder != null, cause);
+            }
             failureReported = true;
         }
     }
@@ -331,6 +356,7 @@ final class EntityModelBinding implements AutoCloseable {
         onlineStarted = false;
         terminalFailure = false;
         failureReported = false;
+        failureCause = null;
         if (previous != null) {
             previous.cancelPending();
         }

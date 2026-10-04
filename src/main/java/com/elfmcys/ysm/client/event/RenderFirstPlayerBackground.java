@@ -47,11 +47,13 @@ public class RenderFirstPlayerBackground {
         }
         var player = minecraft.player;
         if (player == null || minecraft.getCameraEntity() != player || player.isSpectator()) return;
-        if (ALREADY_RENDERED) return;
+        if (ALREADY_RENDERED) {cancelReplacedItem(event,player);return;}
         // Both hands can post RenderHandEvent. The background is a single camera-relative pass.
         status = "model pending or disabled";
         player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-            if (!cap.isInitializedAndEnabled() || cap.getModelRenderTarget() == null || cap.getModelVariant() == null) return;
+            if (!cap.isInitializedAndEnabled() || cap.getModelRenderTarget() == null
+                    || (cap.getModelVariant() == null
+                    && cap.getModelRenderTarget().generalMeshResources() == null)) return;
             var renderer = RegisterEntityRenderersEvent.getFirstPersonArmRenderer();
             ALREADY_RENDERED = true;
             var poseStack = event.getPoseStack();
@@ -65,6 +67,11 @@ public class RenderFirstPlayerBackground {
                 poseStack.popPose();
             }
         });
+        if(ALREADY_RENDERED)cancelReplacedItem(event,player);
+    }
+    private static void cancelReplacedItem(RenderHandEvent event,Player player) {
+        var arm=event.getHand()==net.minecraft.world.InteractionHand.MAIN_HAND?player.getMainArm():player.getMainArm().getOpposite();
+        if(RegisterEntityRenderersEvent.getFirstPersonArmRenderer().replacesHeldItem(arm))event.setCanceled(true);
     }
 
     private static void bobView(PoseStack pMatrixStack, float pPartialTicks, Player player) {

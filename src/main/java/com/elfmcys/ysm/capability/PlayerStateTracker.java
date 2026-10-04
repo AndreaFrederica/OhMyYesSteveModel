@@ -88,6 +88,16 @@ public class PlayerStateTracker extends HumanoidStateTracker<Player> {
         return remoteFlying;
     }
 
+    /** Copies authoritative inputs to a non-drawing animation session without sharing its animation clock. */
+    public void copyProtocolStateFrom(PlayerStateTracker source) {
+        remoteFlying=source.remoteFlying;expLevel=source.expLevel;health=source.health;
+        maxHealth=source.maxHealth;foodLevel=source.foodLevel;
+        xxa=source.xxa;yya=source.yya;zza=source.zza;inShieldBlockCooldown=source.inShieldBlockCooldown;
+        effects.clear();effects.putAll(source.effects);
+        setHandItem(source.getHandItem(net.minecraft.world.InteractionHand.MAIN_HAND),net.minecraft.world.InteractionHand.MAIN_HAND);
+        setHandItem(source.getHandItem(net.minecraft.world.InteractionHand.OFF_HAND),net.minecraft.world.InteractionHand.OFF_HAND);
+    }
+
     public int expLevel() {
         return expLevel;
     }
