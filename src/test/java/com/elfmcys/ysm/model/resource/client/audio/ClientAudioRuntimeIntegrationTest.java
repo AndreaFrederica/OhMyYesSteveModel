@@ -227,6 +227,9 @@ class ClientAudioRuntimeIntegrationTest {
                 var secondResult = second.openStream(false);
                 var secondFetch = starts.poll(10, TimeUnit.SECONDS);
                 assertTrue(secondFetch != null);
+                // The queue is signalled before fetch() returns. This test stops
+                // already accepted transfers; the following test covers stop during return.
+                workers.submit(() -> { }).get(10, TimeUnit.SECONDS);
 
                 first.stop();
                 assertTrue(firstFetch.isCancelled());

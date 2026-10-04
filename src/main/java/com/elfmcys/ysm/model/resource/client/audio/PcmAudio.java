@@ -38,6 +38,7 @@ final class PcmAudio implements CachedAudio {
 
     @Override
     public void close() {
-        // Minecraft owns the ByteBuffer view returned by read(), so the backing must stay heap-stable.
+        // Immutable heap storage is shared by the cache and active playbacks;
+        // each playback copies its reads into an independent host upload buffer.
     }
 }

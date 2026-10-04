@@ -106,6 +106,51 @@ class PlaybackAudioStreamIntegrationTest {
         }
     }
 
+    @Test
+    void shortLoopSwitchesToCachedPcmWithoutChangingSamples() throws Exception {
+        var fixture = fixture("vorbis-under");
+        var publication = new AtomicReference<PcmAudio>();
+        try (var playback = stream(fixture.encoded(), true,
+                (pcm, ignored) -> publication.set(pcm), new AtomicInteger())) {
+            var actual = readExactly(playback, fixture.reference().length * 2, 8192);
+            var expected = new byte[actual.length];
+            System.arraycopy(fixture.reference(), 0, expected, 0, fixture.reference().length);
+            System.arraycopy(fixture.reference(), 0, expected, fixture.reference().length,
+                    fixture.reference().length);
+            assertTrue(publication.get() != null);
+            com.elfmcys.ysm.testutil.AudioAssertions.reference(
+                    expected, actual, false, "Vorbis cached loop");
+        }
+    }
+
+    @Test
+    void cachedPlaybacksOwnTheirUploadBuffersAndPositions() throws Exception {
+        byte[] samples = {1, 2, 3, 4, 5, 6, 7, 8};
+        var pcm = new PcmAudio(samples,
+                new javax.sound.sampled.AudioFormat(44100, 16, 1, true, false));
+        try (var first = cachedStream(pcm, false); var second = cachedStream(pcm, false)) {
+            var firstChunk = first.read(4);
+            assertTrue(firstChunk.isDirect());
+            assertEquals(0, firstChunk.position());
+            assertEquals(4, firstChunk.remaining());
+            assertArrayEquals(new byte[]{1, 2}, bytes(second.read(2)));
+            assertArrayEquals(new byte[]{3, 4, 5, 6}, bytes(second.read(4)));
+            // Reading another playback must not overwrite a pending host upload.
+            assertArrayEquals(new byte[]{1, 2, 3, 4}, bytes(firstChunk));
+            assertArrayEquals(new byte[]{5, 6}, bytes(first.read(3)));
+            assertArrayEquals(new byte[]{7, 8}, bytes(first.read(8192)));
+            assertTrue(first.read(8192).isDirect());
+            assertEquals(0, first.read(8192).remaining());
+            assertArrayEquals(new byte[]{7, 8}, bytes(second.read(8192)));
+        }
+    }
+
+    private static PlaybackAudioStream cachedStream(PcmAudio pcm, boolean looping)
+            throws Exception {
+        return new PlaybackAudioStream(pcm.acquire(), looping, RECEIPT,
+                () -> true, (ignored, receipt) -> { }, () -> { }, ignored -> { });
+    }
+
     private static PlaybackAudioStream stream(
             byte[] encoded, boolean looping,
             PlaybackAudioStream.PcmPublisher publisher,
@@ -126,6 +171,7 @@ class PlaybackAudioStreamIntegrationTest {
         var output = new ByteArrayOutputStream();
         while (true) {
             var chunk = stream.read(size);
+            assertTrue(chunk.isDirect(), "OpenAL uploads require direct buffers, including EOF");
             if (!chunk.hasRemaining()) {
                 return output.toByteArray();
             }
@@ -138,6 +184,7 @@ class PlaybackAudioStreamIntegrationTest {
         var output = new ByteArrayOutputStream(length);
         while (output.size() < length) {
             var chunk = stream.read(Math.min(size, length - output.size()));
+            assertTrue(chunk.isDirect(), "OpenAL uploads require direct buffers");
             assertTrue(chunk.hasRemaining());
             output.writeBytes(bytes(chunk));
         }

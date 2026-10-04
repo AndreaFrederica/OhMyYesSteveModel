@@ -13,7 +13,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 final class PlaybackAudioStream implements CustomAudioStream {
-    private static final ByteBuffer EMPTY = ByteBuffer.allocate(0).asReadOnlyBuffer();
+    private static final ByteBuffer EMPTY = ByteBuffer.allocateDirect(0).asReadOnlyBuffer();
 
     private final boolean looping;
     private final PcmPublisher publisher;
@@ -26,6 +26,7 @@ final class PlaybackAudioStream implements CustomAudioStream {
     private CustomAudioStream decoder;
     private ByteArrayOutputStream candidate;
     private AudioFormat format;
+    private ByteBuffer pcmOutput;
     private int pcmOffset;
     private boolean closed;
     private boolean ended;
@@ -101,9 +102,15 @@ final class PlaybackAudioStream implements CustomAudioStream {
             pcmOffset = 0;
         }
         int length = Math.min(requested, pcm.size() - pcmOffset);
-        var result = pcm.read(pcmOffset, length);
+        if (pcmOutput == null || pcmOutput.capacity() < length) {
+            pcmOutput = ByteBuffer.allocateDirect(length);
+        }
+        // Minecraft uploads synchronously before reading again. Keep the shared
+        // PCM on heap, but give each playback its own reusable OpenAL buffer.
+        pcmOutput.clear().limit(length);
+        pcmOutput.put(pcm.read(pcmOffset, length)).flip();
         pcmOffset += length;
-        return result;
+        return pcmOutput.asReadOnlyBuffer();
     }
 
     private ByteBuffer readEncoded(int requested) throws IOException {
@@ -201,6 +208,7 @@ final class PlaybackAudioStream implements CustomAudioStream {
             }
             releaseEncoded();
             pcm = null;
+            pcmOutput = null;
             candidate = null;
             callback = closedCallback;
             if (failure != null) {
