@@ -13,3 +13,4 @@ runtime/*/src/test/resources/** -text whitespace=-blank-at-eol,-blank-at-eof,-sp
 src/test/resources/*-oracle/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
 runtime/forge/src/main/resources/licenses/** -text
 runtime/native/src/math/** -text
+runtime/native/src/math/source.json text eol=lf

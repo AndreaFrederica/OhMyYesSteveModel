@@ -1,0 +1,53 @@
+dependencies {
+  api project(':ysm-runtime-scene-api')
+  testImplementation project(':ysm-runtime-wasm-physics')
+  testImplementation project(':ysm-runtime-java-mmd')
+}
+
+sourceSets.test.resources.srcDir('../java-mmd/src/test/resources')
+
+tasks.withType(Test).configureEach {
+  def nativeLibrary = System.getProperty('ysm.native.physics.library')
+  if (nativeLibrary != null) {
+    systemProperty 'ysm.native.physics.library', nativeLibrary
+    inputs.file(nativeLibrary)
+    jvmArgs '-Xcheck:jni'
+  }
+}
+
+tasks.register('physicsBenchmark', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'cc.sirrus.ysmlib.scene.physics.natives.NativePhysicsBenchmark'
+  maxHeapSize = '2g'
+  def nativeLibrary = System.getProperty('ysm.native.physics.library')
+  if (nativeLibrary != null) systemProperty 'ysm.native.physics.library', nativeLibrary
+  args layout.buildDirectory.file('reports/native-physics-benchmark.csv').get().asFile.absolutePath
+}
+
+tasks.register('physicsCorpus', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'cc.sirrus.ysmlib.scene.physics.natives.NativePhysicsCorpus'
+  maxHeapSize = '3g'
+  def nativeLibrary = System.getProperty('ysm.native.physics.library')
+  if (nativeLibrary != null) systemProperty 'ysm.native.physics.library', nativeLibrary
+  systemProperty 'ysm.native.physics.corpus.debug', System.getProperty('ysm.native.physics.corpus.debug', 'false')
+  def extended = Boolean.getBoolean('ysm.native.physics.corpus.extended')
+  systemProperty 'ysm.native.physics.corpus.extended', extended.toString()
+  def packed = Boolean.getBoolean('ysm.native.physics.corpus.packed')
+  systemProperty 'ysm.native.physics.corpus.packed', packed.toString()
+  systemProperty 'ysm.native.physics.corpus.isolation', System.getProperty('ysm.native.physics.corpus.isolation', '')
+  def isolation = System.getProperty('ysm.native.physics.corpus.isolation', '')
+  args System.getProperty('ysm.native.physics.corpus', 'D:/Projects/ysm/vrc-mmd'),
+       layout.buildDirectory.file(isolation.isEmpty() ? (packed ? 'reports/native-physics-corpus-packed.csv' : extended ? 'reports/native-physics-corpus-extended.csv' : 'reports/native-physics-corpus.csv') : 'reports/native-physics-isolation.csv').get().asFile.absolutePath
+}
+
+tasks.register('physicsNumerics', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'cc.sirrus.ysmlib.scene.physics.natives.NativePhysicsNumerics'
+  def nativeLibrary = System.getProperty('ysm.native.physics.library')
+  if (nativeLibrary != null) systemProperty 'ysm.native.physics.library', nativeLibrary
+  args System.getProperty('ysm.native.physics.corpus', 'D:/Projects/ysm/vrc-mmd')
+}

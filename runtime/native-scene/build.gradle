@@ -1,0 +1,33 @@
+dependencies {
+    api project(':ysm-runtime-scene-api')
+    implementation project(':ysm-runtime-java-scene')
+    testImplementation project(':ysm-runtime-java-mmd')
+    testImplementation project(':ysm-runtime-native-physics')
+    testImplementation project(':ysm-runtime-wasm-physics')
+}
+tasks.register('mmdOptimizationBenchmark', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cc.sirrus.ysmlib.scene.natives.MmdOptimizationBenchmark'
+    maxHeapSize = '3g'
+    ['ysm.native.skinning.library','ysm.native.physics.library','ysm.mmd.benchmark.samples','ysm.mmd.benchmark.verifyOnly','ysm.mmd.benchmark.corpus','ysm.mmd.benchmark.extraCorpus','ysm.mmd.benchmark.extraModel'].each { key ->
+        def value = System.getProperty(key); if(value != null) systemProperty key, value
+    }
+    args layout.buildDirectory.file('reports/mmd-optimization-benchmark.csv').get().asFile.absolutePath
+}
+sourceSets.test.resources.srcDir('../java-mmd/src/test/resources')
+tasks.withType(Test).configureEach {
+    def library = System.getProperty('ysm.native.skinning.library')
+    if (library != null) { systemProperty 'ysm.native.skinning.library', library; inputs.file(library); jvmArgs '-Xcheck:jni' }
+}
+
+tasks.register('mmdSkinningComparisonBenchmark', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cc.sirrus.ysmlib.scene.natives.MmdSkinningComparisonBenchmark'
+    maxHeapSize = '3g'
+    ['ysm.native.skinning.library','ysm.native.physics.library','ysm.mmd.benchmark.corpus','ysm.mmd.benchmark.extraCorpus'].each { key ->
+        def value = System.getProperty(key); if(value != null) systemProperty key, value
+    }
+    args layout.buildDirectory.file('reports/mmd-skinning-comparison.csv').get().asFile.absolutePath
+}

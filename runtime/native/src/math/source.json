@@ -1,0 +1,22 @@
+{
+  "revision": "165235bc467d5fa52d424f5d82587dfb76ed9d54",
+  "origin": "wasi-libc/musl math, Sun Microsystems permissive notices retained",
+  "changes": "Rename public functions; use minimal private support header",
+  "files": {
+    "atan2f.c": {
+      "url": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/165235bc467d5fa52d424f5d82587dfb76ed9d54/libc-top-half/musl/src/math/atan2f.c",
+      "upstream_sha256": "31a61a0a4c7b00db625b708525f24673a83df868a3e363042c9cc9dcf0aaeec8",
+      "sha256": "2f87126d86b94282aef56529ef3693a589722838a5ea9050fa32261260c53ae9"
+    },
+    "asinf.c": {
+      "url": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/165235bc467d5fa52d424f5d82587dfb76ed9d54/libc-top-half/musl/src/math/asinf.c",
+      "upstream_sha256": "6bc9b2392b81efa4c6a80c8602a2c0898d3b5c77444f6d3266ac71c18df222c5",
+      "sha256": "42775ec0e14286e34935e5aec92fd8b26125a25c80a7f112b5ebe1e7de740bae"
+    },
+    "atanf.c": {
+      "url": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/165235bc467d5fa52d424f5d82587dfb76ed9d54/libc-top-half/musl/src/math/atanf.c",
+      "upstream_sha256": "e0533d7b72aabce311a758a1f94fd15e5d4067be73b716cb1f425df5bc9039d6",
+      "sha256": "c405f4fa01b05294dcad2c2d384fcceeb25ccfe04046cd66848b8b95a404736b"
+    }
+  }
+}

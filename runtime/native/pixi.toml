@@ -24,3 +24,5 @@ cxx-compiler = ">=1.9,<2"
 configure = "python tools/build.py configure"
 build = { cmd = "meson compile -C build", depends-on = ["configure"] }
 test = { cmd = "meson test -C build --print-errorlogs", depends-on = ["build"] }
+package-skinning = { cmd = "python tools/package_skinning.py", depends-on = ["test"] }
+package-physics = { cmd = "python tools/package_physics.py", depends-on = ["test"] }
