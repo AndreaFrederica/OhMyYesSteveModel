@@ -1,0 +1,30 @@
+plugins {
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+dependencies {
+    implementation project(':ysm-runtime-core')
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
+application { mainClass = 'cc.sirrus.ysmlib.tools.scene.SceneTool' }
+processResources {
+    from(rootProject.file('../LICENSE'))
+    from(rootProject.file('forge/src/main/resources/licenses')) { into 'licenses' }
+    from(rootProject.file('third-party')) { into 'third-party-sources' }
+}
+jar { archiveClassifier = 'thin' }
+shadowJar {
+    archiveClassifier = ''
+    mergeServiceFiles()
+    manifest { attributes 'Main-Class': application.mainClass.get() }
+    relocate 'com.google.gson', 'cc.sirrus.ysmlib.internal.gson'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+    exclude 'module-info.class', 'META-INF/versions/**'
+    exclude 'META-INF/mods.toml'
+}
+assemble.dependsOn shadowJar
+test { systemProperty 'java.awt.headless', 'true' }
+tasks.named('processTestResources') {
+    from(project(':ysm-runtime-java-mmd').file('src/test/resources')) { include 'mmd-oracle/*' }
+    from(project(':ysm-runtime-java-gltf').file('src/test/resources')) { include 'khronos/SimpleSkin/glTF/*' }
+}
