@@ -65,6 +65,8 @@ Alt+Y 提供尺寸/放置、骨骼/动作映射、描边及挂点编辑。进入
 
 主 Mod 已接入通用 target、实体及预览 host，提供 MMD surface/描边/点线、VRM MToon 0/1 核心 surface，以及 glTF/FBX 核心 PBR/unlit。预览、第一人称和第三人称使用共享静态资源，播放状态与物理实例隔离；同逻辑帧重复绘制不重复推进物理。
 
+普通世界与第一人称已接入 Minecraft 的实际光照贴图，分别采样方块光与天空光，避免露天夜晚因天空光等级 15 被当作满亮。MMD 环境色和描边也参与受光；glTF/VRM 按线性空间处理，明确 unlit 与自发光保留来源语义。Alt+Y、编辑器和纸娃娃使用独立预览照明。独立 GPU 回归覆盖同一天空光坐标的昼夜纹理变化、方块光轴、全暗、透明度、自发光、unlit、描边及纹理/sampler 恢复；这些检查不替代真实 Forge 的天气、维度、药水效果和 shader-pack 验收。
+
 MMD 支持 Java 参考变形、可选 native packed 蒙皮，以及满足设备/预算条件时的 OpenGL 4.3 compute skinning/morph。GPU 不可用或发生失败时从同一逻辑姿态回退 CPU；含 soft-body 的路径使用 CPU。上传 staging/VBO 复用，静态索引保留，动画绑定和物理构建批量化。上述机制不能保证任意重模型的世界帧率。
 
 Bullet WASM 为无 native 的 MMD 物理底座，native Bullet 是可选加速；VRM SpringBone 使用独立托管求解器。实时播放对子步有预算，预览跳转使用独立重放机制。移动惯性、动态重力等策略已有独立实现，完整宿主输入仍未接通。

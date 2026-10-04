@@ -1,4 +1,5 @@
 #version 150
+/*HOST_LIGHTMAP*/
 /*DEFINES*/
 in vec3 ViewPosition;
 #ifdef HAS_NORMAL
@@ -86,7 +87,7 @@ void main() {
     emission *= texture(EmissiveTexture,(EmissiveUvTransform*vec3(EMISSIVE_UV,1.0)).xy).rgb;
 #endif
 #ifndef HAS_NORMAL
-    Color = vec4(base.rgb+emission,opacity)*HostTint;
+    Color = vec4(base.rgb*hostLightLinear()+emission,opacity)*HostTint;
 #else
     vec3 n = normalize(ViewNormal);
 #ifdef NORMAL_MAP
@@ -109,6 +110,6 @@ void main() {
     vec3 lit = vec3(0.0);
     if (dot(ToLight,ToLight)>0.0) lit = linearBrdf(base.rgb,metallic,roughness,n,v,normalize(ToLight))*LightRadiance;
     vec3 ambient = base.rgb*(1.0-0.04)*(1.0-metallic)*DiffuseIrradiance/PI;
-    Color = vec4(lit+ambient*occlusion+emission,opacity)*HostTint;
+    Color = vec4((lit+ambient*occlusion)*hostLightLinear()+emission,opacity)*HostTint;
 #endif
 }

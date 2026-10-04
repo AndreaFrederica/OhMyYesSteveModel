@@ -26,7 +26,7 @@ public final class GltfMeshRenderer implements AutoCloseable {
         for(var node:frame.draws()) {
             if(!node.visible()) continue;
             var matrix=view.modelView().multiply(node.world());matrix.inverse();
-            var nodeView=new GltfSurfaceProgram.View(matrix,view.projection(),view.toLight(),view.lightRadiance(),view.diffuseIrradiance(),view.tint(),view.orthographic());
+            var nodeView=new GltfSurfaceProgram.View(matrix,view.projection(),view.toLight(),view.lightRadiance(),view.diffuseIrradiance(),view.tint(),view.orthographic(),view.lightmap());
             for(var primitive:node.geometry().primitives()) {
                 if(primitive.skinning()!=null || !primitive.morphs().isEmpty()) throw new IllegalArgumentException("glTF draw geometry has not been deformed");
                 var program=resources.program(primitive);int stride=0;

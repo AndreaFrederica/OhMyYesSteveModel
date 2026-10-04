@@ -1,6 +1,7 @@
 package com.elfmcys.ysm.client.renderer;
 
 import cc.sirrus.ysmlib.scene.*;
+import com.elfmcys.ysm.api.rendering.v0.SceneLightmap;
 import cc.sirrus.ysmlib.scene.vrm.VrmMaterials;
 import com.elfmcys.ysm.model.resource.client.render.PreparedSceneTextures;
 import com.elfmcys.ysm.model.resource.client.render.VrmTextureBindings;
@@ -14,7 +15,12 @@ import java.util.function.ToIntFunction;
 /** Core MToon 0/1 surface.  Source material values stay in Lib; this class only owns GPU translation. */
 public final class VrmSurfaceProgram implements AutoCloseable {
     public record View(Matrix4 modelView, Matrix4 projection, Vec3 toLight, Vec3 lightRadiance,
-                        Vec3 ambient, FloatData tint, boolean orthographic) {}
+                        Vec3 ambient, FloatData tint, boolean orthographic, SceneLightmap lightmap) {
+        public View(Matrix4 modelView, Matrix4 projection, Vec3 toLight, Vec3 lightRadiance,
+                    Vec3 ambient, FloatData tint, boolean orthographic) {
+            this(modelView,projection,toLight,lightRadiance,ambient,tint,orthographic,SceneLightmap.NONE);
+        }
+    }
     private record Slot(String semantic, String uniform, String define) {}
     private static final List<Slot> SLOTS = List.of(
             new Slot("baseColor", "Base", "BASE"),
@@ -41,6 +47,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
     private final List<Slot> slots;
     private final Map<String, Integer> uniforms = new HashMap<>();
     private final int program;
+    private final SceneLightmapUniforms hostLight;
     private final VrmMaterials.Shader shader;
     private boolean closed, bound;
 
@@ -92,7 +99,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
             chosen.add(candidate);
         }
         if (attributes.size() > GL11C.glGetInteger(GL20C.GL_MAX_VERTEX_ATTRIBS)
-                || chosen.size() > GL11C.glGetInteger(GL20C.GL_MAX_TEXTURE_IMAGE_UNITS))
+                || chosen.size() + 1 > GL11C.glGetInteger(GL20C.GL_MAX_TEXTURE_IMAGE_UNITS))
             throw new IllegalArgumentException("VRM material exceeds host shader capabilities");
         layout = Map.copyOf(attributes); uvSets = Map.copyOf(uv); slots = List.copyOf(chosen);
         var vertexUv = new StringBuilder(); var fragmentUv = new StringBuilder(); var forwardUv = new StringBuilder();
@@ -119,6 +126,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
             if (GL20C.glGetProgrami(candidate, GL20C.GL_LINK_STATUS) == 0)
                 throw new IOException("Cannot link VRM surface: " + GL20C.glGetProgramInfoLog(candidate));
             program = candidate;
+            hostLight = new SceneLightmapUniforms(program);
             checkGl("program construction");
         } catch (Exception | Error failure) {
             if (candidate != 0) GL20C.glDeleteProgram(candidate);
@@ -169,6 +177,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
                 scalar("AlphaCutoff", material.renderState().alphaCutoff()); integer("Unlit", material.shader() == VrmMaterials.Shader.LEGACY_UNLIT ? 1 : 0);
                 integer("Orthographic", view.orthographic() ? 1 : 0); rgba("HostTint", view.tint()); rgb("ToLight", view.toLight());
                 rgb("LightRadiance", view.lightRadiance()); rgb("Ambient", view.ambient());
+                scope.lightmap = hostLight.bind(view.lightmap(), slots.size());
                 integer("OutlinePass", outline ? 1 : 0);
                 integer("OutlineMode", switch (material.renderState().outlineMode()) {
                     case "none" -> 0;
@@ -197,10 +206,11 @@ public final class VrmSurfaceProgram implements AutoCloseable {
         }
     }
     public final class Binding implements AutoCloseable {
+        private SceneLightmapUniforms.Binding lightmap;
         private final int oldProgram = GL11C.glGetInteger(GL20C.GL_CURRENT_PROGRAM), oldUnit = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
         private final int[] texture = new int[slots.size()]; private boolean released;
         private Binding() { try { for (int i = 0; i < texture.length; i++) { GL13C.glActiveTexture(GL13C.GL_TEXTURE0 + i); texture[i] = GL11C.glGetInteger(GL11C.GL_TEXTURE_BINDING_2D); } } finally { GL13C.glActiveTexture(oldUnit); } }
-        public void close() { RenderSystem.assertOnRenderThread(); if (released) return; released = true; for (int i = 0; i < texture.length; i++) { GL13C.glActiveTexture(GL13C.GL_TEXTURE0 + i); GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture[i]); } GL13C.glActiveTexture(oldUnit); GL20C.glUseProgram(oldProgram); bound = false; }
+        public void close() { RenderSystem.assertOnRenderThread(); if (released) return; released = true; if(lightmap!=null)lightmap.close(); for (int i = 0; i < texture.length; i++) { GL13C.glActiveTexture(GL13C.GL_TEXTURE0 + i); GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture[i]); } GL13C.glActiveTexture(oldUnit); GL20C.glUseProgram(oldProgram); bound = false; }
     }
     private int uniform(String name) { return uniforms.computeIfAbsent(name, key -> GL20C.glGetUniformLocation(program, key)); }
     private void integer(String name, int value) { int location=uniform(name); if(location>=0) GL20C.glUniform1i(location, value); }
@@ -210,7 +220,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
     private void rgba(String name, FloatData value) { if (value.size() < 3) throw new IllegalArgumentException("VRM color needs at least RGB: " + name); int location=uniform(name); if(location>=0) GL20C.glUniform4f(location, value.get(0), value.get(1), value.get(2), value.size() > 3 ? value.get(3) : 1); }
     private static FloatData parameter(VrmMaterials.Material material, String modern, String legacy, float... fallback) { var value = material.parameters().get(material.shader() == VrmMaterials.Shader.MTOON_0 || material.parameterSpace() == VrmMaterials.ParameterSpace.LEGACY_SHADER ? legacy : modern); return value == null ? new FloatData(fallback) : value; }
     private static float scalar(VrmMaterials.Material material, String modern, String legacy, float fallback) { var value = material.parameters().get(material.shader() == VrmMaterials.Shader.MTOON_0 || material.parameterSpace() == VrmMaterials.ParameterSpace.LEGACY_SHADER ? legacy : modern); return value == null || value.size() != 1 ? fallback : value.get(0); }
-    private static String read(String file) throws IOException { try (var input = VrmSurfaceProgram.class.getResourceAsStream("/assets/ysm/shaders/general_mesh/" + file)) { if (input == null) throw new IOException("Missing VRM shader: " + file); return new String(input.readAllBytes(), StandardCharsets.UTF_8); } }
+    private static String read(String file) throws IOException { try (var input = VrmSurfaceProgram.class.getResourceAsStream("/assets/ysm/shaders/general_mesh/" + file)) { if (input == null) throw new IOException("Missing VRM shader: " + file); return SceneLightmapUniforms.source(new String(input.readAllBytes(), StandardCharsets.UTF_8)); } }
     private static void checkGl(String stage) { int error=GL11C.glGetError(); if(error!=GL11C.GL_NO_ERROR) throw new IllegalStateException("VRM shader binding failed at "+stage+": GL "+error); }
     private static int compile(int type, String source) throws IOException { int shader = GL20C.glCreateShader(type); try { GL20C.glShaderSource(shader, source); GL20C.glCompileShader(shader); if (GL20C.glGetShaderi(shader, GL20C.GL_COMPILE_STATUS) == 0) throw new IOException("Cannot compile VRM shader: " + GL20C.glGetShaderInfoLog(shader)); return shader; } catch (Exception | Error failure) { GL20C.glDeleteShader(shader); throw failure; } }
     private void requireOpen() { RenderSystem.assertOnRenderThread(); if (closed) throw new IllegalStateException("VRM surface program is closed"); }

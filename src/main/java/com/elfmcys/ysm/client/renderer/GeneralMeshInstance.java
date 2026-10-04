@@ -263,7 +263,7 @@ public final class GeneralMeshInstance implements AutoCloseable {
         else if(vrm!=null) {
             if(!(frame.details() instanceof ScenePackagePlayback.Vrm details)) throw new IllegalArgumentException("VRM instance received another source frame");
             var materials=details.materials();
-            var vrmView=new VrmSurfaceProgram.View(view.modelView(),view.projection(),view.toLight(),view.lightRadiance(),view.diffuseIrradiance(),view.tint(),view.orthographic());
+            var vrmView=new VrmSurfaceProgram.View(view.modelView(),view.projection(),view.toLight(),view.lightRadiance(),view.diffuseIrradiance(),view.tint(),view.orthographic(),view.lightmap());
             vrm.render(geometry,materials,vrmView,target::textureId);
         } else {
             if(!(frame.details() instanceof ScenePackagePlayback.Mmd details)) throw new IllegalArgumentException("MMD instance received another source frame");
@@ -272,7 +272,7 @@ public final class GeneralMeshInstance implements AutoCloseable {
             if(geometry.draws().size()!=1) throw new IllegalArgumentException("MMD model requires one geometry instance");
             var draw=geometry.draws().get(0);if(!draw.visible()) return;
             var modelView=view.modelView().multiply(draw.world());
-            var mmdView=new MmdSurfaceProgram.View(modelView,view.projection(),view.lightRadiance(),view.toLight(),view.tint(),view.orthographic());
+            var mmdView=new MmdSurfaceProgram.View(modelView,view.projection(),view.lightRadiance(),view.toLight(),view.tint(),view.orthographic(),view.lightmap());
             mmd.render(draw.geometry().primitives(),materials,mmdView,target::textureId,SceneWinding.clockwise(modelView,view.projection()),profile.presentation(),details.value());
         }
     }

@@ -1,4 +1,5 @@
 #version 150
+/*HOST_LIGHTMAP*/
 /*DEFINES*/
 in vec3 ViewPosition;
 #ifdef HAS_NORMAL
@@ -137,12 +138,13 @@ void main() {
 #endif
     if (OutlinePass == 1) {
         vec3 outline = mix(OutlineColor, OutlineColor * (Ambient + LightRadiance), clamp(OutlineLightingMix, 0.0, 1.0));
+        outline *= mix(vec3(1.0), hostLightLinear(), clamp(OutlineLightingMix, 0.0, 1.0));
         Color = vec4(outline, opacity * outlineWidthFactor) * HostTint;
         return;
     }
     if (Unlit == 1) { Color = vec4(base.rgb + emission, opacity) * HostTint; return; }
 #ifndef HAS_NORMAL
-    Color = vec4(base.rgb + emission, opacity) * HostTint;
+    Color = vec4(base.rgb * hostLightLinear() + emission, opacity) * HostTint;
 #else
     vec3 n = normalize(ViewNormal);
 #ifdef NORMAL_MAP
@@ -180,6 +182,6 @@ void main() {
     vec3 matcap = texture(MatcapTexture, (MatcapUvTransform * vec3(matcapUv, 1.0)).xy).rgb;
     lit += matcap * MatcapColor;
 #endif
-    Color = vec4(lit + emission + RimColor * rim, opacity) * HostTint;
+    Color = vec4((lit + RimColor * rim) * hostLightLinear() + emission, opacity) * HostTint;
 #endif
 }

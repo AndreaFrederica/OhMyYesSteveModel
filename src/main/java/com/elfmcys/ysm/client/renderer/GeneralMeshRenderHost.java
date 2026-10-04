@@ -60,7 +60,7 @@ public final class GeneralMeshRenderHost implements AutoCloseable {
 
     private static void draw(GeneralMeshInstance instance,boolean firstPerson,SceneView view) {
         instance.render(firstPerson,new GltfSurfaceProgram.View(view.modelView(),view.projection(),view.toLight(),
-                view.lightRadiance(),view.ambientIrradiance(),view.tint(),view.orthographic()));
+                view.lightRadiance(),view.ambientIrradiance(),view.tint(),view.orthographic(),view.lightmap()));
     }
 
     /** Query the currently bound host target, including private GUI targets; never guess from Minecraft's main target. */

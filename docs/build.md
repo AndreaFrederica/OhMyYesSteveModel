@@ -131,6 +131,8 @@ python docs/tools/check_docs.py
 .\gradlew.bat sceneTextureGpuVerification '-Pysm.fast_run=true'
 ```
 
+仅检查材质、光照和光栅状态可运行 `sceneMaterialGpuVerification`。该任务包含 MMD/glTF/MToon 的游戏光照贴图回归：同一天空光等级下更新昼夜 texel、独立方块光、自发光/unlit、描边、透明度和绑定恢复，不需要启动 Minecraft 世界。
+
 该任务使用 Minecraft 同版本的 LWJGL 图形依赖，不启用 YSM native 加速；需要可用的 OpenGL 3.2 驱动。缺少图形上下文时明确失败，不把跳过检查写成通过。
 
 ## 独立模型配置工具

@@ -1,6 +1,7 @@
 package com.elfmcys.ysm.client.renderer;
 
 import cc.sirrus.ysmlib.scene.*;
+import com.elfmcys.ysm.api.rendering.v0.SceneLightmap;
 import cc.sirrus.ysmlib.scene.mmd.MmdMaterials;
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.model.resource.client.render.MmdTextureBindings;
@@ -14,17 +15,22 @@ import java.util.function.ToIntFunction;
 
 /** MMD surface shader, independent of playback. The caller owns draw order, raster state and framebuffer. */
 public final class MmdSurfaceProgram implements AutoCloseable {
-    public record View(Matrix4 modelView, Matrix4 projection, Vec3 lightColor, Vec3 toLight, FloatData tint, boolean orthographic) {
+    public record View(Matrix4 modelView, Matrix4 projection, Vec3 lightColor, Vec3 toLight, FloatData tint, boolean orthographic, SceneLightmap lightmap) {
+        public View(Matrix4 modelView, Matrix4 projection, Vec3 lightColor, Vec3 toLight, FloatData tint, boolean orthographic) {
+            this(modelView,projection,lightColor,toLight,tint,orthographic,SceneLightmap.NONE);
+        }
         public View(Matrix4 modelView, Matrix4 projection, Vec3 lightColor, Vec3 toLight, FloatData tint) {
             this(modelView,projection,lightColor,toLight,tint,false);
         }
         public View {
             Objects.requireNonNull(modelView); Objects.requireNonNull(projection);
             Objects.requireNonNull(lightColor); Objects.requireNonNull(toLight);
+            Objects.requireNonNull(lightmap);
             if (tint.size() != 4) throw new IllegalArgumentException("Host tint needs RGBA");
         }
     }
     private final int program;
+    private final SceneLightmapUniforms hostLight;
     private final boolean additionalUv;
     private final Map<String, Integer> uniforms = new HashMap<>();
     private boolean closed;
@@ -49,6 +55,7 @@ public final class MmdSurfaceProgram implements AutoCloseable {
             if (GL20C.glGetProgrami(candidate, GL20C.GL_LINK_STATUS) == 0)
                 throw new IOException("Cannot link MMD surface shader: " + GL20C.glGetProgramInfoLog(candidate));
             program = candidate;
+            hostLight = new SceneLightmapUniforms(program);
         } catch (Exception | Error failure) {
             if (candidate != 0) GL20C.glDeleteProgram(candidate);
             throw failure;
@@ -112,6 +119,7 @@ public final class MmdSurfaceProgram implements AutoCloseable {
             scalar("Shininess", values.shininess()); rgb("LightColor", view.lightColor()); rgb("ToLight", view.toLight());
             rgba("HostTint", view.tint()); integer("VertexColor", definition.vertexColor() ? 1 : 0);
             integer("Orthographic",view.orthographic()?1:0);
+            scope.lightmap = hostLight.bind(view.lightmap(), 3);
             scalar("PointSize", definition.points() ? values.edgeSize() : 1);
             integer("EdgePass", edgePass ? 1 : 0); scalar("EdgeSize", values.edgeSize()); rgba("EdgeColor", values.edgeColor());
             if (edgePass) {
@@ -137,6 +145,7 @@ public final class MmdSurfaceProgram implements AutoCloseable {
     }
 
     public final class Binding implements AutoCloseable {
+        private SceneLightmapUniforms.Binding lightmap;
         private final int oldProgram = GL11C.glGetInteger(GL20C.GL_CURRENT_PROGRAM);
         private final int oldUnit = GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
         private final boolean samplers = GL.getCapabilities().OpenGL33 || GL.getCapabilities().GL_ARB_sampler_objects;
@@ -155,6 +164,7 @@ public final class MmdSurfaceProgram implements AutoCloseable {
             RenderSystem.assertOnRenderThread();
             if (released) return;
             released = true;
+            if (lightmap != null) lightmap.close();
             for (int i = 0; i < 3; i++) {
                 GL13C.glActiveTexture(GL13C.GL_TEXTURE0 + i);
                 GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, oldTextures[i]);
@@ -196,7 +206,7 @@ public final class MmdSurfaceProgram implements AutoCloseable {
         String path = "/assets/ysm/shaders/general_mesh/" + file;
         try (var stream = MmdSurfaceProgram.class.getResourceAsStream(path)) {
             if (stream == null) throw new IOException("Missing MMD shader: " + path);
-            String text = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            String text = SceneLightmapUniforms.source(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
             return additional ? text.replace("#version 150", "#version 150\n#define ADDITIONAL_UV") : text;
         }
     }

@@ -31,7 +31,7 @@ public final class VrmMeshRenderer implements AutoCloseable {
             if (!node.visible()) continue;
             var matrix = view.modelView().multiply(node.world());
             var nodeView = new VrmSurfaceProgram.View(matrix, view.projection(), view.toLight(),
-                    view.lightRadiance(), view.ambient(), view.tint(), view.orthographic());
+                    view.lightRadiance(), view.ambient(), view.tint(), view.orthographic(),view.lightmap());
             for (var primitive : node.geometry().primitives()) {
                 if (primitive.skinning() != null || !primitive.morphs().isEmpty())
                     throw new IllegalArgumentException("VRM draw geometry has not been deformed");

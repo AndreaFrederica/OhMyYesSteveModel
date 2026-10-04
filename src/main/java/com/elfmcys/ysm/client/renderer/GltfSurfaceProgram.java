@@ -1,6 +1,7 @@
 package com.elfmcys.ysm.client.renderer;
 
 import cc.sirrus.ysmlib.scene.*;
+import com.elfmcys.ysm.api.rendering.v0.SceneLightmap;
 import com.elfmcys.ysm.model.resource.client.render.GltfTextureBindings;
 import com.elfmcys.ysm.model.resource.client.render.PreparedSceneTextures;
 import com.google.gson.JsonParser;
@@ -14,13 +15,17 @@ import java.util.function.ToIntFunction;
 /** Core glTF metallic/roughness and unlit surface. Owns a shader variant, never an animation or mesh instance. */
 public final class GltfSurfaceProgram implements AutoCloseable {
     public record View(Matrix4 modelView, Matrix4 projection, Vec3 toLight, Vec3 lightRadiance,
-                       Vec3 diffuseIrradiance, FloatData tint, boolean orthographic) {
+                       Vec3 diffuseIrradiance, FloatData tint, boolean orthographic, SceneLightmap lightmap) {
+        public View(Matrix4 modelView, Matrix4 projection, Vec3 toLight, Vec3 lightRadiance, Vec3 diffuseIrradiance, FloatData tint, boolean orthographic) {
+            this(modelView,projection,toLight,lightRadiance,diffuseIrradiance,tint,orthographic,SceneLightmap.NONE);
+        }
         public View(Matrix4 modelView, Matrix4 projection, Vec3 toLight, Vec3 lightRadiance, Vec3 diffuseIrradiance, FloatData tint) {
             this(modelView,projection,toLight,lightRadiance,diffuseIrradiance,tint,false);
         }
         public View {
             Objects.requireNonNull(modelView); Objects.requireNonNull(projection); Objects.requireNonNull(toLight);
             Objects.requireNonNull(lightRadiance); Objects.requireNonNull(diffuseIrradiance);
+            Objects.requireNonNull(lightmap);
             if (tint.size() != 4) throw new IllegalArgumentException("Host tint requires RGBA");
         }
     }
@@ -34,6 +39,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
     private final List<TextureSlot> slots;
     private final Map<String, Integer> uniforms = new HashMap<>();
     private final int program;
+    private final SceneLightmapUniforms hostLight;
     private final boolean unlit;
     private boolean closed, bound;
 
@@ -67,7 +73,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
             chosen.add(slot);
         }
         if (attributes.size() > GL11C.glGetInteger(GL20C.GL_MAX_VERTEX_ATTRIBS)
-                || chosen.size() > GL11C.glGetInteger(GL20C.GL_MAX_TEXTURE_IMAGE_UNITS))
+                || chosen.size() + 1 > GL11C.glGetInteger(GL20C.GL_MAX_TEXTURE_IMAGE_UNITS))
             throw new IllegalArgumentException("glTF material exceeds host shader input capabilities");
         layout = Collections.unmodifiableMap(attributes); uvSets = Collections.unmodifiableMap(uv); slots = List.copyOf(chosen);
         var coordinateBindings = new LinkedHashMap<String, Integer>();
@@ -92,6 +98,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
             GL30C.glBindFragDataLocation(candidate, 0, "Color"); GL20C.glLinkProgram(candidate);
             if (GL20C.glGetProgrami(candidate, GL20C.GL_LINK_STATUS) == 0) throw new IOException("Cannot link glTF surface: " + GL20C.glGetProgramInfoLog(candidate));
             program = candidate;
+            hostLight = new SceneLightmapUniforms(program);
         } catch (Exception | Error failure) { if (candidate != 0) GL20C.glDeleteProgram(candidate); throw failure; }
         finally { if (vertex != 0) GL20C.glDeleteShader(vertex); if (fragment != 0) GL20C.glDeleteShader(fragment); }
     }
@@ -158,6 +165,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
             scalar("AlphaCutoff",material.alphaCutoff());integer("Unlit",unlit?1:0);
             integer("Orthographic",view.orthographic()?1:0);
             GL20C.glUniform4fv(uniform("HostTint"),view.tint().copy());rgb("ToLight",view.toLight());rgb("LightRadiance",view.lightRadiance());rgb("DiffuseIrradiance",view.diffuseIrradiance());
+            scope.lightmap = hostLight.bind(view.lightmap(), slots.size());
             for(int unit=0;unit<slots.size();unit++) {
                 var slot=slots.get(unit);var texture=material.textures().get(slot.semantic());
                 int id=prepared.ids[unit];
@@ -172,6 +180,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
         } catch(RuntimeException|Error failure) { scope.close();throw failure; }
     }
     public final class Binding implements AutoCloseable {
+        private SceneLightmapUniforms.Binding lightmap;
         private final int oldProgram=GL11C.glGetInteger(GL20C.GL_CURRENT_PROGRAM),oldUnit=GL11C.glGetInteger(GL13C.GL_ACTIVE_TEXTURE);
         private final boolean samplers=GL.getCapabilities().OpenGL33 || GL.getCapabilities().GL_ARB_sampler_objects;
         private final int[] texture=new int[slots.size()],sampler=new int[slots.size()];private boolean released;
@@ -181,6 +190,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
         }
         public void close() {
             RenderSystem.assertOnRenderThread();if(released) return;released=true;
+            if (lightmap != null) lightmap.close();
             for(int i=0;i<texture.length;i++) { GL13C.glActiveTexture(GL13C.GL_TEXTURE0+i);GL11C.glBindTexture(GL11C.GL_TEXTURE_2D,texture[i]);if(samplers) GL33C.glBindSampler(i,sampler[i]); }
             GL13C.glActiveTexture(oldUnit);GL20C.glUseProgram(oldProgram);bound=false;
         }
@@ -206,7 +216,7 @@ public final class GltfSurfaceProgram implements AutoCloseable {
     public void close() { RenderSystem.assertOnRenderThread();if(closed) return;if(bound) throw new IllegalStateException("glTF program is still bound");closed=true;GL20C.glDeleteProgram(program); }
     private static String read(String name) throws IOException {
         try(var input=GltfSurfaceProgram.class.getResourceAsStream("/assets/ysm/shaders/general_mesh/"+name)) {
-            if(input==null) throw new IOException("Missing glTF shader: "+name);return new String(input.readAllBytes(),StandardCharsets.UTF_8);
+            if(input==null) throw new IOException("Missing glTF shader: "+name);return SceneLightmapUniforms.source(new String(input.readAllBytes(),StandardCharsets.UTF_8));
         }
     }
     private static int compile(int type,String source) throws IOException {

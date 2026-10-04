@@ -34,6 +34,7 @@ public final class SceneTextureGpuVerification {
                 GltfMaterialGpuVerification.verify();
                 GltfRendererGpuVerification.verify();
                 VrmMaterialGpuVerification.verify();
+                SceneLightmapGpuVerification.verify();
                 System.out.println("MMD/glTF/VRM material and raster regressions passed");return;
             }
             if(java.util.Arrays.asList(args).contains("mmd-only")) {
@@ -48,6 +49,7 @@ public final class SceneTextureGpuVerification {
             GeneralMeshOwnerGpuVerification.verify();
             VrmMaterialGpuVerification.verify();
             SceneDisplayGpuVerification.verify();
+            SceneLightmapGpuVerification.verify();
             System.out.println("Production scene texture upload: RGBA32F precision, linear mipmap, sampler, unpack/PBO/binding restoration and release passed");
             System.out.println("Production scene mesh buffer: indexed TRIANGLES/STRIP, arbitrary UV semantic, frame replacement and VAO/restart restoration passed");
         } finally {

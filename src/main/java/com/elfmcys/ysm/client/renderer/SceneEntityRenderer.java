@@ -2,6 +2,8 @@ package com.elfmcys.ysm.client.renderer;
 
 import cc.sirrus.ysmlib.scene.*;
 import com.elfmcys.ysm.api.rendering.v0.SceneView;
+import com.elfmcys.ysm.api.rendering.v0.SceneLightmap;
+import com.elfmcys.ysm.mixin.client.LightTextureAccessor;
 import com.elfmcys.ysm.client.entity.CustomEntity;
 import com.elfmcys.ysm.geckolib3.geo.RenderContext;
 import com.elfmcys.ysm.model.service.ClientModelService;
@@ -41,11 +43,16 @@ public final class SceneEntityRenderer {
         // EntityRenderer's canonical front is -Z; glTF's canonical avatar front after handedness conversion is +Z.
         modelView.rotateY((float)Math.PI).mul(instance.placement()).mul(sourceToMeters(frame.coordinates()));
         var projection=RenderSystem.getProjectionMatrix();
-        float brightness=Math.max(LightTexture.block(packedLight),LightTexture.sky(packedLight))/15f;
+        var lightmap = SceneLightmap.NONE;
+        if (!context.inventory() && !context.paperDoll() && !context.offScreen()) {
+            var gameLight = net.minecraft.client.Minecraft.getInstance().gameRenderer.lightTexture();
+            lightmap = new SceneLightmap(((LightTextureAccessor)gameLight).ysm$lightTexture().getId(),
+                    LightTexture.block(packedLight), LightTexture.sky(packedLight));
+        }
         // Neutral host shading; source light/shadow tracks remain exposed through RenderSceneEvent.
         var view=new SceneView(new Matrix4(modelView.get(new float[16])),new Matrix4(projection.get(new float[16])),
-                new Vec3(.3f,.7f,1),new Vec3(brightness,brightness,brightness),
-                new Vec3(.2f*brightness,.2f*brightness,.2f*brightness),new FloatData(1,1,1,1),projection.m33()!=0);
+                new Vec3(.3f,.7f,1),new Vec3(1,1,1),
+                new Vec3(.2f,.2f,.2f),new FloatData(1,1,1,1),projection.m33()!=0,lightmap);
         instance.renderedHeldItems=0;
         if(!ClientModelService.instance().sceneRenderer().render(instance,entity.getEntity(),entity.renderTargetKind(),
                 context,firstPerson,view,buffers))return false;

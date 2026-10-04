@@ -1,4 +1,5 @@
 #version 150
+/*HOST_LIGHTMAP*/
 
 in vec3 viewPosition;
 in vec3 viewNormal;
@@ -45,6 +46,7 @@ vec3 direction(vec3 value) {
 void main() {
     if (EdgePass != 0) {
         Color = EdgeColor * HostTint;
+        Color.rgb *= hostLightNumeric();
         if (Color.a <= 0.0) discard;
         return;
     }
@@ -77,6 +79,6 @@ void main() {
         vec3 halfway = direction((Orthographic ? vec3(0.0,0.0,1.0) : direction(-viewPosition)) + light);
         color += Specular * LightColor * pow(max(0.0, dot(normal, halfway)), Shininess);
     }
-    Color = vec4(color, alpha) * HostTint;
+    Color = vec4(color * hostLightNumeric(), alpha) * HostTint;
     if (Color.a <= 0.0) discard;
 }
