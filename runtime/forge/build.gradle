@@ -11,9 +11,11 @@ dependencies {
     compileOnly('net.minecraftforge:javafmllanguage:1.20.1-47.4.3') { transitive = false }
 }
 
+def runtimeVersion = project.version.toString()
+
 processResources {
-    inputs.property 'runtime_version', project.version
-    filesMatching('META-INF/mods.toml') { expand runtime_version: project.version }
+    inputs.property 'runtime_version', runtimeVersion
+    filesMatching('META-INF/mods.toml') { expand runtime_version: runtimeVersion }
     from(rootProject.file('../LICENSE'))
     from(rootProject.file('third-party/jorbis-0.0.17-sources.jar')) {
         into 'third-party-sources'
@@ -59,12 +61,17 @@ sourceSets {
         compileClasspath += sourceSets.main.compileClasspath
         resources.srcDir rootProject.file('wasm-avif/src/test/resources')
         resources.srcDir rootProject.file('java-v3/src/test/resources')
+        resources.srcDir rootProject.file('java-mmd/src/test/resources')
+        resources.srcDir rootProject.file('java-vrm/src/test/resources')
+        resources.srcDir rootProject.file('wasm-fbx/src/test/resources')
+        resources.srcDir rootProject.file('java-image/src/test/resources')
         resources {
             srcDir rootProject.file('java-audio/src/test/resources')
             exclude '*.py', 'README.md'
         }
     }
 }
+dependencies { distributionTestCompileOnly project(':ysm-runtime-java-mmd'); distributionTestCompileOnly project(':ysm-runtime-java-scene') }
 tasks.register('distributionTest', JavaExec) {
     dependsOn shadowJar, tasks.named('distributionTestClasses')
     // Minecraft supplies JOML in production. Exercise that same shared API here.
@@ -73,5 +80,113 @@ tasks.register('distributionTest', JavaExec) {
     mainClass = 'RuntimeDistributionSmoke'
     systemProperty 'ysm.runtime.javaOnly', 'true'
     systemProperty 'ysm.runtime.codecLibrary', 'deliberately-missing-library-for-javaOnly-verification'
+    systemProperty 'ysm.runtime.physicsLibrary', 'deliberately-missing-library-for-javaOnly-verification'
 }
 check.dependsOn tasks.named('distributionTest')
+
+def physicsSmoke = { String name, boolean nativeExpected, String reason ->
+    tasks.register(name, JavaExec) {
+        dependsOn shadowJar, tasks.named('distributionTestClasses')
+        classpath = files(sourceSets.distributionTest.output, tasks.shadowJar.archiveFile,
+                configurations.distributionHostMath)
+        mainClass = 'PhysicsDistributionSmoke'
+        jvmArgs '-Xcheck:jni'
+        args nativeExpected.toString(), reason
+    }
+}
+def managedPhysicsSmoke = physicsSmoke('managedPhysicsDistributionTest', false, 'javaOnly')
+managedPhysicsSmoke.configure {
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    systemProperty 'ysm.runtime.physicsLibrary', 'deliberately-missing-library-for-javaOnly-verification'
+}
+def missingPhysicsSmoke = physicsSmoke('missingPhysicsDistributionTest', false, 'UnsatisfiedLinkError')
+missingPhysicsSmoke.configure {
+    systemProperty 'ysm.runtime.javaOnly', 'false'
+    systemProperty 'ysm.runtime.physicsLibrary', layout.buildDirectory.file('missing/ysmlib_physics').get().asFile.absolutePath
+}
+def invalidPhysicsSmoke = physicsSmoke('invalidPhysicsDistributionTest', false, 'UnsatisfiedLinkError')
+invalidPhysicsSmoke.configure {
+    systemProperty 'ysm.runtime.javaOnly', 'false'
+    systemProperty 'ysm.runtime.physicsLibrary', tasks.shadowJar.archiveFile.get().asFile.absolutePath
+}
+def absentPhysicsSmoke = physicsSmoke('absentPhysicsDistributionTest', false, 'native library not installed')
+absentPhysicsSmoke.configure {
+    systemProperty 'ysm.runtime.javaOnly', 'false'
+    systemProperty 'ysm.runtime.nativeDir', layout.buildDirectory.dir('missing-natives').get().asFile.absolutePath
+}
+tasks.register('physicsDistributionTest') {
+    dependsOn managedPhysicsSmoke, missingPhysicsSmoke, invalidPhysicsSmoke, absentPhysicsSmoke
+}
+check.dependsOn tasks.named('physicsDistributionTest')
+
+// Explicit opt-in: a requested native validation must fail rather than silently skip.
+def physicsLibrary = System.getProperty('ysm.native.physics.library')
+def physicsLibraryFile = physicsLibrary == null ? null : file(physicsLibrary)
+def nativePhysicsSmoke = physicsSmoke('nativePhysicsOverrideDistributionTest', true, '')
+nativePhysicsSmoke.configure {
+    systemProperty 'ysm.runtime.javaOnly', 'false'
+    if (physicsLibraryFile != null) systemProperty 'ysm.runtime.physicsLibrary', physicsLibraryFile.absolutePath
+    doFirst {
+        if (physicsLibraryFile == null || !physicsLibraryFile.isFile())
+            throw new GradleException('Set -Dysm.native.physics.library to the verified native physics library')
+    }
+}
+def physicsOs = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT)
+def physicsPlatform = physicsOs.startsWith('windows') ? 'windows' : physicsOs.startsWith('linux') ? 'linux' : 'macos'
+def physicsArch = System.getProperty('os.arch').toLowerCase(java.util.Locale.ROOT)
+def physicsArchitecture = physicsArch in ['amd64','x86_64'] ? 'x64' : 'arm64'
+def physicsDiscoveryDirectory = layout.buildDirectory.dir('physics-discovery-natives').get().asFile
+def physicsLibraryName = (physicsPlatform == 'windows' ? '' : 'lib') + 'ysmlib_physics' +
+        (physicsPlatform == 'windows' ? '.dll' : physicsPlatform == 'linux' ? '.so' : '.dylib')
+def stagePhysicsDiscoveryLibrary = tasks.register('stagePhysicsDiscoveryLibrary', Copy) {
+    if (physicsLibraryFile != null) from physicsLibraryFile
+    into new File(physicsDiscoveryDirectory, physicsPlatform + '-' + physicsArchitecture)
+    rename { physicsLibraryName }
+}
+def nativePhysicsDiscoverySmoke = physicsSmoke('nativePhysicsDiscoveryDistributionTest', true, '')
+nativePhysicsDiscoverySmoke.configure {
+    dependsOn stagePhysicsDiscoveryLibrary
+    systemProperty 'ysm.runtime.javaOnly', 'false'
+    systemProperty 'ysm.runtime.nativeDir', physicsDiscoveryDirectory.absolutePath
+    doFirst {
+        if (physicsLibraryFile == null || !physicsLibraryFile.isFile())
+            throw new GradleException('Set -Dysm.native.physics.library to the verified native physics library')
+    }
+}
+tasks.register('nativePhysicsDistributionTest') {
+    dependsOn nativePhysicsSmoke, nativePhysicsDiscoverySmoke
+}
+
+// Independent skinning capability: each selection runs in a fresh shaded JVM.
+def skinLibrary = System.getProperty('ysm.native.skinning.library')
+def skinLibraryFile = skinLibrary == null ? null : file(skinLibrary)
+def skinDirectory = layout.buildDirectory.dir('skinning-discovery-natives').get().asFile
+['managed','absent','missing','invalid','override','discovery'].each { mode ->
+    def nativeExpected = mode in ['override','discovery']
+    def reason = mode == 'managed' ? 'javaOnly' : mode == 'absent' ? 'native library not installed' : 'UnsatisfiedLinkError'
+    def smoke = tasks.register(mode + 'SkinningDistributionTest', JavaExec) {
+        dependsOn shadowJar, tasks.named('distributionTestClasses')
+        classpath = files(sourceSets.distributionTest.output, tasks.shadowJar.archiveFile, configurations.distributionHostMath)
+        mainClass = 'SkinningDistributionSmoke'
+        jvmArgs '-Xcheck:jni'
+        args nativeExpected.toString(), reason
+        systemProperty 'ysm.runtime.javaOnly', mode == 'managed'
+        systemProperty 'ysm.runtime.nativeDir', mode == 'discovery' ? skinDirectory.absolutePath : layout.buildDirectory.dir('missing-natives').get().asFile.absolutePath
+        if (mode in ['managed','missing']) systemProperty 'ysm.runtime.skinningLibrary', layout.buildDirectory.file('missing/ysmlib_skinning').get().asFile.absolutePath
+        if (mode == 'invalid') systemProperty 'ysm.runtime.skinningLibrary', tasks.shadowJar.archiveFile.get().asFile.absolutePath
+        if (mode == 'override' && skinLibraryFile != null) systemProperty 'ysm.runtime.skinningLibrary', skinLibraryFile.absolutePath
+        doFirst {
+            if (nativeExpected && (skinLibraryFile == null || !skinLibraryFile.isFile())) throw new GradleException('Set -Dysm.native.skinning.library')
+        }
+    }
+    if (mode == 'discovery') {
+        def stage = tasks.register('stageSkinningDiscoveryLibrary', Copy) {
+            if (skinLibraryFile != null) from skinLibraryFile
+            into new File(skinDirectory, physicsPlatform + '-' + physicsArchitecture)
+        }
+        smoke.configure { dependsOn stage }
+    }
+}
+tasks.register('skinningDistributionTest') { dependsOn(['managed','absent','missing','invalid'].collect { it + 'SkinningDistributionTest' }) }
+tasks.register('nativeSkinningDistributionTest') { dependsOn 'overrideSkinningDistributionTest','discoverySkinningDistributionTest' }
+check.dependsOn tasks.named('skinningDistributionTest')

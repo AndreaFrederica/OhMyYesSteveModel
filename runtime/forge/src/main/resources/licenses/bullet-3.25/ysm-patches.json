@@ -1,0 +1,7 @@
+{
+  "revision": "2c204c49e56ed15ec5fcfa71d199ab6d6570b3f5",
+  "file": "src/BulletSoftBody/btSoftBody.cpp",
+  "upstream_sha256": "9867c0b390a50a1173401c375561476ce9b1cec4d8cb37ff5ccee41fbae61f7a",
+  "patched_sha256": "e1a943b7ed27c1401d390bfd3ce7673a644312247fbebf2932b22e5fa8084c70",
+  "repair": "Terminate BVH construction for disconnected soft face/node components"
+}

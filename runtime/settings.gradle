@@ -1,4 +1,26 @@
 rootProject.name = 'ysm-runtime'
+include 'ysm-runtime-scene-tools'
+project(':ysm-runtime-scene-tools').projectDir = file('scene-tools')
+include 'ysm-runtime-wasm-mesh'
+project(':ysm-runtime-wasm-mesh').projectDir = file('wasm-mesh')
+include 'ysm-runtime-wasm-fbx'
+project(':ysm-runtime-wasm-fbx').projectDir = file('wasm-fbx')
+include 'ysm-runtime-java-vrm'
+project(':ysm-runtime-java-vrm').projectDir = file('java-vrm')
+include 'ysm-runtime-java-bvh'
+project(':ysm-runtime-java-bvh').projectDir = file('java-bvh')
+include 'ysm-runtime-java-gltf'
+project(':ysm-runtime-java-gltf').projectDir = file('java-gltf')
+include 'ysm-runtime-java-scene', 'ysm-runtime-java-mmd'
+project(':ysm-runtime-java-scene').projectDir = file('java-scene')
+project(':ysm-runtime-java-mmd').projectDir = file('java-mmd')
+include 'ysm-runtime-scene-api', 'ysm-runtime-wasm-physics'
+project(':ysm-runtime-scene-api').projectDir = file('scene-api')
+project(':ysm-runtime-wasm-physics').projectDir = file('wasm-physics')
+include 'ysm-runtime-native-physics'
+project(':ysm-runtime-native-physics').projectDir = file('native-physics')
+include 'ysm-runtime-native-scene'
+project(':ysm-runtime-native-scene').projectDir = file('native-scene')
 include 'ysm-runtime-native-render'
 project(':ysm-runtime-native-render').projectDir = file('native-render')
 include 'ysm-runtime-v3d', 'ysm-runtime-tools'

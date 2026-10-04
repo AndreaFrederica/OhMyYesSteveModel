@@ -12,7 +12,7 @@ Java 包名、Maven group 与内嵌依赖命名空间统一使用 `cc.sirrus.ysm
 
 - 优先直接使用 Java/Kotlin 实现。
 - 没有合适实现的能力允许以纯 JVM 引擎执行 WASM 兜底；该例外不得引入宿主 native 依赖。
-- 可选加速使用 C/C++/Rust/Zig。当前已交付 Meson + Pixi 的 C codec 与 C++ packed renderer。
+- 可选加速使用 C/C++/Rust/Zig。当前已交付 Meson + Pixi 的 C codec、C++ packed renderer、MMD 蒙皮与 Bullet 物理。
 - 渲染加速优先采用 C++ 算法实现并通过稳定 C ABI 接入；Rust 作为内存安全候选；Zig 保留给小型 ABI 工具和交叉编译 glue。
 - 任何 native provider 都必须能被 Java baseline 单独替代。
 
@@ -35,15 +35,26 @@ Java 包名、Maven group 与内嵌依赖命名空间统一使用 `cc.sirrus.ysm
 | `ysm-runtime-java-bake` | Java 几何烘焙、透明度分类、四分区与独立缓存 |
 | `ysm-runtime-java-render` | Java 状态提取、CPU 顶点与 Vanilla/Iris 布局基线 |
 | `ysm-runtime-native-render` | 可选 C++ 整次 draw packed-buffer renderer，Java state 与 renderer 皆可回退 |
+| `ysm-runtime-scene-api` | 独立场景、动画和物理数据契约 |
+| `ysm-runtime-native-physics` | 可选 Bullet C ABI/JNI 加速与正式 packed MMD 播放；启动优先可用 native，失败回退 WASM，使用方法见 [native-physics](native-physics/README.md) |
+| `ysm-runtime-native-scene` | 可选 BDEF/SDEF/QDEF packed JNI 与有界并行蒙皮，独立回退 Java；使用与验证见 [native-scene](native-scene/README.md) |
+| `ysm-runtime-wasm-physics` | Bullet 刚体、关节与软体，Chicory JVM/WASM，无 JNI |
+| `ysm-runtime-java-scene` / `ysm-runtime-java-gltf` | 通用网格求值、CPU 变形、共享几何、预览时间轴、场景包与 glTF/GLB 读取 |
+| `ysm-runtime-java-mmd` | PMX/PMD/VMD/VPD/PMM 读取、MMD 骨骼/IK/morph/物理播放；完整范围见双后端支持页 |
+| `ysm-runtime-java-bvh` | BVH 原始通道、层级、End Site 与 Euler 动画求值 |
+| `ysm-runtime-java-vrm` | VRM0/1 表情、约束、视线、SpringBone、第一人称与材质运行数据，以及 VRMA 重定向；宿主绘制独立接入 |
+| `ysm-runtime-wasm-fbx` | 固定 ufbx 的 JVM/WASM 读取与动画求值、源材质/镜头/光影数据、独立形变及共享网格投影；完整范围见双后端支持页 |
 | `ysm-runtime-core` | 可在普通 JVM 使用的服务入口 `YsmRuntime` |
 | `ysm-runtime-forge` | Forge 加载入口与独立分发 JAR，包含 core、Java 实现和重定位依赖 |
 | `portable-integration-tests` | 编译本体的真实 VFS/capture 源码，在没有 Forge/YSM native 的 JVM 验证 |
 
 V1/V2 返回原始文件；V3 是 compiled wire，不进入同一个 archive API。运行库不持有 Minecraft 对象、模型 catalog、网络会话或 GPU 生命周期。每个新增能力必须有 JVM 托管实现和独立验收，再添加可选 native provider。当前没有注册 archive native accelerator。
 
-默认优先使用可用的自建 native；缺失或 ABI / 自检 / 链接失败时，各能力独立回退 JVM。启动时自动查找工作目录下 `ysmlib/natives/<平台>-<架构>/` 的 `ysmlib_codec` 和 `ysmlib_render`，例如 `windows-x64/ysmlib_codec.dll`。可用 `-Dysm.runtime.nativeDir=<目录>` 更改根目录，或用 `ysm.runtime.codecLibrary` / `ysm.runtime.renderLibrary` 指定单库文件。`-Dysm.runtime.javaOnly=true` 跳过全部 native 发现和加载（仍允许 JVM 内 AVIF WASM）。F3 显示实际选择的 provider；目前只有 Hash、Compression 和 packed Render 已有自建 native，State 仍是 Java。
+默认优先使用可用的自建 native；缺失或 ABI / 自检 / 链接失败时，各能力独立回退 JVM。启动时自动查找工作目录下 `ysmlib/natives/<平台>-<架构>/` 的 `ysmlib_codec`、`ysmlib_render` 、`ysmlib_physics` 和 `ysmlib_skinning`，例如 `windows-x64/ysmlib_codec.dll`。可用 `-Dysm.runtime.nativeDir=<目录>` 更改根目录，或用 `ysm.runtime.codecLibrary` / `ysm.runtime.renderLibrary` / `ysm.runtime.physicsLibrary` / `ysm.runtime.skinningLibrary` 指定单库文件。`-Dysm.runtime.javaOnly=true` 跳过全部 native 发现和加载（仍允许 JVM 内 AVIF / Bullet WASM）。F3 显示实际选择的 provider；Hash、Compression、packed Render、Skinning 与 Physics 已有自建 native，State 仍是 Java；Physics 与 Skinning 同时显示缓存的启动回退原因。
 
 ## 构建与安装
+
+通用模型通过 `YsmRuntime.scenes()` 使用：`readPackage`/`writePackage` 读写封闭场景包，`loadPackage` 取得类型化来源及依赖，`playback` 创建独占动画/物理状态的会话。`preview` 包装同一会话的 seek 方法，提供暂停、逐帧和多视图更新去重；`GeometryFrame` 默认输出已经变形的共享几何；宿主显式选择 MMD compute 时，依据帧的未变形标记解析 palette/morph，并在 GPU 失败时从同一姿态求 CPU 几何。原格式读取与求值接口仍可独立调用。宿主 GPU、网络与 UI 不属于 Lib，当前接入范围见[通用网格支持状态](../docs/status/general-mesh-backend.md)。
 
 在主仓库根目录，设置 `JAVA_HOME` 为 JDK 17 后运行：
 
@@ -91,6 +102,8 @@ V3D 文件模块使用 Gson 2.10.1（Apache-2.0），在前置和工具的独立
 
 Commons Compress 1.27.1（Apache-2.0）使用 Commons IO 2.16.1、Codec 1.17.1、Lang 3.16.0（均 Apache-2.0），XZ for Java 1.10 使用 0BSD。BLAKE3 使用 Bouncy Castle 1.80 的底层 digest（MIT-style 许可，不注册 JCE provider），zstd 使用 Aircompressor 0.27（Apache-2.0）。Java 图像模块使用 TwelveMonkeys ImageIO 3.12.0 的纯 Java WebP reader（BSD-3-Clause）。AVIF 使用 Chicory 1.7.5（Apache-2.0）与 ASM 9.9.1（BSD-3-Clause），托管 WASM 内含 libavif 1.4.2、libaom 3.13.1 和 WASI libc/compiler-rt。音频使用 Concentus（BSD-style，revision 见 `concentus/README.md`）与 JOrbis 0.0.17（LGPL-2.0-or-later）。
 
+物理使用 Bullet 3.25（zlib），包含 BulletSoftBody；许可证随包放在 `licenses/bullet-3.25/`。构建方法见 [wasm-physics/README.md](wasm-physics/README.md)。FBX 使用固定 ufbx（MIT 或 public domain 双许可），来源与许可证随包放在 `licenses/ufbx/`，重建及适配边界见 [wasm-fbx/README.md](wasm-fbx/README.md)。这两个模块的 Java17 执行器与 AVIF 共享 Chicory 依赖。
+
 分发 JAR 将它们重定位到 `cc.sirrus.ysmlib.internal`，各自 LICENSE/NOTICE 保留在 `licenses/<artifact-version>/`。升级依赖时同时更新这些随包文本。Forge loader 仅为 compile-only，不随包复制。
 
 ## 可选加速与 AVIF 重建
@@ -111,3 +124,7 @@ F3 的 Hash、Compression、State 和 Render 行会显示实际 provider。
 ## 当前主工程验证
 
 主工程音频测试使用 `src/test/resources/audio-contract` 的冻结 FFmpeg 样本，覆盖短 PCM 缓存阈值、精确阈值、长流循环、非零 Opus granule origin、输入采样率提示。JVM 固定点 Opus 与 FFmpeg 浮点参考以峰值 8 LSB、SNR 至少 70 dB 验证；Vorbis 峰值 2 LSB。PCM frame 数、mono 格式、冷热缓存重放仍严格匹配，不以数值容差放宽时间轴或内容完整性。重新生成样本的工具是 `src/test/tools/generate_audio_contract.py`，普通构建不运行 FFmpeg。
+
+## 独立模型配置 CLI / GUI
+
+`scene-tools` 是 Java 17 独立工具，编辑源模型旁的 `.omysm.json`，支持元数据、目标/源骨架绑定、比例和动作映射，并预览实际网格与来源动作。构建/命令及真实支持边界见 [scene-tools](scene-tools/README.md)。不依赖 Minecraft，也不要求 native；当前独立显示为几何诊断材质。
