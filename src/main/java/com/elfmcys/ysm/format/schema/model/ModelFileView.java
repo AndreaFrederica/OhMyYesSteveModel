@@ -35,6 +35,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class ModelFileView {
     private final boolean supported;
+    private final ModelSchema schema;
 
     private final AssetFileView fileView;
     private final ModelInfoView metadataView;
@@ -59,6 +60,7 @@ public class ModelFileView {
                           ModelFileIdentity identity,
                           ManifestData manifestData) throws IOException {
         supported = true;
+        schema = ModelSchema.require(assetView.getSchema());
 
         this.manifest = manifestData.manifest();
         this.modelId = manifestModelId(manifest);
@@ -74,7 +76,7 @@ public class ModelFileView {
                 assetView.getChunkInfo(ModelFileConstant.THUMB_BUTTON_CHUNK_NAME) != null);
         validatePreviewSource("Icon", iconPreviewSource,
                 assetView.getChunkInfo(ModelFileConstant.THUMB_ICON_CHUNK_NAME) != null);
-        validatePlayerRenderTarget(manifest);
+        validatePlayerRenderTarget(manifest, schema);
         metadataView = new ModelInfoView(manifest.info(),
                 ModelManifestLookup.target(manifest, RenderTargetIds.PLAYER), this.fileView);
         var targets = new ArrayList<RenderTargetView>(manifest.renderTargets().size());
@@ -94,6 +96,10 @@ public class ModelFileView {
     }
 
     static void validatePlayerRenderTarget(Manifest manifest) throws IOException {
+        validatePlayerRenderTarget(manifest, ModelSchema.MC);
+    }
+
+    static void validatePlayerRenderTarget(Manifest manifest, ModelSchema schema) throws IOException {
         if (manifest.renderTargets().isEmpty()) {
             throw new IOException("Model contains no player render target");
         }
@@ -101,6 +107,14 @@ public class ModelFileView {
         for (var target : manifest.renderTargets()) {
             var targetId = target.targetId();
             var kind = target.kind();
+            if (schema == ModelSchema.GENERAL_MESH) {
+                if (!target.textures().isEmpty()) {
+                    throw new IOException("General mesh materials belong to the scene package: " + targetId);
+                }
+                if (target.blobId() <= 0) {
+                    throw new IOException("General mesh target requires a scene package blob: " + targetId);
+                }
+            }
             if (!target.textures().isEmpty()) {
                 for (var texture : target.textures().object2ObjectEntrySet()) {
                     if (texture.getKey().isEmpty()) {
@@ -113,7 +127,7 @@ public class ModelFileView {
                 if (kind != RenderTargetKind.RENDER_TARGET_KIND_PLAYER) {
                     throw new IOException("Player render target has invalid kind: " + kind);
                 }
-                if (target.textures().isEmpty()) {
+                if (schema == ModelSchema.MC && target.textures().isEmpty()) {
                     throw new IOException("Player render target has no texture");
                 }
                 found = true;
@@ -211,6 +225,10 @@ public class ModelFileView {
 
     public boolean supported() {
         return supported;
+    }
+
+    public ModelSchema schema() {
+        return schema;
     }
 
     public AssetFileView getFileView() {

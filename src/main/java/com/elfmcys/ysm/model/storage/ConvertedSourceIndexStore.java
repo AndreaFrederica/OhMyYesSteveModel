@@ -14,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.LinkOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,13 +29,15 @@ import java.util.Set;
 
 /** Atomic whole-file index for converted raw sources. */
 public final class ConvertedSourceIndexStore {
-    private static final byte[] MAGIC = "YSMCIDX1".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] MAGIC_V1 = "YSMCIDX1".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] MAGIC_V2 = "YSMCIDX2".getBytes(StandardCharsets.US_ASCII);
     private static final int MAX_ENTRIES = 100_000;
     private static final int MAX_STRING_BYTES = 64 * 1024;
     private static final String INDEX_FILE = "index.bin";
 
     private final Path gameCacheRoot;
     private final String fullModVersion;
+    private volatile Snapshot snapshot;
 
     public ConvertedSourceIndexStore(Path gameCacheRoot, String fullModVersion) {
         this.gameCacheRoot = Objects.requireNonNull(gameCacheRoot, "gameCacheRoot");
@@ -50,9 +54,28 @@ public final class ConvertedSourceIndexStore {
 
     public Map<String, ConvertedSourceIndex> read() throws IOException {
         var index = path();
-        if (!RegularFileProbe.exists(index)) {
+        var stamp = stamp(index);
+        var cached = snapshot;
+        if (cached != null && Objects.equals(cached.stamp(), stamp)) return cached.entries();
+        if (stamp == null) {
+            snapshot = new Snapshot(null, Map.of());
             return Map.of();
         }
+        synchronized (this) {
+            stamp = stamp(index);
+            cached = snapshot;
+            if (cached != null && Objects.equals(cached.stamp(), stamp)) return cached.entries();
+            if (stamp == null) {
+                snapshot = new Snapshot(null, Map.of());
+                return Map.of();
+            }
+            var loaded = readIndexFile(index);
+            snapshot = new Snapshot(stamp, loaded);
+            return loaded;
+        }
+    }
+
+    private Map<String, ConvertedSourceIndex> readIndexFile(Path index) throws IOException {
         try {
             var stored = readFile(index);
             var current = new LinkedHashMap<String, ConvertedSourceIndex>();
@@ -64,6 +87,7 @@ public final class ConvertedSourceIndexStore {
             return Map.copyOf(current);
         } catch (MalformedIndexException | IllegalArgumentException invalid) {
             Files.deleteIfExists(index);
+            snapshot = new Snapshot(null, Map.of());
             return Map.of();
         }
     }
@@ -94,6 +118,7 @@ public final class ConvertedSourceIndexStore {
                 throw new IOException("Converted-source index verification failed");
             }
             AtomicSharedCache.moveCommitted(temporary, target);
+            snapshot = new Snapshot(stamp(target), Map.copyOf(unique));
         } finally {
             Files.deleteIfExists(temporary);
         }
@@ -132,12 +157,32 @@ public final class ConvertedSourceIndexStore {
         return fullModVersion;
     }
 
+    private static FileStamp stamp(Path path) throws IOException {
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return null;
+        var attributes = Files.readAttributes(path, BasicFileAttributes.class,
+                LinkOption.NOFOLLOW_LINKS);
+        if (!attributes.isRegularFile()) return null;
+        return new FileStamp(attributes.size(), attributes.lastModifiedTime().toMillis(),
+                Objects.toString(attributes.fileKey(), ""));
+    }
+
+    private record Snapshot(FileStamp stamp, Map<String, ConvertedSourceIndex> entries) {
+    }
+
+    private record FileStamp(long size, long lastModifiedMillis, String fileKey) {
+    }
+
     private static Map<String, ConvertedSourceIndex> readFile(Path path) throws IOException {
         try (var input = new LittleEndianDataInputStream(new BufferedInputStream(
                 Files.newInputStream(path, StandardOpenOption.READ)))) {
-            var magic = new byte[MAGIC.length];
+            var magic = new byte[MAGIC_V1.length];
             input.readFully(magic);
-            if (!Arrays.equals(magic, MAGIC)) {
+            boolean stamped;
+            if (Arrays.equals(magic, MAGIC_V2)) {
+                stamped = true;
+            } else if (Arrays.equals(magic, MAGIC_V1)) {
+                stamped = false;
+            } else {
                 throw new MalformedIndexException("Invalid converted-source index magic");
             }
             var count = input.readInt();
@@ -150,9 +195,18 @@ public final class ConvertedSourceIndexStore {
                 var containerId = new Hash256(readHash(input));
                 var rawRelativePath = readString(input);
                 var fullModVersion = readString(input);
+                long sourceSize = -1;
+                long sourceLastModifiedMillis = -1;
+                String sourceFileKey = "";
+                if (stamped) {
+                    sourceSize = input.readLong();
+                    sourceLastModifiedMillis = input.readLong();
+                    sourceFileKey = readString(input);
+                }
                 var entry = new ConvertedSourceIndex(
                         new ModelFileIdentity(modelId, containerId),
-                        rawRelativePath, fullModVersion);
+                        rawRelativePath, fullModVersion, sourceSize,
+                        sourceLastModifiedMillis, sourceFileKey);
                 if (result.putIfAbsent(rawRelativePath, entry) != null) {
                     throw new MalformedIndexException(
                             "Duplicate converted-source path: " + rawRelativePath);
@@ -175,13 +229,19 @@ public final class ConvertedSourceIndexStore {
         try (var output = new LittleEndianDataOutputStream(new BufferedOutputStream(
                 Files.newOutputStream(path, StandardOpenOption.CREATE_NEW,
                         StandardOpenOption.WRITE)))) {
-            output.write(MAGIC);
+            boolean stamped = entries.stream().anyMatch(ConvertedSourceIndex::hasSourceStamp);
+            output.write(stamped ? MAGIC_V2 : MAGIC_V1);
             output.writeInt(sorted.size());
             for (var entry : sorted) {
                 output.write(entry.modelId().bytes());
                 output.write(entry.containerId().bytes());
                 writeString(output, entry.rawRelativePath());
                 writeString(output, entry.fullModVersion());
+                if (stamped) {
+                    output.writeLong(entry.sourceSize());
+                    output.writeLong(entry.sourceLastModifiedMillis());
+                    writeString(output, entry.sourceFileKey());
+                }
             }
         }
     }

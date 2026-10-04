@@ -20,10 +20,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Map;
 
 /** Deterministic source discovery shared by runtime scanning and build-time builtin indexing. */
 public final class ModelSourceDiscovery {
-    private static final Set<String> FILE_EXTENSIONS = Set.of(".mxc", ".ysm", ".zip", ".7z");
+    private static final Set<String> FILE_EXTENSIONS = Set.of(
+            ".mxc", ".ysm", ".zip", ".7z", ".pmx", ".pmd", ".fbx",
+            ".gltf", ".glb", ".vrm", ".unitypackage", ".yscene");
+    private static final Set<String> GENERIC_EXTENSIONS = Set.of(
+            ".pmx", ".pmd", ".fbx", ".gltf", ".glb", ".vrm", ".yscene");
 
     private ModelSourceDiscovery() {
     }
@@ -87,6 +92,135 @@ public final class ModelSourceDiscovery {
                     ModelScanError.infrastructure(source.rootKind(), configured.toString(),
                             "ROOT_INVENTORY_INCOMPLETE", error));
         }
+    }
+
+    /**
+     * Rebuilds only the directory subtrees mentioned by the watcher.  The
+     * previous complete inventory remains authoritative for all other paths.
+     * This is deliberately event driven: an overflow or an empty previous
+     * inventory must use {@link #inventory(ModelCatalogSource)} instead.
+     */
+    public static RootInventoryState inventoryChanged(ModelCatalogSource source,
+                                                      RootInventoryState.Complete previous,
+                                                      Set<Path> changedPaths) {
+        if (previous == null || changedPaths == null || changedPaths.isEmpty()) {
+            return inventory(source);
+        }
+        var configured = source.path().toAbsolutePath().normalize();
+        try {
+            var canonical = configured.toRealPath();
+            if (!canonical.equals(previous.root().canonicalAbsoluteRoot())) {
+                return inventory(source);
+            }
+            var rootAttributes = Files.readAttributes(canonical, BasicFileAttributes.class,
+                    LinkOption.NOFOLLOW_LINKS);
+            if (!rootAttributes.isDirectory()) {
+                throw new IOException("Model root is not a directory: " + configured);
+            }
+
+            var scopes = new ArrayList<Path>();
+            for (var rawChanged : changedPaths) {
+                var changed = rawChanged.toAbsolutePath().normalize();
+                if (!changed.startsWith(canonical)) {
+                    continue;
+                }
+                var scope = changed;
+                // A file changed inside a raw model directory changes the
+                // directory source's stamp; rescan that raw directory as one
+                // unit instead of walking the entire model root.
+                var rawOwner = previous.sources().values().stream()
+                        .filter(observation -> observation.key().sourceKind()
+                                == ModelSourceKind.CURRENT_RAW_DIRECTORY)
+                        .map(SourceObservation::absolutePath)
+                        .filter(path -> changed.startsWith(path))
+                        .max(Comparator.comparingInt(Path::getNameCount))
+                        .orElse(null);
+                if (rawOwner != null) {
+                    scope = rawOwner;
+                } else if (!Files.isDirectory(scope, LinkOption.NOFOLLOW_LINKS)) {
+                    scope = scope.getParent();
+                }
+                if (scope == null || !scope.startsWith(canonical)) {
+                    return inventory(source);
+                }
+                scopes.add(scope);
+            }
+            if (scopes.isEmpty()) {
+                return previous;
+            }
+            // Keep only the outermost scopes; scanning a child twice defeats
+            // the point of the dirty-set and can duplicate observations.
+            scopes.sort(Comparator.comparingInt(Path::getNameCount));
+            var reduced = new ArrayList<Path>();
+            for (var scope : scopes) {
+                if (reduced.stream().noneMatch(scope::startsWith)) {
+                    reduced.add(scope);
+                }
+            }
+
+            var identity = previous.root();
+            var models = new LinkedHashMap<>(previous.sources());
+            var packs = new LinkedHashMap<>(previous.packs());
+            for (var scope : reduced) {
+                models.entrySet().removeIf(entry -> entry.getValue().absolutePath().startsWith(scope));
+                packs.entrySet().removeIf(entry -> entry.getValue().directory().startsWith(scope));
+                if (!Files.exists(scope, LinkOption.NOFOLLOW_LINKS)) {
+                    continue;
+                }
+                if (Files.isDirectory(scope, LinkOption.NOFOLLOW_LINKS)
+                        && isRawDirectory(scope)) {
+                    addModel(identity, scope, models);
+                    continue;
+                }
+                var discovered = discover(scope);
+                if (!discovered.failures().isEmpty()) {
+                    var failure = discovered.failures().get(0);
+                    throw new IOException("Model subtree traversal is incomplete at "
+                            + failure.path(), failure.error());
+                }
+                for (var path : discovered.models()) {
+                    addModel(identity, requireInside(canonical, path), models);
+                }
+                for (var directory : discovered.packDirectories()) {
+                    var real = requireInside(canonical, directory);
+                    var manifest = real.resolve("ysm-pack.json");
+                    if (!Files.isRegularFile(manifest, LinkOption.NOFOLLOW_LINKS)) continue;
+                    var hierarchy = real.equals(canonical) ? ""
+                            : ModelPath.relativeTo(canonical, real).value() + "/";
+                    var key = new ModelPackSourceKey(identity, hierarchy);
+                    var cover = real.resolve("ysm-pack.png");
+                    packs.put(key, new PackObservation(key, real,
+                            SourceStamp.captureFile(manifest),
+                            Files.isRegularFile(cover, LinkOption.NOFOLLOW_LINKS)
+                                    ? SourceStamp.captureFile(cover) : null));
+                }
+            }
+            return complete(identity, canonical, models, packs);
+        } catch (IOException | RuntimeException error) {
+            return new RootInventoryState.Incomplete(previous.root(),
+                    ModelScanError.infrastructure(source.rootKind(), configured.toString(),
+                            "ROOT_INVENTORY_INCOMPLETE", error));
+        }
+    }
+
+    private static void addModel(CatalogRootIdentity identity, Path real,
+                                 Map<ModelSourceKey, SourceObservation> models)
+            throws IOException {
+        var kind = sourceKind(real);
+        var relative = ModelPath.relativeTo(identity.canonicalAbsoluteRoot(), real);
+        var key = new ModelSourceKey(identity, relative, kind);
+        var stamp = Files.isDirectory(real, LinkOption.NOFOLLOW_LINKS)
+                ? SourceStamp.captureDirectory(real) : SourceStamp.captureFile(real);
+        var estimatedBytes = stamp instanceof SourceStamp.File file
+                ? file.size() : ((SourceStamp.RawDirectory) stamp).totalBytes();
+        models.put(key, new SourceObservation(key, real, stamp, estimatedBytes));
+    }
+
+    private static RootInventoryState.Complete complete(CatalogRootIdentity identity,
+                                                         Path canonical,
+                                                         Map<ModelSourceKey, SourceObservation> models,
+                                                         Map<ModelPackSourceKey, PackObservation> packs) {
+        return new RootInventoryState.Complete(identity, models, packs);
     }
 
     public static SourceObservation observe(ModelSourceKey expectedKey, Path path)
@@ -167,6 +301,12 @@ public final class ModelSourceDiscovery {
         var name = source.getFileName().toString().toLowerCase(Locale.ROOT);
         if (name.endsWith(".mxc")) {
             return ModelSourceKind.DIRECT_CONTAINER;
+        }
+        if (name.endsWith(".unitypackage")) {
+            return ModelSourceKind.GENERIC_UNITY_PACKAGE;
+        }
+        if (GENERIC_EXTENSIONS.stream().anyMatch(name::endsWith)) {
+            return ModelSourceKind.GENERIC_RAW_FILE;
         }
         if (name.endsWith(".ysm")) {
             try {

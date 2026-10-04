@@ -23,8 +23,17 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
         if (!attributes.isRegularFile() || attributes.isSymbolicLink()) {
             throw new IOException("Model source is not a regular non-link file: " + path);
         }
-        return new File(attributes.size(), attributes.lastModifiedTime().toMillis(),
-                Objects.toString(attributes.fileKey(), ""));
+        String key=Objects.toString(attributes.fileKey(), "");
+        String name=path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        if(java.util.List.of(".pmx",".pmd",".vrm",".gltf",".glb",".fbx",".unitypackage",".yscene").stream().anyMatch(name::endsWith)) {
+            Path profile=path.resolveSibling(path.getFileName()+".omysm.json");
+            if(Files.exists(profile,LinkOption.NOFOLLOW_LINKS)) {
+                var p=Files.readAttributes(profile,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+                if(!p.isRegularFile() || p.isSymbolicLink()) throw new IOException("Model profile is not a regular non-link file: "+profile);
+                key+="|profile="+p.size()+":"+p.lastModifiedTime()+":"+Objects.toString(p.fileKey(),"");
+            }
+        }
+        return new File(attributes.size(), attributes.lastModifiedTime().toMillis(),key);
     }
 
     static RawDirectory captureDirectory(Path root) throws IOException {

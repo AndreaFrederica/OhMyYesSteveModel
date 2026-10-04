@@ -238,6 +238,105 @@ class ModelFileIdentityReaderTest {
         }
     }
 
+    @Test
+    void explicitMeshSchemaUsesAClosedPackageAndCannotBeReadAsMcDefinition() throws Exception {
+        var source = new cc.sirrus.ysmlib.scene.ScenePackage(
+                new cc.sirrus.ysmlib.scene.ScenePackage.Source("model", "avatar.gltf",
+                        cc.sirrus.ysmlib.scene.ScenePackage.Format.GLTF),
+                new cc.sirrus.ysmlib.scene.ScenePackage.Settings(1, 0,
+                        cc.sirrus.ysmlib.scene.fbx.FbxEvaluation.SkinSpace.BIND_WORLD),
+                java.util.List.of(), java.util.List.of(), java.util.Map.of("avatar.gltf",
+                        new cc.sirrus.ysmlib.scene.ByteData("{\"asset\":{\"version\":\"2.0\"}}".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        var limits = cc.sirrus.ysmlib.scene.io.ReadLimits.DEFAULT;
+        var encoded = cc.sirrus.ysmlib.YsmRuntime.scenes().writePackage(source, limits);
+        var metadata = manifest(hash(33)).toBuilder()
+                .addRenderTargets(renderTarget("player", RenderTargetKind.RENDER_TARGET_KIND_PLAYER, null).toBuilder().setBlobId(1).build()).build();
+        final Path file;
+        try (var writer = new ModelFileWriter(ModelSchema.GENERAL_MESH);
+             var data = ArrayBuffer.borrow(encoded.copy())) {
+            writer.setManifest(metadata);
+            assertEquals(1, writer.addBlob(data, 0));
+            file = write("mesh.mxc", writer);
+        }
+        try (var channel = FileChannel.open(file, StandardOpenOption.READ)) {
+            var view = new ModelFileView(channel);
+            var chunks = new com.elfmcys.ysm.format.schema.file.FileChunkDataSource(file);
+            assertEquals(ModelSchema.GENERAL_MESH, view.schema());
+            assertEquals(com.elfmcys.ysm.model.domain.RenderTargetIds.GENERAL_MESH_VARIANT,
+                    ModelManifestLookup.chooseTexture(view, "player", "previous-mc-texture"));
+            var request = new com.elfmcys.ysm.model.resource.client.ResourceRequest(hash(33), "player", "previous-mc-texture",
+                    new com.elfmcys.ysm.model.resource.client.BakeProfile("test"));
+            assertEquals(com.elfmcys.ysm.model.domain.RenderTargetIds.GENERAL_MESH_VARIANT,
+                    com.elfmcys.ysm.model.resource.client.ClientModelRenderTargetManager
+                            .resolveEffectiveKey(view, request).selectedTexture());
+            assertEquals(hash(33), ModelFileIdentityReader.read(channel).modelId());
+            assertEquals(source, view.getPlayer().readScenePackage(() -> false, chunks, limits));
+            assertThrows(IOException.class, () -> view.getPlayer().readDefinition(() -> false, chunks));
+            assertThrows(IOException.class, () -> view.getPlayer().readScenePackage(() -> false, chunks,
+                    new cc.sirrus.ysmlib.scene.io.ReadLimits(32, 10, 10)));
+            var descriptor = ModelFileView.requireMetadataLayout(view.getFileView().getAssetView());
+            var prefix = java.util.Arrays.copyOf(Files.readAllBytes(file), descriptor.offset() + descriptor.size());
+            try (var bytes = ArrayBuffer.borrow(prefix)) {
+                assertEquals(ModelSchema.GENERAL_MESH, ModelFileView.readMetadata(bytes).schema());
+                try (var store = new com.elfmcys.ysm.model.resource.client.remote.RemoteModelStore(temp.resolve("mesh-remote"))) {
+                    var remote = store.commitMetadataPrefix(ModelFileIdentityReader.read(channel), bytes);
+                    try {
+                        var downloads = new java.util.concurrent.atomic.AtomicInteger();
+                        com.elfmcys.ysm.model.resource.client.remote.RemoteChunkFetcher fetcher = (identity, requested, receiver) -> {
+                            assertEquals(java.util.List.of("blob-1"), requested.stream().map(c -> c.type()).toList());
+                            downloads.incrementAndGet();
+                            try {
+                                for (var chunk : requested) {
+                                    try (var stored = chunks.readStoredVerified(chunk, com.elfmcys.ysm.buffer.BufferType.ARRAY)) {
+                                        receiver.accept(chunk, stored);
+                                    }
+                                }
+                                return java.util.concurrent.CompletableFuture.completedFuture(null);
+                            } catch (IOException error) {
+                                return java.util.concurrent.CompletableFuture.failedFuture(error);
+                            }
+                        };
+                        java.util.function.Function<com.elfmcys.ysm.model.catalog.content.ModelContent, cc.sirrus.ysmlib.scene.ScenePackage> load = content -> {
+                            try { return content.modelFile().getPlayer().readScenePackage(() -> false, content.chunks(), limits); }
+                            catch (IOException error) { throw new java.io.UncheckedIOException(error); }
+                        };
+                        assertEquals(source, remote.loadRenderTarget(() -> false, "player", "previous-mc-texture", fetcher, Runnable::run, load).join());
+                        assertEquals(source, remote.loadRenderTarget(() -> false, "player", "", fetcher, Runnable::run, load).join());
+                        assertEquals(1, downloads.get());
+                    } finally {
+                        remote.representation().close();
+                    }
+                }
+            }
+        }
+        var mc = writeWithProductionWriter("mesh-under-mc.mxc", metadata);
+        try (var channel = FileChannel.open(mc, StandardOpenOption.READ)) {
+            assertThrows(IOException.class, () -> new ModelFileView(channel));
+        }
+        var textured = manifest(hash(34)).toBuilder()
+                .addRenderTargets(renderTarget("player", RenderTargetKind.RENDER_TARGET_KIND_PLAYER, "main")).build();
+        assertThrows(IOException.class, () -> ModelFileView.validatePlayerRenderTarget(textured, ModelSchema.GENERAL_MESH));
+        var location = new com.elfmcys.ysm.model.catalog.source.CatalogModelLocation(
+                com.elfmcys.ysm.model.catalog.source.CatalogRootKind.CUSTOM,
+                new com.elfmcys.ysm.model.domain.ModelPath("mesh.mxc"));
+        var original = com.elfmcys.ysm.model.storage.ManagedContainer.openDirect(file, location);
+        try {
+            var preview = com.elfmcys.ysm.model.storage.TestPreviews.blank();
+            var output = temp.resolve("mesh-export.mxc");
+            com.elfmcys.ysm.model.storage.ModelExporter.export(original, preview, output, "schema-test");
+            var exported = com.elfmcys.ysm.model.storage.ManagedContainer.openDirect(output, location);
+            try {
+                assertEquals(ModelSchema.GENERAL_MESH, exported.modelFile().schema());
+                assertEquals(original.representation().modelId(), exported.representation().modelId());
+                assertEquals(source, exported.modelFile().getPlayer().readScenePackage(() -> false, exported.chunks(), limits));
+            } finally {
+                exported.representation().close();
+            }
+        } finally {
+            original.representation().close();
+        }
+    }
+
     private Path writeWithProductionWriter(String name,
                                            Manifest manifest)
             throws Exception {

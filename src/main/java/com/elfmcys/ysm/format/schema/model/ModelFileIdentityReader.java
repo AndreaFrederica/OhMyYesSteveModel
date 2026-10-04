@@ -34,9 +34,7 @@ public final class ModelFileIdentityReader {
     }
 
     static ModelFileIdentity read(AssetContainerView assetView) throws IOException {
-        if (!ModelFileConstant.SCHEMA_ID.equals(assetView.getSchema())) {
-            throw new IOException("Schema ID mismatch: " + assetView.getSchema());
-        }
+        var schema = ModelSchema.require(assetView.getSchema());
 
         var vendor = assetView.getSchemaProperty(ModelFileConstant.PROP_VENDOR);
         if (vendor == null) {
@@ -46,7 +44,7 @@ public final class ModelFileIdentityReader {
         if (versionText == null) {
             throw new IOException("Version property not found");
         }
-        if (!VersionCompatibility.isCompatible(ModelFileConstant.CURRENT_VERSION.toString(),
+        if (!VersionCompatibility.isCompatible(schema.version(),
                 versionText, (current, candidate) -> new DefaultArtifactVersion(current)
                         .equals(new DefaultArtifactVersion(candidate)))) {
             throw new UnsupportedEncodingException(String.format(

@@ -13,8 +13,12 @@ import net.minecraftforge.fml.loading.moddiscovery.ModFileInfo;
 
 public class ModelFileWriter extends AssetFileWriter {
     public ModelFileWriter() {
-        setSchemaId(ModelFileConstant.SCHEMA_ID);
-        setProperty(ModelFileConstant.PROP_VERSION, ModelFileConstant.CURRENT_VERSION.toString());
+        this(ModelSchema.MC);
+    }
+
+    public ModelFileWriter(ModelSchema schema) {
+        setSchemaId(Objects.requireNonNull(schema, "schema").id());
+        setProperty(ModelFileConstant.PROP_VERSION, schema.version());
         if (YesSteveModel.MOD != null) {
             var sign = ((ModFileInfo) YesSteveModel.MOD.getModInfo().getOwningFile()).getCodeSigningFingerprint().orElse("(unsigned)");
             var modInfo = YesSteveModel.MOD.getModInfo();

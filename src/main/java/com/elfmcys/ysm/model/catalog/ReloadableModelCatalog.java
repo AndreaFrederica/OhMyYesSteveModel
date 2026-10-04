@@ -65,6 +65,7 @@ public final class ReloadableModelCatalog implements AutoCloseable {
     private final CatalogReconciler reconciler;
     private final Path convertedRoot;
     private final Pruner pruner;
+    private final LastUsedModelStore lastUsedStore;
     private final CopyOnWriteArrayList<Consumer<CatalogTransition>> listeners =
             new CopyOnWriteArrayList<>();
     private final AtomicBoolean watcherReloadRequested = new AtomicBoolean();
@@ -78,6 +79,10 @@ public final class ReloadableModelCatalog implements AutoCloseable {
     private boolean firstScan = true;
     private boolean closed;
     private long scanSequence;
+    private volatile LastUsedModelStore.Preference lastUsed = LastUsedModelStore.Preference.EMPTY;
+    private final Set<Path> pendingWatcherPaths = new LinkedHashSet<>();
+    private boolean pendingWatcherOverflow;
+    private volatile CatalogReconciler.ScanDiscovery lastDiscovery;
 
     public ReloadableModelCatalog(ModelStorageInfra storage,
                                   List<ModelCatalogSource> roots,
@@ -97,6 +102,9 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         }
         convertedRoot = storage.convertedRoot().toAbsolutePath().normalize();
         pruner = storage.convertedConsumers()::pruneOnce;
+        lastUsedStore = new LastUsedModelStore(storage.gameCacheRoot().getParent()
+                .resolve("last-used-model.properties"));
+        lastUsed = lastUsedStore.read();
     }
 
     ReloadableModelCatalog(CatalogReconciler reconciler, CatalogCandidate initial) {
@@ -105,6 +113,7 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         current = Objects.requireNonNull(initial, "initial");
         convertedRoot = DETACHED_CONVERTED_ROOT;
         pruner = ignored -> ConvertedCacheCoordinator.PruneResult.SKIPPED_ACTIVE_CONSUMER;
+        lastUsedStore = null;
     }
 
     public CatalogSnapshot current() {
@@ -127,6 +136,14 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         return current;
     }
 
+    /** Records a local selection without making persistence part of the model-load critical path. */
+    public void rememberLastUsed(String path, Hash256 modelId) {
+        if (lastUsedStore == null) return;
+        var next = new LastUsedModelStore.Preference(path.replace('\\', '/'), modelId);
+        lastUsed = next;
+        lastUsedStore.write(path, modelId);
+    }
+
     /** Enables watcher/scan only after converted consumer registration has completed. */
     public CompletableFuture<ReloadResult> startScanning() {
         synchronized (this) {
@@ -140,6 +157,10 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         return reload();
     }
 
+    /** Explicit authoring changes use the same directory-scoped discovery as filesystem watcher events. */
+    public synchronized void sourceEdited(java.nio.file.Path path) {
+        pendingWatcherPaths.add(path.toAbsolutePath().normalize());watcherReloadRequested.set(true);
+    }
     public CompletableFuture<ReloadResult> reload() {
         final ActiveScan scan;
         synchronized (this) {
@@ -153,7 +174,12 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 return CompletableFuture.completedFuture(result(
                         ReloadStatus.BUSY, "Catalog scan is already in progress"));
             }
-            scan = new ActiveScan(++scanSequence, current, firstScan);
+            var changes = new SourceChangeSet(new LinkedHashSet<>(pendingWatcherPaths),
+                    pendingWatcherOverflow);
+            pendingWatcherPaths.clear();
+            pendingWatcherOverflow = false;
+            scan = new ActiveScan(++scanSequence, current, firstScan, changes,
+                    lastDiscovery);
             firstScan = false;
             active = scan;
             progress = new CatalogScanProgress(CatalogScanProgress.Stage.DISCOVERING,
@@ -202,7 +228,11 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         return active != null;
     }
 
-    void watcherChanged(SourceChangeSet ignored) {
+    void watcherChanged(SourceChangeSet changes) {
+        synchronized (this) {
+            pendingWatcherPaths.addAll(changes.paths());
+            pendingWatcherOverflow |= changes.overflow();
+        }
         watcherReloadRequested.set(true);
     }
 
@@ -236,6 +266,13 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 "Finished model catalog scan {} status={} models={} errors={} elapsedMs={} message={}",
                 scan.sequence, status, result.modelCount(), result.errorCount(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - scan.startedAtNanos), message);
+        // Keep every rejected source actionable in the normal client log. The
+        // aggregate count alone made conversion and dependency failures look
+        // like a successful scan with a mysterious missing model.
+        current.snapshot().report().errors().forEach(error -> YesSteveModel.LOGGER.error(
+                "Model catalog source failed root={} source={} category={} code={} message={} detail=\n{}",
+                error.rootKind(), error.source(), error.category(), error.code(),
+                error.message(), error.detail()));
         scan.completion.complete(result);
     }
 
@@ -291,6 +328,8 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         private final long startedAtNanos = System.nanoTime();
         private final CatalogCandidate previous;
         private final boolean pruneOpportunity;
+        private final SourceChangeSet changes;
+        private final CatalogReconciler.ScanDiscovery previousDiscovery;
         private final CompletableFuture<ReloadResult> completion = new CompletableFuture<>();
         private final ExecutorService executor;
         private final ExecutorService cacheExecutor;
@@ -328,16 +367,21 @@ public final class ReloadableModelCatalog implements AutoCloseable {
         private volatile Throwable discoveryFailure;
         private volatile FinalOutcome finalOutcome;
         private volatile int expectedOutcomes = -1;
+        private volatile String phase = "inventory";
+        private volatile String currentPath = "";
         private int disposedOutcomes;
         private int publishedOutcomes = -1;
         private boolean discoveryApplied;
         private boolean finalizerScheduled;
 
         private ActiveScan(long sequence, CatalogCandidate previous,
-                           boolean pruneOpportunity) {
+                           boolean pruneOpportunity, SourceChangeSet changes,
+                           CatalogReconciler.ScanDiscovery previousDiscovery) {
             this.sequence = sequence;
             this.previous = previous;
             this.pruneOpportunity = pruneOpportunity;
+            this.changes = changes;
+            this.previousDiscovery = previousDiscovery;
             createWatcher = watcher == null && !roots.isEmpty();
             workerCount = loadingPolicy.get().workers();
             executor = Executors.newFixedThreadPool(workerCount, runnable -> {
@@ -347,7 +391,8 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                         Thread.NORM_PRIORITY - 1));
                 return thread;
             });
-            cacheExecutor = Executors.newSingleThreadExecutor(runnable -> {
+            var cacheWorkers = Math.max(1, Math.min(workerCount, 4));
+            cacheExecutor = Executors.newFixedThreadPool(cacheWorkers, runnable -> {
                 var thread = new Thread(runnable, "YSM Catalog Cache " + sequence);
                 thread.setDaemon(true);
                 thread.setPriority(Math.max(Thread.MIN_PRIORITY, Thread.NORM_PRIORITY - 1));
@@ -361,19 +406,23 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
         private void discover() {
             try {
+                phase = "inventory";
+                currentPath = roots.stream().map(root -> root.path().toString())
+                        .collect(Collectors.joining(", "));
                 // Recursive watch registration performs directory I/O too; keep it
                 // in discovery instead of freezing the joining client's owner tick.
                 if (createWatcher) {
                     createdWatcher = new ModelDirectoryWatcher(roots,
                             ReloadableModelCatalog.this::watcherChanged);
                 }
-                var value = reconciler.discoverIncremental();
+                var value = reconciler.discoverIncremental(previousDiscovery, changes);
                 var count = Math.addExact(value.sources().size(), value.packs().size());
                 if (count > MAX_INPUTS) {
                     throw new IllegalStateException("Catalog scan input capacity exceeded");
                 }
                 expectedOutcomes = count;
                 discovery = value;
+                lastDiscovery = value;
             } catch (Throwable failure) {
                 fail(failure);
             }
@@ -391,6 +440,8 @@ public final class ReloadableModelCatalog implements AutoCloseable {
 
         private void probeCache(SourceObservation source) {
             try {
+                phase = "cache-check";
+                currentPath = source.key().relativePath().value();
                 var cached = reconciler.resolveCachedIncremental(source);
                 if (cached.isPresent()) {
                     outcomes.add(new ScanOutcome(cached.get(), true));
@@ -431,11 +482,23 @@ public final class ReloadableModelCatalog implements AutoCloseable {
             if (!discoveryApplied) {
                 applyDiscovery(discovered);
                 cacheSources = discovered.sources().stream()
-                        .filter(source -> source.key().sourceKind() == ModelSourceKind.LEGACY_ARCHIVE)
+                        .filter(source -> source.key().sourceKind() == ModelSourceKind.LEGACY_ARCHIVE
+                                || source.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
+                                || source.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE)
+                        .sorted(lastUsedComparator())
                         .toList();
                 discovered.sources().stream()
                         .filter(source -> source.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE)
+                        .filter(source -> source.key().sourceKind() != ModelSourceKind.GENERIC_RAW_FILE
+                                && source.key().sourceKind() != ModelSourceKind.GENERIC_UNITY_PACKAGE)
                         .forEach(coldSources::addLast);
+                discovered.sources().stream()
+                        .filter(source -> source.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
+                                || source.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE)
+                        .filter(source -> !cacheSources.contains(source))
+                        .sorted(lastUsedComparator())
+                        .forEach(coldSources::addLast);
+                // Legacy cache misses are appended below; generic cache misses follow the same path.
                 discoveryApplied = true;
                 if (!errors.isEmpty()) {
                     publishProjection(discovered.startedAt());
@@ -492,12 +555,24 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 submittedOutcomes++;
                 coldInFlight++;
                 try {
-                    if (!coldSources.isEmpty()) {
-                        var source = coldSources.removeFirst();
-                        executor.execute(() -> resolve(() -> reconciler.resolveIncremental(source)));
-                    } else {
+                    // Read pack manifests first.  Pack metadata is tiny and is
+                    // needed by the browser; letting thousands of model sources
+                    // ahead of it makes the progress UI appear stuck at N-1/N.
+                    if (nextPack < discovered.packs().size()) {
                         var pack = discovered.packs().get(nextPack++);
+                        phase = "read-pack";
+                        currentPath = pack.key().hierarchy();
                         executor.execute(() -> resolve(() -> reconciler.resolveIncremental(pack)));
+                    } else if (!coldSources.isEmpty()) {
+                        var source = coldSources.removeFirst();
+                        phase = switch (source.key().sourceKind()) {
+                            case LEGACY_ARCHIVE -> "convert-legacy";
+                            case GENERIC_RAW_FILE -> "convert-mesh";
+                            case GENERIC_UNITY_PACKAGE -> "convert-unitypackage";
+                            default -> "load-source";
+                        };
+                        currentPath = source.key().relativePath().value();
+                        executor.execute(() -> resolve(() -> reconciler.resolveIncremental(source)));
                     }
                 } catch (java.util.concurrent.RejectedExecutionException failure) {
                     fail(failure);
@@ -506,7 +581,7 @@ public final class ReloadableModelCatalog implements AutoCloseable {
             progress = new CatalogScanProgress(disposedOutcomes == expectedOutcomes
                     ? CatalogScanProgress.Stage.FINALIZING : CatalogScanProgress.Stage.LOADING,
                     expectedOutcomes, disposedOutcomes, expectedOutcomes - submittedOutcomes,
-                    submittedOutcomes - disposedOutcomes, errors.size());
+                    submittedOutcomes - disposedOutcomes, errors.size(), phase, currentPath);
             if (expectedOutcomes >= 0
                     && completedOutcomes.get() == expectedOutcomes
                     && disposedOutcomes == expectedOutcomes
@@ -539,6 +614,11 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                     finish(this, ReloadStatus.COMMITTED, "");
                 }
             }
+        }
+
+        private Comparator<SourceObservation> lastUsedComparator() {
+            return Comparator.comparing((SourceObservation source) ->
+                    lastUsed.matches(source.key().relativePath().value()) ? 0 : 1);
         }
 
         private void adoptWatcher() {
@@ -676,7 +756,8 @@ public final class ReloadableModelCatalog implements AutoCloseable {
             ConvertedCacheCoordinator.PruneResult prune = null;
             Throwable failure = null;
             try {
-                reconciler.verifyDiscovery(discovered);
+                reconciler.verifyDiscovery(discovered, changes,
+                        previousDiscovery != null && !changes.paths().isEmpty());
                 var scopes = discovered.completeRoots().keySet().stream()
                         .map(CatalogRootKind::namespace)
                         .collect(Collectors.toUnmodifiableSet());

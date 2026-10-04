@@ -7,4 +7,10 @@ message ModelStats {
   uint32 bones = 1;
   uint32 cubes = 2;
   uint32 faces = 3;
+  // General-mesh models do not have Minecraft cubes.  These fields preserve
+  // the source scene counts so catalog UIs do not have to reopen the scene
+  // package just to render a tooltip.
+  uint32 materials = 4;
+  uint32 textures = 5;
+  uint32 meshes = 6;
 }

@@ -191,6 +191,8 @@ public final class PlayerStateHandler {
         }
         if (report.hasAnimation() && report.animationUnsafe().hasAnimationId()
                 && !isAnimationAllowed(capability, report.animationUnsafe().animationId())) {
+            YesSteveModel.LOGGER.warn("Rejected animation request player={} model={} animation={}",
+                    sender.getScoreboardName(), capability.getModelId(), report.animationUnsafe().animationId());
             return;
         }
         if (report.hasRoaming() && !validRoaming(capability, report.roamingUnsafe())) {
@@ -279,7 +281,8 @@ public final class PlayerStateHandler {
                     var settings = model.view().getManifest().info().settings();
                     if (!settings.extraAnimation().isEmpty()) {
                         for (var animation : settings.extraAnimation()) {
-                            if (animationId.equals(animation.key())) return true;
+                            if (animationId.equals(animation.key()) || (!com.elfmcys.ysm.model.domain.SceneActionId.base(animationId).isEmpty()
+                                    && com.elfmcys.ysm.model.domain.SceneActionId.base(animationId).equals(animation.key()))) return true;
                         }
                     }
                     if (!settings.extraAnimationClassify().isEmpty()) {
@@ -288,7 +291,8 @@ public final class PlayerStateHandler {
                                 continue;
                             }
                             for (var animation : classification.extraAnimation()) {
-                                if (animationId.equals(animation.key())) return true;
+                                if (animationId.equals(animation.key()) || (!com.elfmcys.ysm.model.domain.SceneActionId.base(animationId).isEmpty()
+                                    && com.elfmcys.ysm.model.domain.SceneActionId.base(animationId).equals(animation.key()))) return true;
                             }
                         }
                     }

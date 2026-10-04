@@ -4,6 +4,8 @@ import com.elfmcys.ysm.config.ServerConfig;
 import com.elfmcys.ysm.model.catalog.snapshot.ServerCatalog;
 import com.elfmcys.ysm.model.storage.ManagedContainer;
 import com.elfmcys.ysm.model.catalog.source.CatalogRootKind;
+import com.elfmcys.ysm.format.schema.model.ModelSchema;
+import com.elfmcys.ysm.model.domain.RenderTargetIds;
 
 import java.util.Optional;
 
@@ -20,6 +22,11 @@ public final class ModelSelectionService {
             return false;
         }
         var view = model.view();
+        if (view.schema() == ModelSchema.GENERAL_MESH) {
+            capability.setModelAndTexture(model.representation().modelId(),
+                    RenderTargetIds.GENERAL_MESH_VARIANT);
+            return true;
+        }
         var configured = ServerConfig.DEFAULT_MODEL_TEXTURE.get();
         var requested = view.getPlayer().getTextureNames().contains(configured)
                 ? configured : view.getMetadata().getSettings().defaultTexture().orElse("");
@@ -41,6 +48,12 @@ public final class ModelSelectionService {
             return false;
         }
         var textures = model.view().getPlayer().getTextureNames();
+        if (model.view().schema() == ModelSchema.GENERAL_MESH) {
+            capability.clearIgnoreGrants();
+            capability.setModelAndTexture(model.representation().modelId(),
+                    RenderTargetIds.GENERAL_MESH_VARIANT);
+            return true;
+        }
         var configured = model.view().getMetadata().getSettings().defaultTexture().orElse("");
         var texture = textures.contains(requestedTexture) ? requestedTexture
                 : textures.contains(configured) ? configured
@@ -56,8 +69,7 @@ public final class ModelSelectionService {
             return Optional.empty();
         }
         var model = snapshot.find(capability.getModelId()).orElse(null);
-        if (model == null || !model.view().getPlayer().getTextureNames()
-                .contains(capability.getSelectTexture())) {
+        if (model == null || !validTexture(model, capability.getSelectTexture())) {
             capability.clearIgnoreGrants();
             if (!selectDefault(capability, snapshot)) {
                 capability.setModelAndTexture(null, "");
@@ -70,6 +82,13 @@ public final class ModelSelectionService {
             capability.clearIgnoreGrants();
         }
         return Optional.ofNullable(model);
+    }
+
+    private static boolean validTexture(ManagedContainer model, String texture) {
+        if (model.view().schema() == ModelSchema.GENERAL_MESH) {
+            return RenderTargetIds.GENERAL_MESH_VARIANT.equals(texture);
+        }
+        return model.view().getPlayer().getTextureNames().contains(texture);
     }
 
     public static String displayId(ModelInfoCapability capability,

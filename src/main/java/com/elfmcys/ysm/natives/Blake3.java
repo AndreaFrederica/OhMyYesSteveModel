@@ -2,6 +2,7 @@ package com.elfmcys.ysm.natives;
 
 import com.elfmcys.ysm.buffer.UniBuffer;
 import cc.sirrus.ysmlib.YsmRuntime;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.lang.ref.Reference;
 import java.util.Objects;
@@ -18,6 +19,11 @@ public final class Blake3 {
     public static byte[] computeHash(UniBuffer source) {
         try { return YsmRuntime.hashes().blake3(source.nio()); }
         finally { Reference.reachabilityFence(source); }
+    }
+    /** Hashes a read-only/direct view without first copying it into a UniBuffer. */
+    public static byte[] computeHash(ByteBuffer source) {
+        Objects.requireNonNull(source, "source");
+        return YsmRuntime.hashes().blake3(source.asReadOnlyBuffer());
     }
     public static void computeHash(UniBuffer source, byte[] hash) {
         requireHash(hash);

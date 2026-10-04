@@ -12,6 +12,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -57,6 +58,21 @@ class ConvertedSourceIndexStoreTest {
                 .array();
 
         assertArrayEquals(expected, Files.readAllBytes(store.path()));
+    }
+
+    @Test
+    void stampedEntriesRoundTripWithoutContentHashingMetadata() throws Exception {
+        var store = store("1.2.3");
+        var entry = new ConvertedSourceIndex(
+                new ModelFileIdentity(hash(3), hash(13)), "custom/model.unitypackage",
+                "1.2.3", 435_900_000L, 123_456_789L, "file-key");
+
+        store.replace(List.of(entry));
+
+        assertEquals(entry, store.find("custom/model.unitypackage").orElseThrow());
+        assertTrue(entry.hasSourceStamp());
+        assertArrayEquals("YSMCIDX2".getBytes(StandardCharsets.US_ASCII),
+                Arrays.copyOfRange(Files.readAllBytes(store.path()), 0, 8));
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.elfmcys.ysm.model.catalog.source;
 
 import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.parser.RawModelDiagnostic;
+import com.elfmcys.ysm.format.parser.RawCompileResult;
+import com.elfmcys.ysm.model.catalog.GenericMeshModelImporter;
 import com.elfmcys.ysm.model.catalog.RawModelImporter;
 import com.elfmcys.ysm.model.catalog.content.DirectContainerAdmission;
 import com.elfmcys.ysm.model.catalog.snapshot.CatalogIndexEntry;
@@ -29,7 +31,10 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class ModelSourceResolver {
+    /** Invalidates generic scene containers whenever their manifest/statistics contract changes. */
+    private static final String GENERIC_CACHE_PROFILE = ".generic-v7/";
     private final RawModelImporter importer;
+    private final GenericMeshModelImporter genericImporter;
     private final LegacyModelImporter legacyImporter;
     private final ConvertedSourceIndexStore indexes;
     private final ConvertedObjectStore objects;
@@ -46,6 +51,7 @@ public final class ModelSourceResolver {
                                ConvertedSourceIndexStore indexes,
                                ConvertedObjectStore objects) {
         this.importer = Objects.requireNonNull(importer, "importer");
+        this.genericImporter = new GenericMeshModelImporter();
         this.legacyImporter = Objects.requireNonNull(legacyImporter, "legacyImporter");
         this.indexes = Objects.requireNonNull(indexes, "indexes");
         this.objects = Objects.requireNonNull(objects, "objects");
@@ -65,6 +71,11 @@ public final class ModelSourceResolver {
         }
         if (observation.key().sourceKind() == ModelSourceKind.UNSUPPORTED_YSM) {
             throw new ModelSourceException("Unsupported .ysm container");
+        }
+
+        if (observation.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE) {
+            return resolveGeneric(observation, location);
         }
 
         var rawRelativePath = observation.key().root().rootKind().namespace()
@@ -248,9 +259,11 @@ public final class ModelSourceResolver {
     /** Cache-only worker path: never decodes an envelope or rebuilds a converted object. */
     public Optional<MaterializedResolution> resolveCached(SourceObservation observation)
             throws IOException {
-        if (observation.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE) {
-            return Optional.empty();
+        if (observation.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE) {
+            return resolveCachedGeneric(observation);
         }
+        if (observation.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE) return Optional.empty();
         var source = V3dCache.capture(observation.absolutePath());
         var location = new CatalogModelLocation(observation.key().root().rootKind(),
                 observation.key().relativePath());
@@ -258,6 +271,103 @@ public final class ModelSourceResolver {
         // lock here: a duplicate cold source must not block unrelated cache hits.
         return legacyCache.find(source, location).map(content ->
                 cachedLegacyResolution(observation, content));
+    }
+
+    private Optional<MaterializedResolution> resolveCachedGeneric(SourceObservation observation)
+            throws IOException {
+        var rawRelativePath = rawRelativePath(observation);
+        var indexed = indexes.find(rawRelativePath);
+        if (indexed.isEmpty()) return Optional.empty();
+        var sourceIndex = indexed.get();
+        // An unchanged metadata stamp is enough for the normal startup path.
+        // Avoid reading every byte of large UnityPackages just to prove a cache hit.
+        if (!sameSourceStamp(sourceIndex, observation)) {
+            var captured = genericImporter.capture(observation.absolutePath());
+            if (!sourceIndex.modelId().equals(captured.modelHash())) return Optional.empty();
+            // Upgrade legacy entries and refresh a changed stamp after the one
+            // required verification hash. Future scans can use metadata only.
+            sourceIndex = convertedSourceIndex(sourceIndex.identity(), rawRelativePath,
+                    indexes.fullModVersion(), observation);
+        }
+        var existing = objects.findIdentity(sourceIndex);
+        if (existing.isEmpty()) return Optional.empty();
+        var identity = existing.get();
+        var location = new CatalogModelLocation(observation.key().root().rootKind(),
+                observation.key().relativePath());
+        var entry = new CatalogIndexEntry(identity, location,
+                objects.objectPath(identity.modelId(), identity.containerId()));
+        var content = ManagedContainer.openIndexed(entry);
+        return Optional.of(new MaterializedResolution(entry, content, Optional.of(sourceIndex), List.of()));
+    }
+
+    private Resolution resolveGeneric(SourceObservation observation,
+                                      CatalogModelLocation location)
+            throws CatalogBuildException {
+        var rawRelativePath = rawRelativePath(observation);
+        try {
+            var captured = genericImporter.capture(observation.absolutePath());
+            var indexed = indexes.find(rawRelativePath)
+                    .filter(entry -> entry.modelId().equals(captured.modelHash()));
+            if (indexed.isPresent()) {
+                var existing = objects.findIdentity(indexed.get());
+                if (existing.isPresent()) {
+                    var identity = existing.get();
+                    var entry = new CatalogIndexEntry(identity, location,
+                            objects.objectPath(identity.modelId(), identity.containerId()));
+                    return new Resolution(entry, indexed, List.of());
+                }
+            }
+            Files.createDirectories(objects.temporaryRoot());
+            var temporaryDirectory = Files.createTempDirectory(objects.temporaryRoot(), "generic-");
+            try {
+                var compiled = genericImporter.convert(captured, temporaryDirectory);
+                var object = objects.commit(compiled, location);
+                var entry = convertedSourceIndex(object, rawRelativePath,
+                        indexes.fullModVersion(), observation);
+                var catalogEntry = new CatalogIndexEntry(object, location,
+                        objects.objectPath(object.modelId(), object.containerId()));
+                return new Resolution(catalogEntry, Optional.of(entry), compiled.diagnostics());
+            } finally {
+                deleteTree(temporaryDirectory);
+            }
+        } catch (ModelSourceException | CatalogInfrastructureException failure) {
+            throw failure;
+        } catch (IOException | SecurityException failure) {
+            throw new CatalogInfrastructureException(
+                    "Failed to access generic mesh source", failure);
+        } catch (RuntimeException failure) {
+            throw new ModelSourceException("Failed to import generic mesh source", failure);
+        }
+    }
+
+    private static ConvertedSourceIndex convertedSourceIndex(
+            ModelFileIdentity identity, String rawRelativePath, String version,
+            SourceObservation observation) {
+        if (observation.stamp() instanceof SourceStamp.File file) {
+            return new ConvertedSourceIndex(identity, rawRelativePath, version,
+                    file.size(), file.lastModifiedMillis(), file.fileKey());
+        }
+        return new ConvertedSourceIndex(identity, rawRelativePath, version);
+    }
+
+    private static String rawRelativePath(SourceObservation observation) {
+        var namespace = observation.key().root().rootKind().namespace();
+        if (observation.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE) {
+            return namespace + "/" + GENERIC_CACHE_PROFILE
+                    + observation.key().relativePath().value();
+        }
+        return namespace + "/" + observation.key().relativePath().value();
+    }
+
+    private static boolean sameSourceStamp(ConvertedSourceIndex index,
+                                           SourceObservation observation) {
+        if (!index.hasSourceStamp() || !(observation.stamp() instanceof SourceStamp.File file)) {
+            return false;
+        }
+        return index.sourceSize() == file.size()
+                && index.sourceLastModifiedMillis() == file.lastModifiedMillis()
+                && Objects.equals(index.sourceFileKey(), file.fileKey());
     }
 
     private MaterializedResolution cachedLegacyResolution(SourceObservation observation,

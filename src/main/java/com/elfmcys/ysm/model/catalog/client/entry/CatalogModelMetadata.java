@@ -30,7 +30,7 @@ public record CatalogModelMetadata(Hash256 modelHash, String path, ModelRepresen
 
     public String defaultTexture() {
         return ModelManifestLookup.chooseTexture(
-                representation.view().getManifest(),
+                representation.view(),
                 RenderTargetIds.PLAYER, "");
     }
 }

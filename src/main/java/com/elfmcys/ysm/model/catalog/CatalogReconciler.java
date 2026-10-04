@@ -20,6 +20,7 @@ import com.elfmcys.ysm.model.catalog.source.ModelSourceResolver;
 import com.elfmcys.ysm.model.catalog.source.PackObservation;
 import com.elfmcys.ysm.model.catalog.source.RootInventoryState;
 import com.elfmcys.ysm.model.catalog.source.SourceObservation;
+import com.elfmcys.ysm.model.catalog.source.SourceChangeSet;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.model.domain.ModelPackDescriptor;
 import com.elfmcys.ysm.model.domain.ModelScanError;
@@ -135,6 +136,62 @@ public final class CatalogReconciler {
         return resolveIncremental(observation, false);
     }
 
+    ScanDiscovery discoverIncremental(ScanDiscovery previous, SourceChangeSet changes) {
+        // A direct reload has an empty change set and must re-check the roots;
+        // only a non-empty WatchService dirty-set can reuse the old inventory.
+        if (previous == null || changes == null || changes.overflow()
+                || changes.paths().isEmpty()) {
+            return discoverIncremental();
+        }
+        var startedAt = Instant.now();
+        var complete = new LinkedHashMap<CatalogRootKind, RootInventoryState.Complete>();
+        var errors = new ArrayList<ModelScanError>();
+        for (var root : roots) {
+            var prior = previous.completeRoots().get(root.rootKind());
+            var dirty = changes.paths().stream()
+                    .filter(path -> path.startsWith(root.path().toAbsolutePath().normalize())
+                            || root.path().toAbsolutePath().normalize().startsWith(path))
+                    .collect(Collectors.toUnmodifiableSet());
+            RootInventoryState inventory = dirty.isEmpty() && prior != null
+                    ? prior
+                    : prior == null
+                            ? ModelSourceDiscovery.inventory(root)
+                            : ModelSourceDiscovery.inventoryChanged(root, prior, dirty);
+            if (inventory instanceof RootInventoryState.Incomplete incomplete) {
+                errors.add(incomplete.error());
+                continue;
+            }
+            var value = (RootInventoryState.Complete) inventory;
+            if (root.rootKind() == CatalogRootKind.BUILTIN && builtinContract != null) {
+                try {
+                    builtinContract.validateCoverage(value.sources().values().stream()
+                            .map(source -> source.key().relativePath()).toList());
+                } catch (IOException | RuntimeException failure) {
+                    errors.add(ModelScanError.infrastructure(root.rootKind(),
+                            root.path().toString(), "BUILTIN_INVENTORY_MISMATCH", failure));
+                    continue;
+                }
+            }
+            complete.put(root.rootKind(), value);
+        }
+        var observations = complete.values().stream()
+                .flatMap(root -> root.sources().values().stream())
+                .filter(source -> !(source.key().root().rootKind() == CatalogRootKind.BUILTIN
+                        && source.key().relativePath().value().equals("default")))
+                .sorted(Comparator.comparingInt((SourceObservation source) ->
+                                rootPriority(source.key().root().rootKind()))
+                        .thenComparing(source -> source.key().relativePath().value()))
+                .toList();
+        var packs = complete.values().stream()
+                .flatMap(root -> root.packs().values().stream())
+                .sorted(Comparator.comparingInt((PackObservation pack) ->
+                                rootPriority(pack.key().root().rootKind()))
+                        .thenComparing(pack -> pack.key().hierarchy()))
+                .toList();
+        return new ScanDiscovery(startedAt, complete, observations, packs, errors,
+                complete.size() == roots.size());
+    }
+
     /** Empty means cold work is required; cache failures retain ordinary scan diagnostics. */
     Optional<ResolvedSource> resolveCachedIncremental(SourceObservation observation) {
         return Optional.ofNullable(resolveIncremental(observation, true));
@@ -204,6 +261,29 @@ public final class CatalogReconciler {
                 continue;
             }
             if (!expected.equals(ModelSourceDiscovery.inventory(root))) {
+                throw new CatalogInfrastructureException(
+                        "Model root changed while scanning: " + root.path());
+            }
+        }
+    }
+
+    void verifyDiscovery(ScanDiscovery discovery, SourceChangeSet changes,
+                         boolean incremental) throws CatalogInfrastructureException {
+        if (!incremental || changes == null || changes.overflow()) {
+            verifyDiscovery(discovery);
+            return;
+        }
+        for (var root : roots) {
+            var expected = discovery.completeRoots().get(root.rootKind());
+            if (expected == null) continue;
+            var dirty = changes.paths().stream()
+                    .filter(path -> path.startsWith(root.path().toAbsolutePath().normalize())
+                            || root.path().toAbsolutePath().normalize().startsWith(path))
+                    .collect(Collectors.toUnmodifiableSet());
+            if (dirty.isEmpty()) continue;
+            var actual = ModelSourceDiscovery.inventoryChanged(root, expected, dirty);
+            if (!(actual instanceof RootInventoryState.Complete complete)
+                    || !complete.equals(expected)) {
                 throw new CatalogInfrastructureException(
                         "Model root changed while scanning: " + root.path());
             }

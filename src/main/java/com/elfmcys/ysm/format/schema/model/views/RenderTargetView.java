@@ -62,8 +62,31 @@ public final class RenderTargetView {
 
     public ModelData readDefinition(BooleanSupplier cancelled,
                                                         ChunkDataSource source) throws IOException {
+        requireSchema(com.elfmcys.ysm.format.schema.model.ModelSchema.MC);
         return fileView.readProtoBlob(cancelled, source, descriptor.blobId(),
                 ModelData::parseFrom);
+    }
+
+    public cc.sirrus.ysmlib.scene.ScenePackage readScenePackage(BooleanSupplier cancelled,
+            ChunkDataSource source, cc.sirrus.ysmlib.scene.io.ReadLimits limits) throws IOException {
+        requireSchema(com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH);
+        var chunk = fileView.getAssetView().getChunkInfo("blob-" + descriptor.blobId());
+        if (chunk == null) throw new FileNotFoundException("Missing scene package blob " + descriptor.blobId());
+        long logicalBytes = chunk.encoding().isEmpty() ? chunk.size() : chunk.decodeSize();
+        if (logicalBytes < 0 || logicalBytes > limits.maxBytes()) {
+            throw new IOException("Scene package blob exceeds byte limit");
+        }
+        try (var data = fileView.readBlobPayload(cancelled, source, descriptor.blobId(), com.elfmcys.ysm.buffer.BufferType.ARRAY)) {
+            if (data.size() > limits.maxBytes()) throw new IOException("Scene package blob exceeds byte limit");
+            byte[] bytes = new byte[data.size()];data.nio().get(bytes);
+            return cc.sirrus.ysmlib.YsmRuntime.scenes().readPackage(new cc.sirrus.ysmlib.scene.ByteData(bytes), limits);
+        }
+    }
+
+    private void requireSchema(com.elfmcys.ysm.format.schema.model.ModelSchema expected) throws IOException {
+        if (!fileView.getAssetView().getSchema().equals(expected.id())) {
+            throw new IOException("Render target definition requires " + expected.id());
+        }
     }
 
     public PBRImageSources textureSources(ChunkDataSource source, String textureName)

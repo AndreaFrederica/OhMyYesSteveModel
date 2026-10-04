@@ -2,9 +2,18 @@ package com.elfmcys.ysm.format.schema.model;
 
 import com.elfmcys.ysm.proto.mixel.manifest.Manifest;
 import com.elfmcys.ysm.proto.mixel.manifest.asset.RenderTarget;
+import com.elfmcys.ysm.model.domain.RenderTargetIds;
 
 public final class ModelManifestLookup {
     private ModelManifestLookup() {
+    }
+
+    public static String chooseTexture(ModelFileView view, String targetId, String requested) {
+        if (view.schema() == ModelSchema.GENERAL_MESH) {
+            view.requireRenderTarget(targetId);
+            return RenderTargetIds.GENERAL_MESH_VARIANT;
+        }
+        return chooseTexture(view.getManifest(), targetId, requested);
     }
 
     public static String chooseTexture(

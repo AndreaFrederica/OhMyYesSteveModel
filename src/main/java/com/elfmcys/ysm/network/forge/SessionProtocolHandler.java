@@ -331,6 +331,15 @@ public final class SessionProtocolHandler {
                         == SelectionStatus.SELECTION_STATUS_UNSPECIFIED) {
                     YesSteveModel.LOGGER.warn(
                             "Ignoring model selection result with unspecified status");
+                } else if (message.status()
+                        != SelectionStatus.SELECTION_STATUS_ACCEPTED) {
+                    // A failed manual selection is deliberately non-destructive:
+                    // the server keeps the previous authoritative model.  Make the
+                    // reason visible because the client otherwise only sees the
+                    // unchanged player state and it looks like a fallback switch.
+                    YesSteveModel.LOGGER.warn(
+                            "Model selection was rejected by the server status={}",
+                            message.status());
                 }
             }));
         }
@@ -563,6 +572,15 @@ public final class SessionProtocolHandler {
         var beforeSelection = session.selection();
         var result = selection == null || !ServerConfig.CAN_SWITCH_MODEL.get()
                 ? ServerModelSession.SelectionResult.INVALID_REQUEST : session.select(selection);
+        if (result != ServerModelSession.SelectionResult.ACCEPTED) {
+            YesSteveModel.LOGGER.warn(
+                    "Model selection rejected player={} result={} requestedModelId={} textureId={} requestValid={} canSwitch={} sessionActive={} catalogPublished={}",
+                    player.getGameProfile().getName(), result,
+                    selection instanceof Selection.Model model ? model.modelId() : "<intrinsic-default>",
+                    selection instanceof Selection.Model model ? model.textureId() : "",
+                    selection != null, ServerConfig.CAN_SWITCH_MODEL.get(), session.active(),
+                    session.hasPublishedCatalog());
+        }
         if (result == ServerModelSession.SelectionResult.ACCEPTED) {
             ControlHandler.applyAcceptedModelSelection(player,
                     selection instanceof Selection.Model model ? model.modelId() : null,

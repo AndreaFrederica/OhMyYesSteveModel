@@ -78,10 +78,24 @@ public final class ClientProtocolGateway {
     }
 
     public static void playSelfAnimation(String animationId) {
+        var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player != null) {
+            var cap = player.getCapability(com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider.CAP).resolve().orElse(null);
+            if (cap != null && cap.isGeneralMesh()) {
+                var action = com.elfmcys.ysm.client.animation.GeneralAnimationActions.resolve(cap.getModelRenderTarget(), animationId);
+                if (action == null) return;
+                animationId = com.elfmcys.ysm.model.domain.SceneActionId.request(
+                        com.elfmcys.ysm.model.domain.SceneActionId.of(action.animation(), action.loop()), System.nanoTime());
+                if (!NetworkHandler.isRemoteChannelPresent()) { cap.playExtraAnimation(animationId);return; }
+            }
+        }
         STATE_REPORTER.setAnimation(animationId);
     }
 
     public static void stopSelfAnimation() {
+        var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player != null) player.getCapability(com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider.CAP)
+                .ifPresent(cap -> { if (cap.isGeneralMesh()) cap.stopExtraAnimation(); });
         STATE_REPORTER.setAnimation("");
     }
 
@@ -118,6 +132,11 @@ public final class ClientProtocolGateway {
 
     private static void sendModelSelection(Hash256 hash, String textureId) {
         STATE_REPORTER.setAnimation("");
+        com.elfmcys.ysm.YesSteveModel.LOGGER.info(
+                "Sending model selection request modelId={} textureId={} intrinsicDefault={}",
+                hash == null ? "<intrinsic-default>" : hash,
+                textureId == null ? "<null>" : textureId,
+                hash == null);
         var request = SelectModelRequest.newBuilder()
                 .setTextureId(textureId);
         if (hash == null) {
@@ -172,7 +191,10 @@ public final class ClientProtocolGateway {
                 && ClientSessionRuntime.businessSession().isPresent()) {
             try {
                 NetworkHandler.sendToServer(message);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException failure) {
+                com.elfmcys.ysm.YesSteveModel.LOGGER.warn(
+                        "Failed to send model selection/network request type={}",
+                        message.getClass().getSimpleName(), failure);
             }
         }
     }

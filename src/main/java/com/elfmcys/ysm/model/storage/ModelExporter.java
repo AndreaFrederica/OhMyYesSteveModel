@@ -62,7 +62,7 @@ public final class ModelExporter {
         }
         var manifest = com.elfmcys.ysm.proto.mixel.manifest.Manifest
                 .newBuilder(view.getManifest()).setInfo(info.build()).build();
-        try (var writer = new ModelFileWriter()) {
+        try (var writer = new ModelFileWriter(view.schema())) {
             writer.setManifest(manifest);
             var chunks = view.getFileView().getAssetView().getChunkTable().values().stream()
                     .filter(chunk -> !chunk.type().equals(
@@ -95,6 +95,14 @@ public final class ModelExporter {
         try {
             if (!checked.representation().modelId().equals(source.representation().modelId())) {
                 throw new IOException("Export changed the model identity");
+            }
+            if (checked.modelFile().schema() != source.modelFile().schema()) {
+                throw new IOException("Export changed the model schema");
+            }
+            if (checked.modelFile().schema() == com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH) {
+                for (var target : checked.modelFile().getRenderTargets()) {
+                    target.readScenePackage(() -> false, checked.chunks(), cc.sirrus.ysmlib.scene.io.ReadLimits.DEFAULT);
+                }
             }
             DirectContainerAdmission.requireEmbeddedPreview(checked);
             checked.modelFile().getCommon().validateSoundContent(

@@ -349,8 +349,9 @@ class ModelSessionContractTest {
 
         assertEquals(ServerModelSession.SelectionResult.UNAUTHORIZED,
                 session.select(new Selection.Model(otherId)));
-        assertInstanceOf(Selection.IntrinsicDefault.class, session.selection());
-        assertFalse(session.canRequest(forcedId, AssetRef.Kind.CHUNK, true));
+        // A rejected manual request leaves the previously active selection intact.
+        assertEquals(new Selection.Model(forcedId, "updated"), session.selection());
+        assertTrue(session.canRequest(forcedId, AssetRef.Kind.CHUNK, true));
     }
 
     @Test

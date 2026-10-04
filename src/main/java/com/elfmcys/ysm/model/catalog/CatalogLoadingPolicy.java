@@ -3,7 +3,7 @@ package com.elfmcys.ysm.model.catalog;
 /** Host-neutral limits; input discovery is retained, only admitted work is bounded. */
 public record CatalogLoadingPolicy(int workers, int queued, int publicationsPerTick,
                                    int publicationMillis) {
-    public static final CatalogLoadingPolicy DEFAULT = new CatalogLoadingPolicy(1, 4, 2, 2);
+    public static final CatalogLoadingPolicy DEFAULT = new CatalogLoadingPolicy(4, 16, 16, 6);
 
     public CatalogLoadingPolicy {
         if (workers < 1 || workers > 8 || queued < 0 || queued > 64

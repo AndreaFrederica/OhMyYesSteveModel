@@ -1,12 +1,12 @@
 package com.elfmcys.ysm.model.storage;
 
 import com.elfmcys.ysm.buffer.ArrayBuffer;
-import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.natives.Blake3;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -34,15 +34,30 @@ public final class ModelHashing {
         if (size < 0 || size > UniBuffer.MAX_SIZE) {
             throw new IOException("File is too large to hash: " + file);
         }
-        try (var source = NativeBuffer.allocate(Math.toIntExact(size));
-             var channel = Files.newByteChannel(file, StandardOpenOption.READ)) {
-            var target = source.nio();
-            while (target.hasRemaining()) {
-                if (channel.read(target) < 0) {
-                    throw new IOException("File changed while hashing: " + file);
+        try (var channel = FileChannel.open(file, StandardOpenOption.READ)) {
+            Hash256 hash;
+            try {
+                var source = channel.map(FileChannel.MapMode.READ_ONLY, 0, size);
+                hash = new Hash256(Blake3.computeHash(source));
+            } catch (UnsupportedOperationException unsupported) {
+                // Zip/Jar file systems do not expose map(). Keep the fallback bounded so
+                // a provider that cannot map a large source cannot recreate the old spike.
+                if (size > 64L * 1024 * 1024) {
+                    throw new IOException("File system cannot memory-map a large source: " + file,
+                            unsupported);
                 }
+                var source = ByteBuffer.allocate(Math.toIntExact(size));
+                while (source.hasRemaining()) {
+                    if (channel.read(source) < 0) {
+                        throw new IOException("File changed while hashing: " + file);
+                    }
+                }
+                hash = new Hash256(Blake3.computeHash(source.flip()));
             }
-            return new Hash256(Blake3.computeHash(source));
+            if (channel.size() != size) {
+                throw new IOException("File changed while hashing: " + file);
+            }
+            return hash;
         }
     }
 

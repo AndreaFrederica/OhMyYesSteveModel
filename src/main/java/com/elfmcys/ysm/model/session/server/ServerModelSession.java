@@ -157,16 +157,16 @@ public final class ServerModelSession {
         var selected = (Selection.Model) requested;
         var record = current.catalog().byModelId().get(selected.modelId());
         if (record == null) {
-            selectIntrinsicDefault(current);
+            // A rejected manual request must not destroy a working selection.  The
+            // authoritative state is changed to the intrinsic default only by an
+            // explicit default request or by catalog/grant reconciliation.
             return SelectionResult.NOT_FOUND;
         }
         if (!canSelect(selected.modelId(), current.catalog(), current.grants())
                 && !ignoresGrantsFor(selected.modelId(), current)) {
-            selectIntrinsicDefault(current);
             return SelectionResult.UNAUTHORIZED;
         }
         if (!hasTexture(record, selected.textureId())) {
-            selectIntrinsicDefault(current);
             return SelectionResult.INVALID_REQUEST;
         }
         var nextIgnoreGrants = current.ignoreGrants();
@@ -324,6 +324,14 @@ public final class ServerModelSession {
     private static boolean hasTexture(CatalogRecord record, String textureId) {
         if (record == null || record.binding().content().modelFile() == null) {
             return true;
+        }
+        // General-mesh targets carry their materials and images inside the
+        // scene package and therefore have no legacy render-target texture
+        // table.  Their selection variant is still explicit and stable.
+        if (record.binding().content().modelFile().schema()
+                == com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH) {
+            return com.elfmcys.ysm.model.domain.RenderTargetIds.GENERAL_MESH_VARIANT
+                    .equals(textureId);
         }
         return record.binding().content().modelFile().getPlayer().getTextureNames()
                 .contains(textureId);
