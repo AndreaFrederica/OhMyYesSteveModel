@@ -75,6 +75,22 @@ class CatalogModelTooltipFormatterTest {
                 lines.stream().map(CatalogModelTooltipFormatter.Line::text).toList());
     }
 
+    @Test
+    void diagnosticsPreferTheInnerAssetFailure() {
+        var missingTexture = new IOException("Package dependency not found: textures/髪.png (textures/髪.png)");
+        var wrapped = new IOException("Failed to load model render target", missingTexture);
+        assertEquals("缺少资源：textures/髪.png (textures/髪.png)",
+                CatalogModelTooltipFormatter.errorSummary(wrapped, "zh_cn"));
+
+        var image = new IOException("Key[owner=vertin.pmx, index=4, reference=, domain=MODEL]",
+                new IOException("Decoded scene image exceeds pixel/byte budget"));
+        assertEquals("Texture decode budget exceeded: Key[owner=vertin.pmx, index=4, reference=, domain=MODEL]",
+                CatalogModelTooltipFormatter.errorSummary(image, "en_us"));
+
+        assertEquals("物理参数超出 [0,1] 范围", CatalogModelTooltipFormatter.errorSummary(
+                new IllegalArgumentException("Physics value outside [0,1]"), "zh_cn"));
+    }
+
     private static CatalogModelTooltipFormatter.Input input(Throwable error) {
         var authors = new ArrayList<CatalogModelTooltipFormatter.Author>();
         for (var index = 0; index < 7; index++) {

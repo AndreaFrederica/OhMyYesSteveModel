@@ -54,8 +54,9 @@ public final class ModelLoadingScreen extends Screen {
             var scan = service.scanProgress();
             centeredLine(graphics, label("queue", scan.waiting(), scan.inFlight(),
                     scan.errors()), 178, 0xFFFFFF);
+            centeredLine(graphics, label("operation", scan.phase(), scan.currentPath()), 190, 0xAAAAAA);
             centeredLine(graphics, label("runtime", service.loadingCount(),
-                    service.activeWorkerCount(), service.queuedTaskCount()), 190, 0xFFFFFF);
+                    service.activeWorkerCount(), service.queuedTaskCount()), 202, 0xFFFFFF);
         });
         super.render(graphics, mouseX, mouseY, partialTick);
     }

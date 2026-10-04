@@ -53,7 +53,12 @@ public final class CatalogModelTooltipFormatter {
                     StringUtils.firstNonBlank(modelLicense.type(), modelLicense.desc().orElse(""), ""));
         }
         var stats = catalog.info().getPlayerStats();
-        var textureCount = catalog.representation().view().getPlayer().getTextureNames().size();
+        // MC manifests keep their texture ids on the render target.  General
+        // mesh manifests intentionally do not (materials live in the scene
+        // package), so the importer stores the decoded image count in stats.
+        var textureCount = stats.textures() > 0
+                ? stats.textures()
+                : catalog.representation().view().getPlayer().getTextureNames().size();
         return new Input(name, tips, authors, license, catalog.path(), entry.modelHash().toString(),
                 source(entry), new Stats(stats.bones(), stats.cubes(), stats.faces(), textureCount), loadError);
     }
@@ -70,18 +75,23 @@ public final class CatalogModelTooltipFormatter {
     }
 
     public static List<Line> format(Input input, boolean detailed, Translator translator) {
+        return format(input, detailed, translator, "en_us");
+    }
+
+    public static List<Line> format(Input input, boolean detailed, Translator translator, String locale) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(translator, "translator");
+        Objects.requireNonNull(locale, "locale");
         var lines = new ArrayList<Line>();
         lines.add(new Line(input.name(), ChatFormatting.GOLD));
         appendTips(lines, input.name(), input.tips());
         appendMetadata(lines, input, translator);
         if (input.loadError() != null) {
             lines.add(new Line(translator.translate(KEY_PREFIX + "error",
-                    errorSummary(input.loadError())), ChatFormatting.RED));
+                    errorSummary(input.loadError(), locale)), ChatFormatting.RED));
         }
         if (detailed) {
-            appendDetails(lines, input, translator);
+            appendDetails(lines, input, translator, locale);
         }
         appendStats(lines, input.stats(), translator);
         return List.copyOf(lines);
@@ -120,14 +130,14 @@ public final class CatalogModelTooltipFormatter {
         }
     }
 
-    private static void appendDetails(List<Line> lines, Input input, Translator translator) {
+    private static void appendDetails(List<Line> lines, Input input, Translator translator, String locale) {
         lines.add(Line.SPACE);
         lines.add(detail(translator, "path", input.path()));
         lines.add(detail(translator, "hash", input.hash()));
         lines.add(detail(translator, "source",
                 translator.translate(KEY_PREFIX + "source." + input.source().key)));
         if (input.loadError() != null) {
-            lines.add(detail(translator, "root_cause", rootCause(input.loadError())));
+            lines.add(detail(translator, "root_cause", rootCause(input.loadError(), locale)));
         }
     }
 
@@ -147,19 +157,66 @@ public final class CatalogModelTooltipFormatter {
         return value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
-    private static String errorSummary(Throwable error) {
-        var visible = unwrap(error);
-        return StringUtils.firstNonBlank(visible.getMessage(), visible.getClass().getSimpleName(), "Unknown error");
+    /** A short, user-facing diagnostic that preserves the useful inner failure. */
+    static String errorSummary(Throwable error, String locale) {
+        var messages = messages(error);
+        var chinese = locale.toLowerCase(Locale.ROOT).startsWith("zh");
+        var dependency = messages.stream().filter(value -> value.contains("Package dependency not found"))
+                .findFirst().orElse(null);
+        if (dependency != null) {
+            var detail = dependency.substring(dependency.indexOf(':') + 1).trim();
+            return chinese ? "缺少资源：" + detail : "Missing resource: " + detail;
+        }
+        var image = messages.stream().filter(value -> value.contains("Decoded scene image exceeds"))
+                .findFirst().orElse(null);
+        if (image != null) {
+            var key = messages.stream().filter(value -> value.startsWith("Key["))
+                    .findFirst().orElse(null);
+            if (key != null) {
+                return chinese ? "纹理解码超出预算：" + key : "Texture decode budget exceeded: " + key;
+            }
+            return chinese ? "纹理解码超出内存预算" : "Texture decode budget exceeded";
+        }
+        var physics = messages.stream().filter(value -> value.contains("Physics value outside [0,1]"))
+                .findFirst().orElse(null);
+        if (physics != null) {
+            return chinese ? "物理参数超出 [0,1] 范围" : physics;
+        }
+        var first = messages.isEmpty() ? "" : messages.get(0);
+        if (!first.isEmpty() && !isGenericFailure(first)) {
+            return first;
+        }
+        var best = messages.stream().filter(value -> !isGenericFailure(value)).findFirst().orElse(null);
+        return StringUtils.firstNonBlank(best, unwrap(error).getClass().getSimpleName(), "Unknown error");
     }
 
-    private static String rootCause(Throwable error) {
+    private static String rootCause(Throwable error, String locale) {
         var cause = unwrap(error);
-        while (cause.getCause() != null && cause.getCause() != cause) {
+        var visited = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Throwable, Boolean>());
+        while (cause.getCause() != null && cause.getCause() != cause && visited.add(cause)) {
             cause = cause.getCause();
         }
         var message = StringUtils.firstNonBlank(cause.getMessage(), "");
         return message.isEmpty() ? cause.getClass().getSimpleName()
                 : cause.getClass().getSimpleName() + ": " + message;
+    }
+
+    private static List<String> messages(Throwable error) {
+        var result = new ArrayList<String>();
+        var visited = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Throwable, Boolean>());
+        for (var current = unwrap(error); current != null && visited.add(current); current = current.getCause()) {
+            var message = StringUtils.firstNonBlank(current.getMessage(), "").trim();
+            if (!message.isEmpty() && !result.contains(message)) {
+                result.add(message.replace('\n', ' ').replace('\r', ' '));
+            }
+        }
+        return result;
+    }
+
+    private static boolean isGenericFailure(String value) {
+        return value.equals("Failed to load model render target")
+                || value.equals("Failed to build model render target")
+                || value.equals("Unknown error");
     }
 
     private static Throwable unwrap(Throwable error) {

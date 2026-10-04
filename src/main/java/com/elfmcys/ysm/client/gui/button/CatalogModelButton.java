@@ -102,7 +102,18 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
         var renderTarget = state.renderTarget();
         if (renderTarget != null) {
             renderImage(graphics, state.background());
-            renderEntity(graphics);
+            if (state.renderDisabled()) {
+                renderRenderFailure(graphics);
+            } else {
+                try {
+                    renderEntity(graphics);
+                } catch (RuntimeException | LinkageError failure) {
+                    // A model-specific GL/material failure must retire this card's
+                    // 3D preview instead of bubbling into Minecraft's render loop.
+                    state.recordRenderFailure(failure);
+                    renderRenderFailure(graphics);
+                }
+            }
             renderImage(graphics, state.foreground());
         } else {
             var preview = state.preview();
@@ -122,7 +133,7 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
         }
         var locale = Minecraft.getInstance().getLanguageManager().getSelected();
         var input = CatalogModelTooltipFormatter.input(metadata, entry, locale, state.loadError());
-        var lines = CatalogModelTooltipFormatter.format(input, Screen.hasShiftDown(), I18n::get);
+        var lines = CatalogModelTooltipFormatter.format(input, Screen.hasShiftDown(), I18n::get, locale);
         var wrapped = new ArrayList<FormattedCharSequence>();
         for (var line : lines) {
             wrapped.addAll(screen.getMinecraft().font.split(
@@ -176,6 +187,24 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
         var dots = ".".repeat(phase);
         graphics.drawCenteredString(Minecraft.getInstance().font, dots, getX() + width / 2,
                 getY() + (height - 20) / 2, 0xFFF3EFE0);
+    }
+
+    private void renderRenderFailure(GuiGraphics graphics) {
+        var font = Minecraft.getInstance().font;
+        var locale = Minecraft.getInstance().getLanguageManager().getSelected();
+        var error = state.loadError();
+        var summary = error == null
+                ? I18n.get("gui.yes_steve_model.model_preview_failed")
+                : CatalogModelTooltipFormatter.errorSummary(error, locale);
+        var lines = font.split(Component.literal(summary), width - 6);
+        int centerY = getY() + Math.max(8, (height - 20 - Math.min(3, lines.size()) * 9) / 2);
+        graphics.drawCenteredString(font,
+                Component.translatable("gui.yes_steve_model.model_preview_failed"),
+                getX() + width / 2, centerY - 10, 0xFFFF8060);
+        for (int index = 0; index < Math.min(3, lines.size()); index++) {
+            graphics.drawCenteredString(font, lines.get(index), getX() + width / 2,
+                    centerY + index * 9, 0xFFFFC0A0);
+        }
     }
 
     private void renderName(GuiGraphics graphics) {

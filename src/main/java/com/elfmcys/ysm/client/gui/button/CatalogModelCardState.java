@@ -53,6 +53,8 @@ final class CatalogModelCardState implements AutoCloseable {
     private TextureHolder foreground;
     @Nullable
     private Throwable presentationFailure;
+    @Nullable
+    private Throwable renderFailure;
     private long activeHoverGeneration = -1;
     private long attemptedHoverGeneration = -1;
     private boolean closed;
@@ -109,6 +111,9 @@ final class CatalogModelCardState implements AutoCloseable {
         if (loadError == null) {
             loadError = presentationFailure;
         }
+        if (loadError == null) {
+            loadError = renderFailure;
+        }
         var renderTarget = targetState.renderTarget();
         if (loadError == null && renderTarget != null && renderTarget.playerResources() != null) {
             var resources = renderTarget.playerResources();
@@ -119,6 +124,18 @@ final class CatalogModelCardState implements AutoCloseable {
         }
         // Presentation failures do not retire an otherwise usable 3D model.
         return loadError;
+    }
+
+    boolean renderDisabled() {
+        return renderFailure != null;
+    }
+
+    void recordRenderFailure(Throwable failure) {
+        if (renderFailure == null) {
+            renderFailure = Objects.requireNonNull(failure, "failure");
+            YesSteveModel.LOGGER.warn("Disabling model card 3D preview after renderer failure for {}",
+                    metadata.path(), failure);
+        }
     }
 
     void updatePreviewAnimations(boolean hovered, boolean focused, long now) {
@@ -220,6 +237,10 @@ final class CatalogModelCardState implements AutoCloseable {
     private void applyRenderTarget(ModelRenderTarget nextRenderTarget) {
         entity.reset();
         entity.updateModelAndTexture(entry.modelHash(), metadata.defaultTexture());
+        if(nextRenderTarget.playerResources()==null && nextRenderTarget.generalMeshResources()!=null) {
+            previewAnimations.configure("",false,false,()->0,false);
+            return;
+        }
         var playerResources = Objects.requireNonNull(nextRenderTarget.playerResources(),
                 "Catalog model card requires a player render target");
         var animations = playerResources.animations();
@@ -249,7 +270,7 @@ final class CatalogModelCardState implements AutoCloseable {
                         applyPresentationImage(source, foregroundAsset)))
                 .exceptionally(error -> {
                     if (!isCancellation(error)) {
-                        YesSteveModel.LOGGER.debug("Failed to load GUI presentation asset for {}",
+                        YesSteveModel.LOGGER.error("Failed to load model presentation asset for {}",
                                 entry.modelHash(), unwrap(error));
                     }
                     return null;

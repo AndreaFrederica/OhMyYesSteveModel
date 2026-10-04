@@ -123,7 +123,7 @@ public class AnimationRouletteScreen extends Screen {
         if (this.current != null && this.classifyMap.containsKey(current.getLeft())) {
             this.extraAnimations = this.classifyMap.get(current.getLeft()).extraAnimation();
         } else {
-            this.extraAnimations = clientModel.info().getExtraAnimations();
+            this.extraAnimations = rootAnimations();
             CACHE.clear();
             CACHE.add(MutablePair.of(StringUtils.EMPTY, this.current == null ? 0 : this.current.getRight()));
             this.current = CACHE.peekLast();
@@ -150,11 +150,18 @@ public class AnimationRouletteScreen extends Screen {
         if (this.classifyMap.containsKey(current.getLeft())) {
             this.extraAnimations = this.classifyMap.get(current.getLeft()).extraAnimation();
         } else {
-            this.extraAnimations = model.info().getExtraAnimations();
+            this.extraAnimations = rootAnimations();
             CACHE.clear();
             CACHE.add(MutablePair.of(StringUtils.EMPTY, this.current.getRight()));
             this.current = CACHE.peekLast();
         }
+    }
+
+    private ObjectList<StringPair> rootAnimations() {
+        // Non-player entities use manifest indices in their own network protocol.
+        return animatableEntity.getEntity() instanceof Player
+                ? com.elfmcys.ysm.client.animation.GeneralAnimationActions.entries(model)
+                : model.info().getExtraAnimations();
     }
 
     @Override
@@ -199,7 +206,8 @@ public class AnimationRouletteScreen extends Screen {
         this.addRenderableWidget(new FlatColorButton(this.x + 240, this.y - 102, 30, 30, Component.literal(">"), b -> this.pageDown()));
 
         // 添加返回按钮
-        Component name = Component.translatable("gui.yes_steve_model.model.return");
+        Component name = Component.translatable(model.generalMeshResources() != null && animatableEntity.getEntity() instanceof Player
+                ? "gui.yes_steve_model.roulette.stop" : "gui.yes_steve_model.model.return");
         this.addRenderableWidget(new FlatColorButton(this.x + 125, this.y - 70, 145, 22, name, b -> this.clickReturn()));
 
         // 配置按钮
@@ -657,7 +665,8 @@ public class AnimationRouletteScreen extends Screen {
                 ClientProtocolGateway.playMaidAnimation(entity.getId(), selectId, classifyId);
             }
         } else if (player != null) {
-            player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> cap.playExtraAnimation(selectKey));
+            if (model.generalMeshResources() != null) ClientProtocolGateway.playSelfAnimation(selectKey);
+            else player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> cap.playExtraAnimation(selectKey));
         }
         if (player != null && ClientConfig.PRINT_ANIMATION_ROULETTE_MSG.get()) {
             MutableComponent component = Component.translatable("message.yes_steve_model.model.animation_roulette.play", selectKey);
@@ -684,6 +693,11 @@ public class AnimationRouletteScreen extends Screen {
     }
 
     private void clickReturn() {
+        if (model.generalMeshResources() != null && animatableEntity.getEntity() instanceof Player) {
+            ClientProtocolGateway.stopSelfAnimation();
+            this.getMinecraft().setScreen(null);
+            return;
+        }
         if (CACHE.size() > 1) {
             CACHE.removeLast();
             AnimationRouletteScreen screen = new AnimationRouletteScreen(this.buttonMap, this.classifyMap, this.model, this.animatableEntity);

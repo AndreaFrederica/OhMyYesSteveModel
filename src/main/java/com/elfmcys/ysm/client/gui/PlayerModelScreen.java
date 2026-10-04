@@ -111,6 +111,9 @@ public class PlayerModelScreen extends Screen {
                     == ClientModelSession.State.LOCAL) {
                 capability.updateModelAndTexture(hash, texture);
             }
+            if (sessionState == ClientModelSession.State.LOCAL) {
+                service.rememberLastUsedModel(path, hash);
+            }
         });
     }
 

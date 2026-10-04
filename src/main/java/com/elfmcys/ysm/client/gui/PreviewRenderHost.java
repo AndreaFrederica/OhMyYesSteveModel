@@ -29,9 +29,6 @@ public final class PreviewRenderHost {
             throw new IllegalArgumentException("Preview rendering requires a ready target");
         }
         var target = ready.target();
-        if (target.playerResources() == null) {
-            throw new IllegalArgumentException("Preview rendering requires a player target");
-        }
 
         var entity = new CustomGuiPlayerEntity();
         try {

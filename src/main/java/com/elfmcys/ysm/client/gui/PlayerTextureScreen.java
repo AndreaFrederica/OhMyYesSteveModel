@@ -46,6 +46,7 @@ public class PlayerTextureScreen extends Screen {
     private final PlayerModelScreen parent;
     private final List<String> textures;
     private final List<String> animations;
+    private final java.util.Map<String, cc.sirrus.ysmlib.scene.SceneAnimation> sceneAnimations = new java.util.LinkedHashMap<>();
     private final List<CatalogTextureButton> textureButtons = new ArrayList<>();
     private String selectedTexture;
     private String animation = "";
@@ -76,12 +77,19 @@ public class PlayerTextureScreen extends Screen {
         var entry = ClientModelService.instance().catalog().find(modelHash)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown model hash: " + modelHash));
         this.modelPath = entry.displayPath();
-        this.textures = entry.displayRepresentation().view().getPlayer().getTextureNames().stream()
+        boolean generalMesh=model.generalMeshResources()!=null;
+        this.textures = generalMesh ? List.of() : entry.displayRepresentation().view().getPlayer().getTextureNames().stream()
                 .sorted().toList();
-        this.selectedTexture = model.playerResources().defaultTextureName();
-        this.animations = new ArrayList<>(model.playerResources().animations().keySet());
-        this.animations.removeIf(name -> name.startsWith(ANIMATION_ANNOTATIONS));
-        this.animations.sort(String::compareTo);
+        this.selectedTexture = generalMesh ? com.elfmcys.ysm.model.domain.RenderTargetIds.GENERAL_MESH_VARIANT : model.playerResources().defaultTextureName();
+        if (generalMesh) {
+            for (var clip : model.generalMeshResources().animations())
+                sceneAnimations.put(com.elfmcys.ysm.model.domain.SceneActionId.of(clip, true), clip);
+            this.animations = new ArrayList<>(sceneAnimations.keySet());
+        } else {
+            this.animations = new ArrayList<>(model.playerResources().animations().keySet());
+            this.animations.removeIf(name -> name.startsWith(ANIMATION_ANNOTATIONS));
+            this.animations.sort(String::compareTo);
+        }
         previewEntity.getPreviewInfo().setPreview(AnimationRegister.IDLE);
         previewEntity.updateModelAndTexture(modelHash, selectedTexture);
     }
@@ -89,6 +97,7 @@ public class PlayerTextureScreen extends Screen {
     @Override
     protected void init() {
         closePage();
+        previewEntity.updateModelAndTexture(modelHash, selectedTexture);
         clearWidgets();
         x = (width - 420) / 2;
         y = (height - 235) / 2;
@@ -101,7 +110,10 @@ public class PlayerTextureScreen extends Screen {
                 Component.translatable("gui.yes_steve_model.model.return"),
                 ignored -> getMinecraft().setScreen(parent)));
         addRenderableWidget(new FlatIconButton(x + 281, y + 2, 16, 16, 64, 16,
-                ignored -> animation = AnimationRegister.IDLE)
+                ignored -> {
+                    animation = model.generalMeshResources() != null ? "" : AnimationRegister.IDLE;
+                    if (previewEntity.isGeneralMesh()) previewEntity.stopGeneralAnimation();
+                })
                 .setTooltips("gui.yes_steve_model.model.stop"));
         addRenderableWidget(new FlatIconButton(x + 263, y + 2, 16, 16, 48, 16, ignored -> {
             posX = 0;
@@ -112,6 +124,10 @@ public class PlayerTextureScreen extends Screen {
         }).setTooltips("gui.yes_steve_model.model.reset"));
         addRenderableWidget(new FlatIconButton(x + 245, y + 2, 16, 16, 64, 0,
                 ignored -> showGround = !showGround).setTooltips("gui.yes_steve_model.model.ground"));
+        if (model.generalMeshResources() != null) {
+            addRenderableWidget(new FlatColorButton(x + 95, y + 2, 140, 18, Component.translatable("gui.yes_steve_model.editor.title"),
+                    ignored -> getMinecraft().setScreen(new GeneralModelEditorScreen(this, modelHash, model))));
+        }
 
         addRenderableWidget(new FlatColorButton(x + 321, y + 213, 18, 18, Component.literal("<"), ignored -> {
             if (texturePage > 0) {
@@ -149,6 +165,17 @@ public class PlayerTextureScreen extends Screen {
                 break;
             }
             var name = animations.get(index);
+            var sceneClip = sceneAnimations.get(name);
+            if (sceneClip != null) {
+                String display = sceneClip.selection().sourceId().startsWith("@ysm/generated/")
+                        ? sceneClip.name() : sceneClip.sourcePath().substring(sceneClip.sourcePath().lastIndexOf('/') + 1);
+                var button = new FlatColorButton(x + 5, y + 27 + 17 * slot, 80, 16,
+                        Component.literal(font.plainSubstrByWidth(display, 74)), ignored -> animation = name);
+                button.setTooltips(Lists.newArrayList(Component.literal(sceneClip.name()),
+                        Component.literal(sceneClip.sourcePath() + " / " + sceneClip.selection().clip())));
+                addRenderableWidget(button);
+                continue;
+            }
             var key = "gui.yes_steve_model.texture.button.%s".formatted(name.replace(':', '.'));
             var keyDesc = key + ".desc";
             var label = I18n.exists(key) ? Component.translatable(key) : Component.literal(name);
@@ -204,6 +231,7 @@ public class PlayerTextureScreen extends Screen {
         if (!previewEntity.getPreviewInfo().hasPreview(animation)) {
             previewEntity.getPreviewInfo().setPreview(animation);
         }
+        if (previewEntity.isGeneralMesh() && !animation.isBlank()) previewEntity.selectGeneralAnimation(animation);
         renderReferenceEntity(graphics, (int) ((x + 93) * guiScale),
                 (int) (window.getHeight() - ((y + 235) * guiScale)),
                 (int) (206 * guiScale), (int) (235 * guiScale), minecraft.getFrameTime());
