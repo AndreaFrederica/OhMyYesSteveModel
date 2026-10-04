@@ -1,6 +1,9 @@
 # Oh My Yes Steve Model
 
-<img src="logo/main.png" alt="Oh My Yes Steve Model 图标" width="256" height="256">
+<div align="center" style="display:flex; justify-content:center; gap:20px;">
+  <img src="logo/main.png" alt="Oh My Yes Steve Model 图标" width="256" height="256">
+  <img src="logo/Lib.png" alt="Oh My Yes Steve Model Lib 图标" width="256" height="256">
+</div>
 
 ---
 一个带有一堆修补和额外功能的YSM3.0分支 用以移植到1.12 为1.12带来YSM/CPM和MMD/VRC模型支持
