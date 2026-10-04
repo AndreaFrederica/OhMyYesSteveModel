@@ -35,3 +35,7 @@ forge*changelog.txt
 
 # dark past
 hs_err_pid*
+
+# Local native source/build caches and validation logs
+/runtime/native/.cache/
+/.tooling-*.log
