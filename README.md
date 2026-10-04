@@ -4,12 +4,14 @@
 
 ---
 一个带有一堆修补和额外功能的YSM3.0分支 用以移植到1.12 为1.12带来YSM/CPM和MMD/VRC模型支持
+用Oh My YSM Lib 替换传统的YSM Native环境 提供可插拔的Native加速和基础的Java渲染支持
 
 | 组件 | 状态 |
 |---|---|
 |YSM Native替代（Oh My YSM Lib|完成传统YSM Native的大部分功能|
 |Oh My YSM MMD|Demo|
 |Oh My YSM VRC Inport tool|Plan|
+|纯Java物理|远期|
 
 其他计划
 - 拆分关于通用模型渲染的功能到Lib
