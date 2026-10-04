@@ -25,6 +25,10 @@ public final class GeneralMeshInstance implements AutoCloseable {
     private boolean closed;
     private long preparationGeneration;
     private boolean preparing;
+    private final GeneralMeshPhysicsHost physicsHost=new GeneralMeshPhysicsHost();
+    public void updateHostPhysics(com.elfmcys.ysm.client.entity.CustomEntity<?> owner,float partialTicks,double seconds) {
+        requireOpen();if(live&&(mmd!=null||vrm!=null))player.physicsEnvironment(physicsHost.sample(owner,this,partialTicks,seconds));
+    }
     private String preparationError="";
     public MmdMeshRenderer.UploadStatistics mmdUploadStatistics(){return mmd==null?null:mmd.uploadStatistics();}
     public long mmdGpuDispatches(){return mmd==null?0:mmd.gpuDispatches();}

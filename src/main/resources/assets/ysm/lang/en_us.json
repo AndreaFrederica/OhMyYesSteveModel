@@ -584,5 +584,12 @@
   "gui.yes_steve_model.editor.rest_yaw": "Reference yaw",
   "gui.yes_steve_model.editor.rest_roll": "Reference roll",
   "gui.yes_steve_model.editor.calibrate_arms": "Align arms to source rest",
-  "gui.yes_steve_model.editor.reference_preview": "Preview mapped reference pose"
+  "gui.yes_steve_model.editor.reference_preview": "Preview mapped reference pose",
+  "gui.yes_steve_model.editor.host_physics": "World physics",
+  "gui.yes_steve_model.editor.world_collision_on": "Block collision: on",
+  "gui.yes_steve_model.editor.world_collision_off": "Block collision: off",
+  "gui.yes_steve_model.editor.inertia": "Movement inertia",
+  "gui.yes_steve_model.editor.fluid_drag": "Fluid drag",
+  "gui.yes_steve_model.editor.buoyancy": "Buoyancy factor",
+  "gui.yes_steve_model.editor.teleport_distance": "Teleport reset distance"
 }

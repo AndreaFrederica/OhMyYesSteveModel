@@ -75,7 +75,7 @@ public final class GeneralModelEditorScreen extends Screen {
         clearWidgets();fields.clear();captions.clear();pendingFields=false;
         panel=Math.max(200,width-240);viewRight=panel-8;viewBottom=height-100;rows=Math.max(1,(height-235)/22);
         preview.updateModelAndTexture(hash,RenderTargetIds.GENERAL_MESH_VARIANT);
-        int y=36;for(String name:List.of("placement","bones","actions","transitions","materials","held_items","diagnostics")) {
+        int y=36;for(String name:List.of("placement","bones","actions","transitions","materials","held_items","host_physics","diagnostics")) {
             String key=name;button(8,y,76,t(name),()->{commitFields();tab=key;page=fieldPage=0;init();});y+=24;
         }
         button(8,height-80,76,t("undo"),this::undo);
@@ -98,6 +98,7 @@ public final class GeneralModelEditorScreen extends Screen {
         else if(tab.equals("materials")) materialPage();
         else if(tab.equals("bone_correction")) correctionPage();
         else if(tab.equals("held_items")) socketPage();
+        else if(tab.equals("host_physics")) hostPhysicsPage();
         uncommitted.forEach((key,value)->{var box=fields.get(key);if(box!=null)box.setValue(value);});
     }
     private void placement() {
@@ -127,11 +128,21 @@ public final class GeneralModelEditorScreen extends Screen {
         if(tab.equals("placement"))commitPlacement();
         else if(tab.equals("materials"))change(draft.withPresentation(new SceneModelProfile.Presentation(draft.presentation().outlines(),value("outline_scale",1))));
         else if(tab.equals("held_items"))commitSocket();
+        else if(tab.equals("host_physics"))commitHostPhysics();
         else if(tab.equals("bone_correction")) {
             commitBoneBinding();
         }
         pendingFields=false;
     }
+    private void hostPhysicsPage(){
+        var p=draft.hostPhysics();
+        button(panel,36,width-panel-8,t(p.worldCollision()?"world_collision_on":"world_collision_off"),()->{
+            commitFields();var current=draft.hostPhysics();change(draft.withHostPhysics(new ScenePhysicsInput.Settings(!current.worldCollision(),current.inertia(),current.fluidDrag(),current.buoyancy(),current.teleportDistance())));init();});
+        numeric("inertia",p.inertia(),64);numeric("fluid_drag",p.fluidDrag(),88);numeric("buoyancy",p.buoyancy(),112);numeric("teleport_distance",p.teleportDistance(),136);
+        button(panel,166,width-panel-8,t("update"),this::commitHostPhysics);
+    }
+    private void commitHostPhysics(){var p=draft.hostPhysics();change(draft.withHostPhysics(new ScenePhysicsInput.Settings(p.worldCollision(),
+        value("inertia",p.inertia()),value("fluid_drag",p.fluidDrag()),value("buoyancy",p.buoyancy()),value("teleport_distance",p.teleportDistance()))));pendingFields=false;}
     private void bonePage() {
         var asset=model.generalMeshResources().assets().model();
         boolean canTest=asset instanceof ScenePackageAssets.Pmx || asset instanceof ScenePackageAssets.Pmd;

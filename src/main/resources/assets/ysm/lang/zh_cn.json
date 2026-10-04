@@ -585,5 +585,12 @@
   "gui.yes_steve_model.editor.rest_yaw": "参考姿态 Y",
   "gui.yes_steve_model.editor.rest_roll": "参考姿态 Z",
   "gui.yes_steve_model.editor.calibrate_arms": "按源骨架校准手臂",
-  "gui.yes_steve_model.editor.reference_preview": "预览绑定后的参考姿态"
+  "gui.yes_steve_model.editor.reference_preview": "预览绑定后的参考姿态",
+  "gui.yes_steve_model.editor.host_physics": "世界物理",
+  "gui.yes_steve_model.editor.world_collision_on": "方块碰撞：开启",
+  "gui.yes_steve_model.editor.world_collision_off": "方块碰撞：关闭",
+  "gui.yes_steve_model.editor.inertia": "移动惯性强度",
+  "gui.yes_steve_model.editor.fluid_drag": "流体阻力",
+  "gui.yes_steve_model.editor.buoyancy": "浮力系数",
+  "gui.yes_steve_model.editor.teleport_distance": "瞬移重置距离"
 }

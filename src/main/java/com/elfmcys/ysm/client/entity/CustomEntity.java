@@ -252,6 +252,9 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
     public final com.elfmcys.ysm.geckolib3.model.provider.data.EntityModelData scenePresentation(float partialTicks) {
         return createAnimationEvent(partialTicks,com.elfmcys.ysm.util.RenderUtil.extractRenderContext()).getExtraData();
     }
+    public final com.elfmcys.ysm.geckolib3.model.provider.data.EntityModelData scenePhysicsPresentation(float partialTicks) {
+        return createAnimationEvent(partialTicks,com.elfmcys.ysm.geckolib3.geo.RenderContext.levelImmutable()).getExtraData();
+    }
 
     /** Same host frame sequence for world, GUI and secondary passes; only the owning instance advances. */
     @Nullable
@@ -275,6 +278,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
             else boundSkeleton=holder.retargeting && updateGeneralSkeleton(scene,partialTicks);
             if (!boundSkeleton && !(this instanceof IPreviewEntity) && entity instanceof net.minecraft.world.entity.LivingEntity living)
                 scene.look(net.minecraft.util.Mth.wrapDegrees(living.getYHeadRot()-living.yBodyRot),living.getXRot());
+            if(!(this instanceof IPreviewEntity))scene.updateHostPhysics(this,partialTicks,seconds);
             holder.updateScene(sequence,seconds);
         }
         return scene;

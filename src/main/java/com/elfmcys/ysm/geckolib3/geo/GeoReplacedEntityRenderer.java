@@ -7,6 +7,7 @@ import com.elfmcys.ysm.api.rendering.v0.event.RenderLayerEvent;
 import com.elfmcys.ysm.api.rendering.v0.event.RenderModelEvent;
 import com.elfmcys.ysm.capability.VehicleAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
+import com.elfmcys.ysm.client.entity.CustomEntity;
 import com.elfmcys.ysm.geckolib3.core.util.Color;
 import com.elfmcys.ysm.geckolib3.util.EModelRenderCycle;
 import com.elfmcys.ysm.mixin.client.LivingEntityAccessor;
@@ -43,6 +44,21 @@ public abstract class GeoReplacedEntityRenderer<TEntity extends LivingEntity, T 
 
     public static int getPackedOverlay(LivingEntity entity, float u) {
         return OverlayTexture.pack(OverlayTexture.u(u), OverlayTexture.v(entity.hurtTime > 0 || entity.deathTime > 0));
+    }
+    /** Canonical world placement, independent of camera/first-person/GUI pose stacks. */
+    @SuppressWarnings("unchecked")
+    public org.joml.Matrix4f generalPhysicsPlacement(CustomEntity<?> owner,float partialTick) {
+        TEntity entity=(TEntity)owner.getEntity();var stack=new PoseStack();
+        if(entity.getPose()==Pose.SLEEPING&&entity.getBedOrientation()!=null){
+            var direction=entity.getBedOrientation();float offset=entity.getEyeHeight(Pose.STANDING)-.1f;
+            stack.translate(-direction.getStepX()*offset,0,-direction.getStepZ()*offset);
+        }
+        var presentation=owner.scenePhysicsPresentation(partialTick);
+        setupRotations(entity,stack,presentation.lerpedAge,presentation.lerpBodyRot,partialTick);
+        if(entity.getVehicle()!=null)entity.getVehicle().getCapability(VehicleAnimatableCapabilityProvider.CAP).ifPresent(cap->{
+            var rotation=cap.getRotation();if(rotation!=null)stack.mulPose(new Quaternionf().rotateZYX(rotation.z,0,rotation.x).invert());
+        });
+        stack.translate(0,.01,0);return new org.joml.Matrix4f(stack.last().pose());
     }
 
     public void renderAnimatableEntity(T animatableEntity, float entityYaw, float partialTick,
