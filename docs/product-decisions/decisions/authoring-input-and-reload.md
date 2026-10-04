@@ -13,7 +13,7 @@
 
 ## DD.bedrock-creator-ecosystem
 
-- Claim: 模型采用基岩版的体素几何、Molang、动画与动画控制器创作体系。
+- Claim: MC 风格模型采用基岩版的体素几何、Molang、动画与动画控制器创作体系。通用网格创作工作流依据[双后端决定](dual-model-backends.md)，不改变已支持的基岩创作语义。
 - Rationale: 体素美术风格契合 Minecraft，基岩版已有设计经验和创作者生态，Blockbench 提供成熟建模工具。复用这些基础降低创作、学习与维护成本。
 
 ### BC.supported-bedrock-content-is-authorable

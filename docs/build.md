@@ -124,3 +124,22 @@ python docs/tools/check_docs.py
 ```
 
 真实 Forge 自动宿主目前验证的是 Windows 桌面环境，会启动独立测试世界、服务器和两个客户端。它不使用玩家存档；需有可用显示与音频设备。该检查不要与本体编译任务同时执行，以免运行中替换共享 class 输出。普通 JVM 单元测试不要求图形环境。
+
+通用网格 GPU 检查使用隐藏的 OpenGL 上下文，调用生产纹理上传、网格缓冲及 MMD/glTF 材质程序并读回结果。检查包含原 Saba shader 的明确子集和固定 Khronos BRDF 对照、描边/点线/UV、深度/透明排序/颜色空间，以及实际 Lib 播放、target 发布回滚与独立实例关闭。它独立于普通单元测试，也不替代完整 Forge 角色、全部材质和预览验收：
+
+```powershell
+.\gradlew.bat sceneTextureGpuVerification '-Pysm.fast_run=true'
+```
+
+该任务使用 Minecraft 同版本的 LWJGL 图形依赖，不启用 YSM native 加速；需要可用的 OpenGL 3.2 驱动。缺少图形上下文时明确失败，不把跳过检查写成通过。
+
+## 独立模型配置工具
+
+Java 17 的 CLI / Swing GUI 单独构建，无需启动 Minecraft：
+
+```powershell
+.\gradlew.bat -p runtime :ysm-runtime-scene-tools:shadowJar --console=plain
+java -Xmx1g '-Dysm.runtime.javaOnly=true' -jar runtime/scene-tools/build/libs/ysm-runtime-scene-tools-0.1.1.jar gui
+```
+
+以 `help` 替换 `gui` 查看 inspect、init、bind、source-bind、calibrate-arms、set、action、validate、render、pack 命令。默认写模型旁的 `.omysm.json`；另存和 pack 拒绝覆盖已有输出。GUI 使用生产来源动作求值与独立诊断绘制，当前完整 YSM 原生曲线和游戏材质显示的缺口见[独立工具架构](architecture/scene-authoring-tools.md)。

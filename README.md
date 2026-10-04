@@ -1,7 +1,7 @@
 # Oh My Yes Steve Model
 **鬼故事 上游也不稳定 且硅基话 我懒得且没时间写人肉文档了 看不明白直接呼叫agent吧**
 
-带有两个可安装 JAR 的自动构建发布于 [本 fork 的 Releases](https://github.com/AndreaFrederica/OhMyYesSteveModel/releases)；YSM 本体和 Oh my ysm lib 必须一起放入 `mods/`。构建方式与可选 native 加速的安装见[构建指南](docs/build.md)。
+本 fork 的正式全称是 **Oh My Yes Steve Model**，简称 **Oh My YSM**；其中 YSM 延续 Yes Steve Model 的缩写，便于兼容既有模型、协议和 API。带有两个可安装 JAR 的自动构建发布于 [本 fork 的 Releases](https://github.com/AndreaFrederica/OhMyYesSteveModel/releases)；YSM 本体和 Oh my ysm lib 必须一起放入 `mods/`。构建方式与可选 native 加速的安装见[构建指南](docs/build.md)。
 
 本 fork 使用独立前置 **Oh my ysm lib**（`ysm_runtime`，作者 AndreaFrederica）替代官方 YSM native。编译、内置资源生成和运行都接入我们的库；各能力提供 JVM 基线，可用的自建 native 优先加速。当前 native 覆盖 BLAKE3、zstd 和 packed 顶点输出，其余能力仍使用 JVM。
 

@@ -45,6 +45,14 @@ GUI 的独立图片也遵守同一边界：`CustomTexture` 在模型 worker 上�
 
 模型卡先查询 Ready 或 `getOrStartCached()`；只有连续 hover 同一模型严格超过 0.3 秒后才调用 `getOrStartOffline()`。其 exact cache-only 边界由[Storage 与 cache](../model-management/storage-and-cache.md)定义。展示图由内嵌/独立 cache/特化 presentation 路径取得，不能把 preview 下载误算成 model body 已 Ready，也不能把离线 miss 固化成以后正常加载的失败。Local cold miss 与显式 export 可在统一 client-tick admission 下复用真实 player target，进入 256×256 私有 framebuffer 的 draw/readback 和 worker 编码；该路径不是空白占位图，具体边界见[转换与导出](../asset-pipeline/conversion-and-export.md#preview-取得与显式-export)。GUI entity 复用动画与 render-target 机制，hover/focus 只是其展示输入，见[实体与帧状态](../animation/entity-and-frame-state.md)。
 
+## 通用模型编辑
+
+Alt+Y 的通用模型详情提供模型编辑器。编辑器拥有独立 GUI entity、配置草稿及撤销历史，复用交互模型预览；创建播放器之前就禁用物理。MMD/VRM 无物理播放直接求值当前动画，不创建 Bullet/Spring 求解世界、不做历史追赶。手动启用物理在后台创建独立播放器，渲染继续使用上一份有效帧，完成后从时间轴起点接纳；退出或被新请求替代的结果释放自身资源。骨骼选择通过与实际绘制相同的投影高亮源骨位置。
+
+单位换算、身高与放置是模型配置，相机缩放仅是预览视图。草稿调整不更新世界实体；保存通过源文件旁的[模型配置](../../standards/scene-model-profile.md)发布，目录监听和显式保存通知共用目录范围的变更发现。保存并应用等待新内容身份进入目录，再走已有模型选择协议。持久动作路径随模型包分发，旧的全局动作映射仅在尚无模型配置时作为迁移来源；已有包内配置时不再覆盖它。
+
+骨骼引用解析及配置校验属于 Lib，本体负责界面、原子文件保存、Minecraft 视线输入和 GPU 预览。基础 MMD 生成动作使用用户指定的腿/上臂/胸角色与轴校正，头颈视线作为生成动作的宿主叠加；来源 VMD 不被该叠加覆盖。完整传统 YSM 曲线重定向的缺口仍见[支持状态](../../status/general-mesh-backend.md)。
+
 ## 选择与显示的分离
 
 `PlayerModelScreen.selectModel()` 在 Local 模式更新本地 capability，在 Active session 通过 `ClientProtocolGateway.selectModel()` 发出请求；已有 Roaming storage 时还存在本地 capability 更新路径。服务端最终裁决与后续 PlayerState 顺序由[玩家状态与控制](../network/player-state.md)定义。

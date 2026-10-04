@@ -11,3 +11,4 @@
 | Blockbench 创作体系、添加模型与热加载 | [authoring-input-and-reload](../decisions/authoring-input-and-reload.md) |
 | GUI 模型选择、模型列表与创作者署名 | [selection-and-attribution](../decisions/selection-and-attribution.md) |
 | 游戏内模型与动画调试反馈 | [creator-debugging](../decisions/creator-debugging.md) |
+| MC 与通用网格并行、外部格式、动画预览与实时物理 | [dual-model-backends](../decisions/dual-model-backends.md) |

@@ -46,4 +46,6 @@ Cleaner 不承诺回收时限，HotSpot 也不会按多数 GPU allocation 的真
 
 宿主交接由局部 handoff ticket 闭合。Provider future 完成只产生一个 offered stream；`Channel.attachBufferStream` 实际采用时才把消费责任交给 Minecraft channel。`ChannelHandle.release` 先记录 host 已释放，再允许 callback。即使宿主跳过 execute callback，未采用 stream 仍由 ticket 终结。采用后 Minecraft 推进和关闭 `AudioStream`，YSM stop 仍撤销自己的候选与后续效果，但不等待设备已排队声波消失。
 
+完整 PCM 缓存保留在 heap；命中缓存或短音效循环转入 PCM 时，`PlaybackAudioStream` 将当前片段复制到本播放独占的 direct buffer，再交给 OpenAL。宿主同步上传后才允许下一次读取复用该缓冲；不同播放不共享上传缓冲。EOF 的空缓冲同样采用 direct buffer。关闭播放撤销上传缓冲引用，物理回收由 JVM 管理。
+
 短 PCM 发布只撤销 runtime 对旧 encoded 的缓存引用。已经持有该 backing 的播放继续有效，最后 owning reference 退出后由 `UniBuffer`/Cleaner 完成物理回收。没有强制 GC 或固定回收期限。Accepted transfer、文件句柄、decoder 和未采用 stream 仍由各自 exact owner 显式终结，不能用 Cleaner 代替。

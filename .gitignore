@@ -39,3 +39,16 @@ hs_err_pid*
 # Local native source/build caches and validation logs
 /runtime/native/.cache/
 /.tooling-*.log
+
+# Local research notes and work logs
+/MESH_BACKEND_WORKLOG.md
+/MMD_RENDER_REVIEW.md
+/docs/status/vrchat-mmd-import-editor-report.md
+/docs/status/fbx-blender-unitypackage-cleanroom-report.md
+/docs/status/mesh-loader-performance-diff.md
+/docs/status/mmd-native-physics-migration-todo.md
+/docs/status/mmd-optimization-benchmark.md
+/docs/status/data/mmd-optimization-cpu.csv
+/docs/status/data/mmd-optimization-environment.json
+/docs/status/data/mmd-optimization-gpu.csv
+/docs/status/data/mmd-skinning-comparison.csv

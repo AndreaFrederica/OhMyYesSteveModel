@@ -1,6 +1,6 @@
 # GPU Compute Renderer
 
-GPU Compute Renderer 尚未实现。当前 CPU 数据布局、cache 与调度契约都不是 GPU ABI。
+通用的基岩版 GPU Compute Renderer 尚未实现。MMD 已实现独立 compute 蒙皮/Morph 与 CPU 回退，职责和验证范围见[通用网格运行库](../architecture/general-mesh-runtime.md)及[支持报告](../status/general-mesh-backend.md#验证证据与使用风险)。该路径不定义基岩版 GPU ABI；当前 CPU 数据布局、cache 与调度契约也不是 GPU ABI。
 
 ## 目标
 

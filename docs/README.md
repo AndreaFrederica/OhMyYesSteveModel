@@ -27,6 +27,8 @@ YSM 是一个 Minecraft Java 模组，用于将玩家、投射物和载具的模
 | 动画状态、Molang 与骨骼输出 | [动画](architecture/animation/README.md) |
 | 几何烘焙、顶点输出与 Minecraft 绘制 | [渲染](architecture/rendering/README.md) |
 | 独立前置 ysm_runtime 的接入方式 | [独立前置与迁移](architecture/native-runtime/portable-runtime.md) |
+| 通用网格、MMD、独立物理与动画前置 | [通用网格运行库](architecture/general-mesh-runtime.md) / [支持状态](status/general-mesh-backend.md) |
+| 游戏外模型配置 CLI / GUI、源/目标骨架绑定 | [独立模型配置工具](architecture/scene-authoring-tools.md) |
 | 模型卡、预览与页面资源 | [客户端展示](architecture/client-presentation/README.md) |
 | Forge 接入与第三方扩展 | [游戏与扩展接入](architecture/integration/README.md) |
 | 扩展兼容性检测 | [扩展兼容性](extension-compatibility.md) |
@@ -39,17 +41,24 @@ YSM 是一个 Minecraft Java 模组，用于将玩家、投射物和载具的模
 - [外部模型源](future/external-model-sources.md)
 - [模组动画联动](future/mod-animation-integration.md)
 - [GPU Compute Renderer](future/gpu-compute-renderer.md)
+- [通用网格双后端](future/general-mesh-backend.md) / [实现与验证状态](status/general-mesh-backend.md)
 
 **分析材料（不构成产品权威）：**
 
 - [复杂度地图](complexity-map/README.md) — 记录各机制的来源决策与协调成本，用于定位可简化点。仅作分析，不定义产品规则。
+
+**通用网格后端：**
+
+- [支持报告](status/general-mesh-backend.md) — 输入格式、动画映射、渲染/物理、缓存、验证范围及未完成项。
+- [逐模型配置标准](standards/scene-model-profile.md) / [场景包标准](standards/scene-package.md) — 创作与交换格式。
+- [独立配置工具](architecture/scene-authoring-tools.md) — 游戏外 CLI/GUI 的职责和限制。
 
 ## 文档检查
 
 修改文档后运行：
 
 ```powershell
-python tools/check_docs.py
+python docs/tools/check_docs.py
 ```
 
 该命令检查相对链接、锚点、页面可达性，以及复杂度地图中的关系一致性。

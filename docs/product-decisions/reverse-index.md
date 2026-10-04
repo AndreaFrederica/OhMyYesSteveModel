@@ -4,6 +4,7 @@
 
 | 实现侧检索键 | 下游落点 | 决策包 |
 |---|---|---|
+| general mesh; SceneAsset; MMD; VRM; SDEF; QDEF; Bullet; TimelineSession; 双后端; Alt+Y 编辑器; 骨骼映射; 非破坏 sidecar; 独立 CLI / GUI; 源骨架绑定 | [future](../future/general-mesh-backend.md); [status](../status/general-mesh-backend.md); [authoring](../architecture/scene-authoring-tools.md) | [dual-model-backends](decisions/dual-model-backends.md) |
 | ysm_runtime; YsmRuntime; ArchiveService; javaOnly; Java baseline; 前置; 可选 native | [architecture](../architecture/native-runtime/portable-runtime.md) | [platform-baselines](decisions/platform-baselines.md) |
 | license; Metadata; free; All rights reserved; disclaimer; 许可证; 版权; 免责声明; 保密; NSFW; R18 | [standard](../standards/model-schema/manifest-and-identity.md#info-与展示信息) | [content-rights](decisions/content-rights.md) |
 | disable_self_model; disable_other_model; disable_self_hands; sound_volume; 指定玩家; 屏蔽; 第一人称手臂; 音量 | [concept](../concepts/rendering.md#本地呈现边界) | [local-presentation-control](decisions/local-presentation-control.md) |

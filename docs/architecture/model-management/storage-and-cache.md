@@ -94,6 +94,23 @@ Remote storage 只保留已验证 bytes，不携带 session authority。`RemoteM
 
 读取优先使用声明且有效的内嵌 thumbnail，再探测独立 cache。坏 cache 只造成当前图片 miss，不删除文件、不标记模型损坏。后续有效图经同目录临时文件、完整验证与原子替换提交；失败保留旧文件且不撤回有效内存图。该 cache 当前没有自动扫描或定时清理，长期空间成本独立于 target 30/60 和 converted 首次 prune。
 
+## 通用网格派生缓存
+
+来源转换继续复用 converted `.mxc`。GENERAL_MESH 的生产加载使用 Lib `SceneDiskCache`，由宿主指定 game-local cache root 下的 `scene` 目录及完整 Mod 版本。配置 `SceneCacheMiB` 默认 4096 MiB，单条派生物最多 1024 MiB；写入时按访问时间淘汰派生文件，跨进程预算锁不阻塞源加载。GPU 对象、播放器和活动物理世界不持久化。
+
+| 阶段 | 跨进程复用内容 |
+|---|---|
+| 文档 | PMX/PMD、glTF/VRM、FBX 模型与动作、依赖、网格，以及无歧义 MMD 本地名称的动作轨道绑定 |
+| 静态准备 | 初始几何、glTF 法线/切线、VRM 第一人称视图几何、FBX 宿主 surface 适配及来源诊断 |
+| 图片 | 解码及当前预算下的降采样像素，保持 UNORM8 或 float 存储 |
+| 材质 | 按 transfer/alpha usage 转换的像素；无转换时直接共享图片像素，不重复写一份 |
+
+键包含缓存 ABI、静态类型 schema 指纹、完整宿主/服务 profile、源内容及读取预算。模型文档键排除附加配置字节；初始几何单独纳入配置，图片/材质按内容和预算匹配。因此只修改尺寸、骨骼绑定或挂点不重新解析源模型和解码相同纹理。内容校验使用已取得的包字节，不在此阶段重新遍历来源目录。这里的像素缓存不等于完整的视口分辨率/距离分级纹理 LOD 缓存。
+
+Wire 为显式类型白名单二进制图，保留不可变数据共享与曲线插值信息，不使用 Java 对象反序列化或从文件加载类。读取验证长度、分配预算、类型、schema 与 SHA-256；损坏、权限失败或预算不满足时从有效来源重建。先写 sibling temp，再原子发布；缓存失败不撤回有效模型。会话不额外强持有跨模型内存缓存，预算仍受生产 ReadLimits 约束。
+
+进度和日志分别报告文档、几何、图片与材质的检查、命中、首次生成或失效重建、当前来源条目及耗时。GPU 发布耗时单独写日志；每次新进程仍需上传 GPU 并建立独立播放/物理实例。`MMD GPU skinning active` 仅证明首次 compute dispatch，不能用来计数解析。
+
 ## Render 派生物与 cache-only 探测
 
 私有 baked cache 明确排除 `ModelId`。Geometry key 由 `ContainerId`、resource name、基础纹理 hash、序列化几何大小、bake 选项与 renderer/runtime profile 派生；animation key 由 `ContainerId`、definition hash、render target、animation set 与 animation ABI 派生。完整 `CACHE_ABI` 继续参与目录、profile 与 hash domain，不共享 stable patch namespace、不扫描旧 ABI 目录，也不迁移已有 cache。当前或候选 cache/schema qualifier 大小写不敏感地包含 `unstable`、`dev` 或 `snapshot` 时，复用前必须要求完整原始版本字符串严格相等；baked payload 重开时由相同 schema 门禁执行。路径和进程共享锁同样以 `ContainerId` 分区，因此同一 `ModelId` 的不同容器不会误复用派生物。Catalog activation 另按[representation 查找顺序](catalog-and-sources.md)执行；Ready content 的普通 Resource 查找仍按 memory/GPU、baked cache、verified content、remote chunk cache 和 server transfer 逐层取得。

@@ -16,6 +16,8 @@
 | legacy v1/v2 | Archive 到统一 raw parser、当前音频写出与重开已有自动化；真实语料中 12 个文件已按 header 精确识别为 raw，但仍缺带可信历史 provenance 的 Java 端到端声音包装验证 |
 | **模型音频** | **Raw directory/archive、current export/reopen、legacy 投影、严格 Ogg Vorbis/Opus 解释、按需本地 / remote chunk 取得、64 MiB encoded/PCM 统一保留以及 Minecraft `AudioStream` 播放主链已接线。冻结 fixture 覆盖阈值、精确 frame、冷 / 热一致、独立播放、两周期 loop、取消与 channel handoff 局部边界；真实 legacy v1/v2/v3 包装、remote session、Minecraft/OpenAL 设备、stream pool N+1、heap retaining path 与 GC/Cleaner 最终回收尚未验收，不能据自动化声明端到端支持已通过** |
 | v3 加密模型 | 同步、流式的单向导入已接线。native 真实语料覆盖 185 个加密容器及 inner version 1/4/9/15，全部完成解密、反混淆、解压、反序列化和 current 投影，并覆盖 778 个 sound field。Java current staging/reopen 与音频 projector 自动化已通过，但仍缺把可信历史 v3 包装接到 Java、远端和实际游戏播放的端到端、跨平台验收。见[格式问题](known-issues/format-and-schema.md) |
-| 独立 Backend / 通用外部模型源 / GPU renderer | 均未实现。见 [future](../future/independent-backend.md) |
+| 通用网格后端 | 多格式读取、动画/物理、持久准备缓存、工具及游戏 target/UI 已接入，存在格式语义与实机验收缺口。见[支持报告](general-mesh-backend.md) |
+| GPU renderer | MMD 专用 compute 蒙皮/morph 与 CPU 回退已接入；通用基岩版 GPU renderer 未实现。见[后续方向](../future/gpu-compute-renderer.md) |
+| 独立 Backend / 通用外部模型源 | 宿主整体抽离和任意外部 source 接入仍属后续方向，不与已有通用场景读取混同。见[独立 Backend](../future/independent-backend.md)和[外部模型源](../future/external-model-sources.md) |
 
 总体使用风险见[项目概览](../README.md)。

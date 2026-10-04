@@ -23,6 +23,7 @@
 | `tools` | 独立 CLI，无 Minecraft / 渲染依赖 |
 | `render-api` / `java-bake` / `java-render` | 烘焙、帧状态、Java CPU 顶点基线 |
 | `native-render` | 可选 C++ 整次 draw packed-buffer 加速；Java 状态仍为基线 |
+| `scene-api` / `wasm-physics` / `native-physics` | 独立场景/物理契约、Bullet 托管基线与可选 JNI 加速；MMD 调度、模型后端接入状态见[双后端状态](../../status/general-mesh-backend.md) |
 | `core` | 普通 JVM 服务入口 `YsmRuntime` |
 | `forge` | `@Mod("ysm_runtime")` 与完整分发 JAR |
 | `portable-integration-tests` | 不依赖 Forge / 官方 native，验证本体真实适配代码 |
@@ -58,11 +59,11 @@ V1/V2 返回原始文件；V3 是 compiled wire，不与 raw archive 共用同�
 
 每次迁移以能力接口为单位，不创建统一的万能 JNI 门面。native 实现不得成为模型 identity、catalog、资源生命周期或网络会话的权威。需要状态的能力由会话 owner 持有。加速失败只影响对应能力。
 
-默认优先使用可用的自建 native；缺失或 ABI / 自检 / 链接失败时，各能力独立回退 JVM。启动时自动查找工作目录下 `ysmlib/natives/<平台>-<架构>/` 的 `ysmlib_codec` 和 `ysmlib_render`，例如 `windows-x64/ysmlib_codec.dll`。可用 `-Dysm.runtime.nativeDir=<目录>` 更改根目录，或用 `ysm.runtime.codecLibrary` / `ysm.runtime.renderLibrary` 指定单库文件。`-Dysm.runtime.javaOnly=true` 跳过全部 native 发现和加载（仍允许 JVM 内 AVIF WASM）。F3 显示实际选择的 provider；目前只有 Hash、Compression 和 packed Render 已有自建 native，State 仍是 Java。
+默认优先使用可用的自建 native；缺失或 ABI / 自检 / 链接失败时，各能力独立回退 JVM。启动时自动查找工作目录下 `ysmlib/natives/<平台>-<架构>/` 的 `ysmlib_codec`、`ysmlib_render` 和 `ysmlib_physics`，例如 `windows-x64/ysmlib_codec.dll`。可用 `-Dysm.runtime.nativeDir=<目录>` 更改根目录，或用 `ysm.runtime.codecLibrary` / `ysm.runtime.renderLibrary` / `ysm.runtime.physicsLibrary` 指定单库文件。`-Dysm.runtime.javaOnly=true` 跳过全部 native 发现和加载（仍允许 JVM 内 AVIF / Bullet WASM）。F3 显示实际选择的 provider；Hash、Compression、packed Render 与 Physics 已有自建 native，State 仍是 Java；Physics 同时显示缓存的启动回退原因。
 
 ## 可选 native 加速路线
 
-当前 `native/` 交付自建 C BLAKE3/zstd 与 C++ packed-buffer renderer（Meson + Pixi），安装对应平台制品后默认参与启动。renderer 的稳定 C ABI 输入冻结几何、帧状态、矩阵、布局和输出 byte region，输出只属于本次调用；Java 状态 owner 不跨边界转移。
+当前 `native/` 交付自建 C BLAKE3/zstd、C++ packed-buffer renderer 与 Bullet 物理（Meson + Pixi），安装对应平台制品后默认参与启动。renderer 的稳定 C ABI 输入冻结几何、帧状态、矩阵、布局和输出 byte region，输出只属于本次调用；Java 状态 owner 不跨边界转移。物理选择、会话和验证范围见[通用网格运行库](../general-mesh-runtime.md)。
 
 在 C++、Rust、Zig 三个候选中，当前优先 C++：现有渲染算法与 SIMD 生态最接近，工具链也最成熟。ABI 只暴露 `extern "C"` 的 opaque handle / flat struct，不把 STL、异常或模板类型穿过边界。Rust 适合作为内存安全第二候选；Zig 保留给小型 glue。
 
@@ -101,3 +102,12 @@ Forge 场景判定通过：483 次真实 Java render JFR 事件；Opus 383998 PC
 V3D CLI 对真实 `_Riru.ysm` 生成 439 个 decoded 文件，restore 与原始 767111 bytes 逐字节一致。六个真实 V3 均完成完整 workspace 与恢复验证。
 
 上述证据不表示所有历史语料或第三方 shader 视觉完全等价；编辑后重新编码新 V3 仍是独立的未来工具。
+
+
+## MMD 变形加速
+
+独立前置的变形服务与物理 solver 分别选择。`YsmRuntime.deformation()` 支持 Java 基线和可选 native BDEF/SDEF/QDEF；`ysm.runtime.skinningLibrary` 指定单库，或在与 physics 相同的平台目录发现 `ysmlib_skinning`。启动加载/自检失败独立回退 Java，`javaOnly` 跳过发现，F3 展示缓存的实现与原因。蒙皮不拥有物理时间、catalog 或模型生命周期。
+
+native 变形和 CPU/GPU 宿主基准使用 JDK 17。构建与独立分发沿用 native 模块的 Pixi/Meson 流程，`package-skinning` 打包 C ABI1、许可证、源码与 provenance；Java 适配层随 shaded 前置分发。GPU pipeline 由主 Mod 实例拥有，不能放进无 GL 的前置。机制见[通用网格架构](../general-mesh-runtime.md)，已覆盖平台与剩余验收见[支持报告](../../status/general-mesh-backend.md#验证证据与使用风险)。
+
+JAR 更新不会自动安装独立 DLL。在 Windows x64 实例中，可将已验证分发包的 `ysmlib_physics.dll` 和 `ysmlib_skinning.dll` 放入游戏工作目录下的 `ysmlib/natives/windows-x64/`，保留对应源码、许可证与 provenance。默认发现无需修改启动参数；`-Dysm.runtime.javaOnly=true` 可禁用所有 native，未安装或启动自检失败继续使用 WASM 物理和 Java 蒙皮。已经加载的 DLL 需要重启游戏才会重新选择。GPU 变形独立于这两个 DLL；首次实际 compute 成功会记录 `MMD GPU skinning active`，初始化失败或设备不支持会报告 CPU 回退，不能只凭 JAR 包含 shader 判断实际启用。
