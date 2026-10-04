@@ -287,13 +287,15 @@ public final class RemoteModelStore implements AutoCloseable {
         var view = content.representation().view();
         var target = view.requireRenderTarget(targetId);
         var selected = ModelManifestLookup.chooseTexture(
-                view.getManifest(), targetId, textureName);
+                view, targetId, textureName);
         var descriptors = new LinkedHashMap<String, AssetContainerView.ChunkInfo>();
         addBlob(descriptors, view, target.descriptor().blobId());
-        var texture = target.textureDescriptor(selected);
-        addBlob(descriptors, view, texture.uv().blobId());
-        if (texture.hasNormal()) addBlob(descriptors, view, texture.normalUnsafe().blobId());
-        if (texture.hasSpecular()) addBlob(descriptors, view, texture.specularUnsafe().blobId());
+        if (view.schema() == com.elfmcys.ysm.format.schema.model.ModelSchema.MC) {
+            var texture = target.textureDescriptor(selected);
+            addBlob(descriptors, view, texture.uv().blobId());
+            if (texture.hasNormal()) addBlob(descriptors, view, texture.normalUnsafe().blobId());
+            if (texture.hasSpecular()) addBlob(descriptors, view, texture.specularUnsafe().blobId());
+        }
         var common = view.getManifest().commonAssets();
         if (common.stringsBlobId() > 0) {
             addBlob(descriptors, view, common.stringsBlobId());

@@ -1,0 +1,650 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "YSM synthetic portable runtime fixture"
+  },
+  "nodes": [
+    {
+      "name": "hips",
+      "translation": [
+        0,
+        2,
+        0
+      ],
+      "children": [
+        1,
+        3,
+        6,
+        17,
+        18,
+        19,
+        20
+      ]
+    },
+    {
+      "name": "spine",
+      "translation": [
+        0,
+        0.2,
+        0
+      ],
+      "children": [
+        2,
+        9,
+        12
+      ]
+    },
+    {
+      "name": "head",
+      "translation": [
+        0,
+        0.5,
+        0
+      ],
+      "children": [
+        15
+      ]
+    },
+    {
+      "name": "leftUpperLeg",
+      "translation": [
+        0.1,
+        -0.05,
+        0
+      ],
+      "children": [
+        4
+      ]
+    },
+    {
+      "name": "leftLowerLeg",
+      "translation": [
+        0,
+        -0.4,
+        0
+      ],
+      "children": [
+        5
+      ]
+    },
+    {
+      "name": "leftFoot",
+      "translation": [
+        0,
+        -0.4,
+        0.1
+      ],
+      "children": []
+    },
+    {
+      "name": "rightUpperLeg",
+      "translation": [
+        -0.1,
+        -0.05,
+        0
+      ],
+      "children": [
+        7
+      ]
+    },
+    {
+      "name": "rightLowerLeg",
+      "translation": [
+        0,
+        -0.4,
+        0
+      ],
+      "children": [
+        8
+      ]
+    },
+    {
+      "name": "rightFoot",
+      "translation": [
+        0,
+        -0.4,
+        0.1
+      ],
+      "children": []
+    },
+    {
+      "name": "leftUpperArm",
+      "translation": [
+        0.3,
+        0.3,
+        0
+      ],
+      "children": [
+        10
+      ],
+      "rotation": [
+        0,
+        -0.29552020666133955,
+        0,
+        0.955336489125606
+      ]
+    },
+    {
+      "name": "leftLowerArm",
+      "translation": [
+        0.3,
+        0,
+        0
+      ],
+      "children": [
+        11
+      ]
+    },
+    {
+      "name": "leftHand",
+      "translation": [
+        0.3,
+        0,
+        0
+      ],
+      "children": []
+    },
+    {
+      "name": "rightUpperArm",
+      "translation": [
+        -0.3,
+        0.3,
+        0
+      ],
+      "children": [
+        13
+      ]
+    },
+    {
+      "name": "rightLowerArm",
+      "translation": [
+        -0.3,
+        0,
+        0
+      ],
+      "children": [
+        14
+      ]
+    },
+    {
+      "name": "rightHand",
+      "translation": [
+        -0.3,
+        0,
+        0
+      ],
+      "children": []
+    },
+    {
+      "name": "hair",
+      "translation": [
+        0,
+        0.1,
+        0
+      ],
+      "children": [
+        16
+      ]
+    },
+    {
+      "name": "hairTip",
+      "translation": [
+        0,
+        -0.3,
+        0
+      ],
+      "children": []
+    },
+    {
+      "name": "materialMesh0",
+      "mesh": 0
+    },
+    {
+      "name": "materialMesh1",
+      "mesh": 1
+    },
+    {
+      "name": "materialMesh2",
+      "mesh": 2
+    },
+    {
+      "name": "materialMesh3",
+      "mesh": 3
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0,
+  "extensionsUsed": [
+    "VRMC_vrm",
+    "VRMC_materials_mtoon",
+    "KHR_materials_unlit"
+  ],
+  "extensions": {
+    "VRMC_vrm": {
+      "specVersion": "1.0",
+      "meta": {
+        "name": "Portable avatar",
+        "authors": [
+          "YSM"
+        ],
+        "licenseUrl": "https://vrm.dev/licenses/1.0/"
+      },
+      "humanoid": {
+        "humanBones": {
+          "hips": {
+            "node": 0
+          },
+          "spine": {
+            "node": 1
+          },
+          "head": {
+            "node": 2
+          },
+          "leftUpperLeg": {
+            "node": 3
+          },
+          "leftLowerLeg": {
+            "node": 4
+          },
+          "leftFoot": {
+            "node": 5
+          },
+          "rightUpperLeg": {
+            "node": 6
+          },
+          "rightLowerLeg": {
+            "node": 7
+          },
+          "rightFoot": {
+            "node": 8
+          },
+          "leftUpperArm": {
+            "node": 9
+          },
+          "leftLowerArm": {
+            "node": 10
+          },
+          "leftHand": {
+            "node": 11
+          },
+          "rightUpperArm": {
+            "node": 12
+          },
+          "rightLowerArm": {
+            "node": 13
+          },
+          "rightHand": {
+            "node": 14
+          }
+        }
+      },
+      "expressions": {
+        "preset": {
+          "happy": {}
+        }
+      }
+    }
+  },
+  "buffers": [
+    {
+      "byteLength": 108,
+      "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "byteLength": 72,
+      "uri": "data:application/octet-stream;base64,AAABAAIAAAAAAAEAAgAAAAAAAQACAAAAAAABAAIAAAAAAAEAAgAAAAAAAQACAAAAAAABAAIAAAAAAAEAAgAAAAAAAQACAAAA"
+    },
+    {
+      "byteLength": 144,
+      "uri": "data:application/octet-stream;base64,AACAPwAAAAAAAAAAAAAAAO//fz+9N4Y1AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAM3MTD8AAAAAzcxMPgAAAAAAAIA/AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAA"
+    },
+    {
+      "byteLength": 18,
+      "uri": "data:application/octet-stream;base64,AAABAAIAAwAEAAUABgAHAAgA"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 108
+    },
+    {
+      "buffer": 1,
+      "byteLength": 72
+    },
+    {
+      "buffer": 2,
+      "byteLength": 144
+    },
+    {
+      "buffer": 3,
+      "byteLength": 18
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 9,
+      "type": "VEC3",
+      "min": [
+        0,
+        0,
+        0
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 9,
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 9,
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 9,
+      "type": "SCALAR"
+    }
+  ],
+  "materials": [
+    {
+      "name": "material0",
+      "alphaMode": "OPAQUE",
+      "alphaCutoff": 0.35,
+      "doubleSided": false,
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.4,
+          0.5,
+          0.6,
+          0.7
+        ]
+      },
+      "emissiveFactor": [
+        0.1,
+        0.05,
+        0.025
+      ],
+      "extensions": {
+        "KHR_materials_unlit": {},
+        "VRMC_materials_mtoon": {
+          "specVersion": "1.0",
+          "shadeColorFactor": [
+            0.2,
+            0.4,
+            0.6
+          ],
+          "matcapFactor": [
+            0.7,
+            0.8,
+            0.9
+          ],
+          "parametricRimColorFactor": [
+            0.1,
+            0.2,
+            0.3
+          ],
+          "outlineColorFactor": [
+            0.3,
+            0.2,
+            0.1
+          ],
+          "shadingShiftFactor": -0.2,
+          "shadingToonyFactor": 0.75,
+          "giEqualizationFactor": 0.6,
+          "rimLightingMixFactor": 0.2,
+          "parametricRimFresnelPowerFactor": 3,
+          "parametricRimLiftFactor": 0.15,
+          "outlineWidthMode": "worldCoordinates",
+          "outlineWidthFactor": 0.01,
+          "outlineLightingMixFactor": 0.4,
+          "uvAnimationScrollXSpeedFactor": 0.15,
+          "uvAnimationScrollYSpeedFactor": -0.2,
+          "uvAnimationRotationSpeedFactor": 0.7,
+          "transparentWithZWrite": false,
+          "renderQueueOffsetNumber": 0
+        }
+      }
+    },
+    {
+      "name": "material1",
+      "alphaMode": "MASK",
+      "alphaCutoff": 0.35,
+      "doubleSided": true,
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.4,
+          0.5,
+          0.6,
+          0.7
+        ]
+      },
+      "emissiveFactor": [
+        0.1,
+        0.05,
+        0.025
+      ],
+      "extensions": {
+        "KHR_materials_unlit": {},
+        "VRMC_materials_mtoon": {
+          "specVersion": "1.0",
+          "shadeColorFactor": [
+            0.2,
+            0.4,
+            0.6
+          ],
+          "matcapFactor": [
+            0.7,
+            0.8,
+            0.9
+          ],
+          "parametricRimColorFactor": [
+            0.1,
+            0.2,
+            0.3
+          ],
+          "outlineColorFactor": [
+            0.3,
+            0.2,
+            0.1
+          ],
+          "shadingShiftFactor": -0.2,
+          "shadingToonyFactor": 0.75,
+          "giEqualizationFactor": 0.6,
+          "rimLightingMixFactor": 0.2,
+          "parametricRimFresnelPowerFactor": 3,
+          "parametricRimLiftFactor": 0.15,
+          "outlineWidthMode": "worldCoordinates",
+          "outlineWidthFactor": 0.01,
+          "outlineLightingMixFactor": 0.4,
+          "uvAnimationScrollXSpeedFactor": 0.15,
+          "uvAnimationScrollYSpeedFactor": -0.2,
+          "uvAnimationRotationSpeedFactor": 0.7,
+          "transparentWithZWrite": false,
+          "renderQueueOffsetNumber": 0
+        }
+      }
+    },
+    {
+      "name": "material2",
+      "alphaMode": "BLEND",
+      "alphaCutoff": 0.35,
+      "doubleSided": false,
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.4,
+          0.5,
+          0.6,
+          0.7
+        ]
+      },
+      "emissiveFactor": [
+        0.1,
+        0.05,
+        0.025
+      ],
+      "extensions": {
+        "KHR_materials_unlit": {},
+        "VRMC_materials_mtoon": {
+          "specVersion": "1.0",
+          "shadeColorFactor": [
+            0.2,
+            0.4,
+            0.6
+          ],
+          "matcapFactor": [
+            0.7,
+            0.8,
+            0.9
+          ],
+          "parametricRimColorFactor": [
+            0.1,
+            0.2,
+            0.3
+          ],
+          "outlineColorFactor": [
+            0.3,
+            0.2,
+            0.1
+          ],
+          "shadingShiftFactor": -0.2,
+          "shadingToonyFactor": 0.75,
+          "giEqualizationFactor": 0.6,
+          "rimLightingMixFactor": 0.2,
+          "parametricRimFresnelPowerFactor": 3,
+          "parametricRimLiftFactor": 0.15,
+          "outlineWidthMode": "worldCoordinates",
+          "outlineWidthFactor": 0.01,
+          "outlineLightingMixFactor": 0.4,
+          "uvAnimationScrollXSpeedFactor": 0.15,
+          "uvAnimationScrollYSpeedFactor": -0.2,
+          "uvAnimationRotationSpeedFactor": 0.7,
+          "transparentWithZWrite": true,
+          "renderQueueOffsetNumber": 4
+        }
+      }
+    },
+    {
+      "name": "material3",
+      "alphaMode": "BLEND",
+      "alphaCutoff": 0.35,
+      "doubleSided": true,
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.4,
+          0.5,
+          0.6,
+          0.7
+        ]
+      },
+      "emissiveFactor": [
+        0.1,
+        0.05,
+        0.025
+      ],
+      "extensions": {
+        "KHR_materials_unlit": {},
+        "VRMC_materials_mtoon": {
+          "specVersion": "1.0",
+          "shadeColorFactor": [
+            0.2,
+            0.4,
+            0.6
+          ],
+          "matcapFactor": [
+            0.7,
+            0.8,
+            0.9
+          ],
+          "parametricRimColorFactor": [
+            0.1,
+            0.2,
+            0.3
+          ],
+          "outlineColorFactor": [
+            0.3,
+            0.2,
+            0.1
+          ],
+          "shadingShiftFactor": -0.2,
+          "shadingToonyFactor": 0.75,
+          "giEqualizationFactor": 0.6,
+          "rimLightingMixFactor": 0.2,
+          "parametricRimFresnelPowerFactor": 3,
+          "parametricRimLiftFactor": 0.15,
+          "outlineWidthMode": "worldCoordinates",
+          "outlineWidthFactor": 0.01,
+          "outlineLightingMixFactor": 0.4,
+          "uvAnimationScrollXSpeedFactor": 0.15,
+          "uvAnimationScrollYSpeedFactor": -0.2,
+          "uvAnimationRotationSpeedFactor": 0.7,
+          "transparentWithZWrite": false,
+          "renderQueueOffsetNumber": -3
+        }
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 3,
+          "material": 1
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 3,
+          "material": 2
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 3,
+          "material": 3
+        }
+      ]
+    }
+  ]
+}

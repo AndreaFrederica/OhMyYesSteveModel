@@ -50,6 +50,10 @@ public final class ModelRenderTarget implements AutoCloseable {
         return targetResources instanceof PlayerModelResources player ? player : null;
     }
 
+    public GeneralMeshModelResources generalMeshResources() {
+        return targetResources instanceof GeneralMeshModelResources mesh ? mesh : null;
+    }
+
     public CommonAsset assets() {
         return assets;
     }
@@ -140,6 +144,13 @@ public final class ModelRenderTarget implements AutoCloseable {
                 projectile.animations().close();
             } else if (targetResources instanceof VehicleModelResources vehicle) {
                 vehicle.animations().close();
+            } else if (targetResources instanceof GeneralMeshModelResources mesh) {
+                try {
+                    mesh.close();
+                } catch (RuntimeException error) {
+                    if (releaseFailure == null) releaseFailure = error;
+                    else releaseFailure.addSuppressed(error);
+                }
             }
             var models = Collections.newSetFromMap(new IdentityHashMap<GeoModel, Boolean>());
             if (targetResources instanceof PlayerModelResources player) {

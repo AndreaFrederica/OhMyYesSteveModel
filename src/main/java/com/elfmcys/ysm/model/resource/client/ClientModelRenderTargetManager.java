@@ -60,6 +60,15 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
     private volatile ModelRenderTarget defaultRenderTarget;
     private SessionOwner sessionOwner;
     private boolean closed;
+    private com.elfmcys.ysm.client.renderer.GeneralMeshRenderHost sceneRenderer;
+
+    /** Render-thread service state only; shared target lifetime remains governed by the existing cache and leases. */
+    public synchronized com.elfmcys.ysm.client.renderer.GeneralMeshRenderHost sceneRenderer() {
+        com.mojang.blaze3d.systems.RenderSystem.assertOnRenderThread();
+        if(closed) throw new IllegalStateException("Render-target manager is closed");
+        if(sceneRenderer==null) sceneRenderer=new com.elfmcys.ysm.client.renderer.GeneralMeshRenderHost(512L*1024*1024);
+        return sceneRenderer;
+    }
 
     public ClientModelRenderTargetManager(ClientCatalogManager catalogs,
                          ModelRenderTargetLoader loader,
@@ -381,7 +390,7 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
         var selected = loaded.stream()
                 .filter(load -> load.targetId().equals(RenderTargetIds.PLAYER))
                 .filter(load -> load.texture().equals(resolveEffectiveKey(
-                        handle.representation().view().getManifest(),
+                        handle.representation().view(),
                         request(handle.representation().modelId(),
                                 load.targetId(), "")).selectedTexture()))
                 .findFirst().orElseThrow(() -> new IllegalStateException(
@@ -412,7 +421,7 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
             ManagedContainer handle, String targetId, String texture) {
         var entry = catalogs.snapshot().find(handle.representation().modelId()).orElseThrow();
         var request = request(handle.representation().modelId(), targetId, texture);
-        var key = resolveEffectiveKey(handle.representation().view().getManifest(), request);
+        var key = resolveEffectiveKey(handle.representation().view(), request);
         var content = contentStore.exact(entry.content());
         var startedAt = System.nanoTime();
         var lease = renderTargets.getOrStartRequired(request, content, key,
@@ -483,7 +492,7 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
         } else if (result instanceof ModelRenderTargetLoader.LoadResult.Failed failed) {
             var cause = failed.failure().cause();
             if (!(cause instanceof CancellationException)) {
-                YesSteveModel.LOGGER.debug(
+                YesSteveModel.LOGGER.error(
                         "Failed to load model render target hash={} path={} target={} texture={} source={} elapsedMs={}",
                         hash, path, targetId, texture, source, elapsed, cause);
             }
@@ -535,7 +544,7 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
     private void resourceFailed(ClientCatalogEntry entry,
                                 ModelFailureRegistry.Stage stage, String resource,
                                 Throwable error) {
-        YesSteveModel.LOGGER.debug(
+        YesSteveModel.LOGGER.error(
                 "Model lazy resource failed hash={} path={} stage={} resource={}",
                 entry.modelHash(), catalogs.displayPath(entry.modelHash()), stage, resource, error);
     }
@@ -562,7 +571,7 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
         var entry = catalogs.snapshot().find(request.modelId()).orElseThrow(() ->
                 new IllegalArgumentException("Unknown model id: " + request.modelId()));
         return new ResolvedResource(entry, resolveEffectiveKey(
-                entry.displayRepresentation().view().getManifest(), request));
+                entry.displayRepresentation().view(), request));
     }
 
     private boolean isCurrent(ModelFileIdentity identity, RenderTargetKey key,
@@ -577,7 +586,7 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
         }
         try {
             return key.equals(resolveEffectiveKey(
-                    entry.displayRepresentation().view().getManifest(), request));
+                    entry.displayRepresentation().view(), request));
         } catch (RuntimeException ignored) {
             return false;
         }
@@ -588,6 +597,17 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
             return ready.target();
         }
         throw new IllegalStateException("Resource lease is not ready");
+    }
+
+    public static RenderTargetKey resolveEffectiveKey(
+            com.elfmcys.ysm.format.schema.model.ModelFileView view, ResourceRequest request) {
+        if (view.schema() == com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH) {
+            view.requireRenderTarget(request.targetId());
+            return new RenderTargetKey(request.targetId(),
+                    com.elfmcys.ysm.model.domain.RenderTargetIds.GENERAL_MESH_VARIANT,
+                    request.bakeProfile());
+        }
+        return resolveEffectiveKey(view.getManifest(), request);
     }
 
     public static RenderTargetKey resolveEffectiveKey(
@@ -638,18 +658,25 @@ public final class ClientModelRenderTargetManager implements AutoCloseable {
 
     @Override
     public void close() {
+        final com.elfmcys.ysm.client.renderer.GeneralMeshRenderHost renderer;
         synchronized (this) {
             if (closed) {
                 return;
             }
             closed = true;
             defaultRenderTarget = null;
+            renderer=sceneRenderer;
+            sceneRenderer=null;
         }
-        leaseOwnership.close();
-        defaultAnimations.clear();
-        notifications.close();
-        renderTargets.close();
-        failures.clear();
+        try {
+            leaseOwnership.close();
+            defaultAnimations.clear();
+            notifications.close();
+            renderTargets.close();
+            failures.clear();
+        } finally {
+            if(renderer!=null) hostExecutor.execute(renderer::close);
+        }
     }
 
     private record ResolvedResource(ClientCatalogEntry entry, RenderTargetKey key) {

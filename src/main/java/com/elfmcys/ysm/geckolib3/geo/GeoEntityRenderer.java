@@ -18,6 +18,20 @@ public abstract class GeoEntityRenderer<TEntity extends Entity, T extends Animat
 
     public void render(T animatable, float yaw, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
         var mc = Minecraft.getInstance();
+        if(animatable instanceof com.elfmcys.ysm.client.entity.CustomEntity<?> custom) {
+            var scene=custom.updateGeneralMesh(partialTick);
+            if(scene!=null) {
+                if(mc.player!=null && !custom.getEntity().isInvisibleTo(mc.player)) {
+                    poseStack.pushPose();
+                    try {
+                        poseStack.mulPose(Axis.YP.rotationDegrees(180-yaw));
+                        com.elfmcys.ysm.client.renderer.SceneEntityRenderer.render(custom,scene,poseStack,bufferSource,packedLight);
+                    } finally { poseStack.popPose(); }
+                }
+                super.render(animatable.getEntity(),yaw,partialTick,poseStack,bufferSource,packedLight);
+                return;
+            }
+        }
         var data = animatable.update(partialTick);
         if (data != null && mc.player != null) {
             var entity = animatable.getEntity();

@@ -284,7 +284,7 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
         return renderData;
     }
 
-    private AnimationEvent<AnimatableEntity<TEntity>> createAnimationEvent(float partialTicks, RenderContext context) {
+    protected final AnimationEvent<AnimatableEntity<TEntity>> createAnimationEvent(float partialTicks, RenderContext context) {
         final Entity entity = this.entity;
         final LivingEntity livingEntity = entity instanceof LivingEntity ? (LivingEntity) entity : null;
         int entityTickCount = this instanceof IPreviewEntity ? ClientTickEvent.getTickCount() : entity.tickCount;

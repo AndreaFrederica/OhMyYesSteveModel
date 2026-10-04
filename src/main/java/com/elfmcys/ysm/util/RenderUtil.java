@@ -8,6 +8,7 @@ import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.TlmClientCompat;
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.client.entity.IPreviewEntity;
 import com.elfmcys.ysm.client.renderer.replace.EntityRendererReplace;
+import com.elfmcys.ysm.client.renderer.GeneralMeshInstance;
 import com.elfmcys.ysm.geckolib3.geo.GeoReplacedEntityRenderer;
 import com.elfmcys.ysm.geckolib3.geo.RenderContext;
 import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
@@ -102,6 +103,9 @@ public final class RenderUtil {
     }
 
     public static <T extends LivingEntity, TAnimatable extends AnimatableEntity<T> & IPreviewEntity> void renderTextureScreenEntity(float pPosX, float pPosY, float pScale, float pitch, float yaw, float partialTicks, TAnimatable entity, GeoReplacedEntityRenderer<T, ? super TAnimatable> renderer, boolean showGround) {
+        renderTextureScreenEntity(pPosX,pPosY,pScale,pitch,yaw,partialTicks,entity,renderer,showGround,null);
+    }
+    public static <T extends LivingEntity, TAnimatable extends AnimatableEntity<T> & IPreviewEntity> void renderTextureScreenEntity(float pPosX, float pPosY, float pScale, float pitch, float yaw, float partialTicks, TAnimatable entity, GeoReplacedEntityRenderer<T, ? super TAnimatable> renderer, boolean showGround, cc.sirrus.ysmlib.scene.Vec3 orbitCenter) {
         setRenderingInInventory(true);
         var living = entity.getEntity();
 
@@ -119,6 +123,10 @@ public final class RenderUtil {
         Quaternionf xp = Axis.XP.rotationDegrees(-10 + pitch);
         zp.mul(xp);
         poseStack.mulPose(zp);
+        if(orbitCenter!=null) {
+            var center=new org.joml.Vector3f(orbitCenter.x(),orbitCenter.y(),orbitCenter.z()).rotateY((float)Math.toRadians(yaw));
+            poseStack.translate(-center.x,-center.y,-center.z);
+        }
 
         float yBodyRot = living.yBodyRot;
         float yBodyRotO = living.yBodyRotO;
@@ -145,6 +153,7 @@ public final class RenderUtil {
         dispatcher.overrideCameraOrientation(xp);
         dispatcher.setRenderShadow(false);
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+        try {
         RenderSystem.runAsFancy(() -> {
             var guiAnim = entity.getPreviewInfo();
             if (guiAnim.hasPreview("sleep")) {
@@ -185,6 +194,7 @@ public final class RenderUtil {
             renderer.renderAnimatableEntity(entity, 0, partialTicks, poseStack, bufferSource, 0xf000f0);
         });
         bufferSource.endBatch();
+        } finally {
         dispatcher.setRenderShadow(true);
 
         living.yBodyRot = yBodyRot;
@@ -201,6 +211,7 @@ public final class RenderUtil {
         RenderSystem.applyModelViewMatrix();
         Lighting.setupFor3DItems();
         setRenderingInInventory(false);
+        }
     }
 
     private static void renderBed(float scale, float pitch, float yaw, MultiBufferSource.BufferSource bufferSource) {
@@ -324,11 +335,34 @@ public final class RenderUtil {
 
             PoseStack poseStack = new PoseStack();
             poseStack.translate(0.0D, disablePreviewRotation ? 5.5 : 0, 1000.0D);
-            poseStack.scale(pScale, pScale, pScale);
+            float guiScale = pScale;
+            GeneralMeshInstance.PreviewBounds generalBounds = null;
+            if (animatableEntity.isGeneralMesh()) {
+                var scene = animatableEntity.getGeneralMeshInstance();
+                if (scene != null) {
+                    generalBounds = scene.previewBounds(false);
+                    if (generalBounds.valid() && generalBounds.maxExtent() > 1.0e-4f) {
+                        // The legacy player preview assumes roughly 1.8 m tall
+                        // humanoids. General meshes use their measured host-space
+                        // extent and retain a margin so wide/tall avatars fit.
+                        guiScale = Mth.clamp(pScale * 1.6f / generalBounds.maxExtent(),
+                                pScale * .12f, pScale * 4.0f);
+                    }
+                }
+            }
+            poseStack.scale(guiScale, guiScale, guiScale);
             Quaternionf zp = Axis.ZP.rotationDegrees(180.0F);
             Quaternionf xp = Axis.XP.rotationDegrees(disablePreviewRotation ? 0 : -10);
             zp.mul(xp);
             poseStack.mulPose(zp);
+
+            if (generalBounds != null && generalBounds.valid()) {
+                var center = generalBounds.center();
+                // Apply the centering after the camera rotation so the measured
+                // centre is cancelled in source space before it reaches the
+                // host's handedness/unit conversion.
+                poseStack.translate(-center.x(), -center.y(), -center.z());
+            }
 
         if (disableEquipments && living instanceof Player player) {
             itemStacks = new ItemStack[EquipmentSlot.values().length];

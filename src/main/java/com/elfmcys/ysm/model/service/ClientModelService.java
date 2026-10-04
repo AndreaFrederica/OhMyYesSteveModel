@@ -31,6 +31,7 @@ import com.elfmcys.ysm.model.resource.client.render.BakedAnimationCache;
 import com.elfmcys.ysm.model.resource.client.render.BakedModelCache;
 import com.elfmcys.ysm.model.resource.client.render.DefaultAnimationRuntime;
 import com.elfmcys.ysm.model.resource.client.render.ModelRenderTargetLoader;
+import com.elfmcys.ysm.model.resource.client.render.ModelLoadProgress;
 import com.elfmcys.ysm.model.session.client.RemoteCatalogActivation;
 import com.elfmcys.ysm.model.session.client.state.ActivationSnapshot;
 import com.elfmcys.ysm.model.storage.AtomicSharedCache;
@@ -294,6 +295,10 @@ public final class ClientModelService implements AutoCloseable {
         return catalogManager.resolvePath(path);
     }
 
+    public void rememberLastUsedModel(String path, Hash256 modelId) {
+        ModelRuntime.system().catalog().rememberLastUsed(path, modelId);
+    }
+
     public String displayPath(Hash256 hash) {
         return catalogManager.displayPath(hash);
     }
@@ -356,6 +361,11 @@ public final class ClientModelService implements AutoCloseable {
         if (previewOperations != null) previewOperations.beginRenderFrame();
     }
 
+    public com.elfmcys.ysm.client.renderer.GeneralMeshRenderHost sceneRenderer() {
+        if(closed.get()) throw new IllegalStateException("Client model service is closed");
+        return renderTargetManager.sceneRenderer();
+    }
+
     public AudioStreamProvider createSoundPlayback(SoundSource source) {
         return audioRuntime.createPlayback(source);
     }
@@ -395,6 +405,11 @@ public final class ClientModelService implements AutoCloseable {
 
     public int queuedTaskCount() {
         return workers.getQueue().size();
+    }
+
+    /** Current detailed model/mesh loading stage for the in-game overlay. */
+    public ModelLoadProgress meshLoadProgress() {
+        return ModelRenderTargetLoader.progress();
     }
 
     @Override

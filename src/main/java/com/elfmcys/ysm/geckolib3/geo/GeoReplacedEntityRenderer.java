@@ -56,6 +56,29 @@ public abstract class GeoReplacedEntityRenderer<TEntity extends LivingEntity, T 
             return;
         final TEntity entity = animatableEntity.getEntity();
         var mc = Minecraft.getInstance();
+        var scene=animatableEntity.updateGeneralMesh(partialTick);
+        if(scene!=null) {
+            if(mc.player!=null && isBodyVisible(entity) && !entity.isInvisibleTo(mc.player)) {
+                poseStack.pushPose();
+                try {
+                    if(entity.getPose()==Pose.SLEEPING && entity.getBedOrientation()!=null) {
+                        var direction=entity.getBedOrientation();float offset=entity.getEyeHeight(Pose.STANDING)-.1f;
+                        poseStack.translate(-direction.getStepX()*offset,0,-direction.getStepZ()*offset);
+                    }
+                    var presentation=animatableEntity.scenePresentation(partialTick);
+                    setupRotations(entity,poseStack,presentation.lerpedAge,presentation.lerpBodyRot,partialTick);
+                    if(entity.getVehicle()!=null) entity.getVehicle().getCapability(VehicleAnimatableCapabilityProvider.CAP).ifPresent(cap->{
+                        var rotation=cap.getRotation();
+                        if(rotation!=null) poseStack.mulPose(new Quaternionf().rotateZYX(rotation.z,0,rotation.x).invert());
+                    });
+                    poseStack.translate(0,.01,0);
+                    com.elfmcys.ysm.client.renderer.SceneEntityRenderer.render(animatableEntity,scene,poseStack,bufferSource,packedLight);
+                } finally { poseStack.popPose(); }
+            }
+            ((ILivingRenderer)this).ysm$renderNameTag(entity,entityYaw,partialTick,poseStack,bufferSource,packedLight);
+            MinecraftForge.EVENT_BUS.post(new RenderLivingEvent.Post<>(entity,this,partialTick,poseStack,bufferSource,packedLight));
+            return;
+        }
         var data = animatableEntity.update(partialTick);
         if (data != null && mc.player != null) {
             poseStack.pushPose();

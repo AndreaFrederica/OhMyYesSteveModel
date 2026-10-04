@@ -93,7 +93,7 @@ public class CustomTexture extends AbstractTexture {
         }
         if (attempt.failure != null) {
             failure = attempt.failure;
-            YesSteveModel.LOGGER.debug("Failed to decode standalone GUI texture from {}", source, failure);
+            YesSteveModel.LOGGER.error("Failed to decode standalone model texture from {}", source, failure);
             return true;
         }
         try (var pixels = attempt.pixels) {
@@ -101,7 +101,7 @@ public class CustomTexture extends AbstractTexture {
             ready = true;
         } catch (Exception error) {
             failure = error;
-            YesSteveModel.LOGGER.debug("Failed to upload standalone GUI texture from {}", source, error);
+            YesSteveModel.LOGGER.error("Failed to upload standalone model texture from {}", source, error);
         }
         return true;
     }

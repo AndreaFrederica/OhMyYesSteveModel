@@ -51,14 +51,60 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import us.hebi.quickbuf.ProtoSource;
+import cc.sirrus.ysmlib.scene.io.ReadLimits;
+import com.elfmcys.ysm.model.resource.client.GeneralMeshModelResources;
 
 /** Builds the current Java model render target from a model container view. */
 public final class ModelRenderTargetLoader {
     private static final int CURRENT_RAW_UV_VERSION = 29;
+    private static final AtomicLong PROGRESS_ID = new AtomicLong();
+    private static final AtomicReference<ProgressState> PROGRESS = new AtomicReference<>(
+            new ProgressState(0, ModelLoadProgress.IDLE));
+
+    private record ProgressState(long id, ModelLoadProgress value) {}
+
+    private static final class ProgressHandle implements AutoCloseable {
+        private final long id;
+        private final String model;
+        private boolean closed;
+
+        private ProgressHandle(long id, String model) { this.id = id; this.model = model; }
+        void update(String stage) { update(stage, stage, model, 0, 0, 0, 0); }
+        void update(String stage, long completed, long total) {
+            update(stage, stage, model, completed, total, 0, 0);
+        }
+        void update(String stage, String operation, String currentFile,
+                    long completed, long total, int completedItems, int totalItems) {
+            if (!closed) PROGRESS.set(new ProgressState(id, new ModelLoadProgress(
+                    true, stage, operation, currentFile == null ? "" : currentFile, model,
+                    Math.max(0, completed), Math.max(0, total),
+                    Math.max(0, completedItems), Math.max(0, totalItems))));
+        }
+        @Override public void close() {
+            if (!closed) {
+                closed = true;
+                // A newer concurrent load must remain visible.
+                PROGRESS.updateAndGet(current -> current.id() == id
+                        ? new ProgressState(id, ModelLoadProgress.IDLE) : current);
+            }
+        }
+    }
+
+    public static ModelLoadProgress progress() { return PROGRESS.get().value(); }
+
+    private static String sceneCacheOperation(cc.sirrus.ysmlib.SceneDiskCache.Event event) {
+        String prefix="gui.yes_steve_model.loading.cache.";
+        return net.minecraft.network.chat.Component.translatable(prefix+event.stage()).getString()+" · "
+                +net.minecraft.network.chat.Component.translatable(prefix+event.state()).getString()
+                +" ("+event.elapsedMillis()+" ms)"
+                +(event.state().equals("building")||event.state().equals("uncached")?" · "+event.reason():"");
+    }
 
     private final BuildStage buildStage;
     private final BakeProfile bakeProfile;
@@ -86,7 +132,9 @@ public final class ModelRenderTargetLoader {
                     ModelResourceFailures resourceFailures) {
         var representation = content.representation();
         var chunks = content.chunks();
+        var progress = beginProgress(representation.modelId().toString());
         try {
+            progress.update("inspect", "inspect_manifest", key.targetId(), 0, 0, 0, 1);
             requireActive(cancelled);
             var view = representation.view();
             final RenderTargetView target;
@@ -94,20 +142,46 @@ public final class ModelRenderTargetLoader {
             try {
                 target = view.requireRenderTarget(key.targetId());
                 selectedTexture = ModelManifestLookup.chooseTexture(
-                        view.getManifest(), key.targetId(), key.selectedTexture());
+                        view, key.targetId(), key.selectedTexture());
             } catch (IllegalArgumentException failure) {
                 throw AssetLoadException.content(
                         "Invalid model render target selection", failure);
+            }
+            if (view.schema() == com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH) {
+                progress.update("general_mesh", "read_scene_package", key.targetId(), 0, 0, 0, 4);
+                requireActive(cancelled);
+                var packageSource=target.readScenePackage(cancelled,chunks,GeneralMeshModelResources.DEFAULT_LIMITS);
+                progress.update("general_mesh", "prepare_mesh", packageSource.model().path(), 0, 0, 1, 4);
+                var payload=GeneralMeshModelResources.prepare(packageSource,GeneralMeshModelResources.DEFAULT_LIMITS,cancelled,
+                        GeneralSceneCache.get(),event->progress.update("general_mesh",sceneCacheOperation(event),event.item(),
+                                0,0,switch(event.stage()){case "documents"->1;case "geometry","surface"->2;case "image"->3;default->4;},5));
+                progress.update("general_mesh", "prepare_common_assets", key.targetId(), 0, 0, 3, 4);
+                try {
+                    var commonData=DefaultBuildStage.commonAssets(representation,view,null);
+                    var common=new com.elfmcys.ysm.model.resource.client.CommonAsset(
+                            commonData.sounds(),new Object2ReferenceOpenHashMap<>(commonData.userFunctions()),
+                            new Object2ReferenceOpenHashMap<>());
+                    var meshTarget=new ModelRenderTarget(representation.modelId(),key.targetId(),payload,common,view.getMetadata());
+                    progress.update("ready", "publish_target", key.targetId(), 0, 0, 4, 4);
+                    return new LoadResult.Ready(ModelCandidate.testing(meshTarget));
+                } catch(RuntimeException|Error failure) {
+                    // Prepared resources have no GL publication yet; cleanup is owned by the render owner once a candidate exists.
+                    throw failure;
+                }
             }
             var request = new LoadRequest(representation, view, target,
                     target.textureDescriptor(selectedTexture),
                     target.textureSources(cancelled, chunks, selectedTexture), key.targetId(), selectedTexture,
                     defaultModel, cacheOnly, resourceFailures);
             requireActive(cancelled);
+            progress.update("legacy", "read_definition", key.targetId(), 0, 0, 1, 4);
             var definition = request.target().readDefinition(cancelled, chunks);
             var commonStrings = readCommonStrings(cancelled, request.view(), chunks);
-            return new LoadResult.Ready(buildStage.build(
+            progress.update("legacy", "build_legacy_mesh_and_textures", key.targetId(), 0, 0, 2, 4);
+            var ready = new LoadResult.Ready(buildStage.build(
                     cancelled, new LoadedTarget(request, definition, commonStrings)));
+            progress.update("ready", "publish_target", key.targetId(), 0, 0, 4, 4);
+            return ready;
         } catch (AssetLoadException | CancellationException failure) {
             return failure(failure);
         } catch (IOException failure) {
@@ -116,7 +190,20 @@ public final class ModelRenderTargetLoader {
         } catch (IllegalArgumentException failure) {
             return failure(AssetLoadException.content(
                     "Failed to build model render target", failure));
+        } finally {
+            progress.close();
         }
+    }
+
+    private static ProgressHandle beginProgress(Hash256 model) {
+        return beginProgress(model.toString());
+    }
+
+    private static ProgressHandle beginProgress(String model) {
+        long id = PROGRESS_ID.incrementAndGet();
+        PROGRESS.set(new ProgressState(id, new ModelLoadProgress(
+                true, "queued", "queued", model, model, 0, 0, 0, 0)));
+        return new ProgressHandle(id, model);
     }
 
     public static LoadResult.Failed failure(Throwable cause) {
@@ -448,6 +535,11 @@ public final class ModelRenderTargetLoader {
         ModelRenderTarget publish(HostTexturePublisher publisher) throws Exception {
             if (closed.get() || published) {
                 throw new IllegalStateException("Model candidate is no longer publishable");
+            }
+            if (target.generalMeshResources() != null) {
+                target.generalMeshResources().publish(closed::get);
+                published = true;
+                return target;
             }
             if (textures == null) {
                 published = true;

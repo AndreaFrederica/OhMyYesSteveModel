@@ -1,0 +1,12 @@
+[
+  {
+    "name": "mmd.vert",
+    "sha256": "90adb3201c017e015a948dde74bd5be70c03382694b24a57064bfa1b85c55101",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/shader/mmd.vert"
+  },
+  {
+    "name": "mmd.frag",
+    "sha256": "62566a4223cdb03f2be16ec6abb5574abb788b344f3586bcc6650944f7109d0f",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/shader/mmd.frag"
+  }
+]

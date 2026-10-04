@@ -1,6 +1,7 @@
 package com.elfmcys.ysm.model.resource.client.asset;
 
 import com.elfmcys.ysm.buffer.BufferType;
+import com.elfmcys.ysm.buffer.ArrayBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.format.container.AssetContainerView;
 import com.elfmcys.ysm.format.schema.file.AssetFileConstant;
@@ -11,6 +12,7 @@ import com.elfmcys.ysm.model.catalog.client.ClientCatalogManager;
 import com.elfmcys.ysm.model.catalog.client.ClientCatalogSnapshot;
 import com.elfmcys.ysm.model.catalog.content.ModelContent;
 import com.elfmcys.ysm.model.catalog.source.ModelCatalogSources;
+import com.elfmcys.ysm.model.catalog.source.CatalogRootKind;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.model.domain.ModelFileIdentity;
 import com.elfmcys.ysm.model.domain.ModelPackDescriptor;
@@ -21,8 +23,11 @@ import com.elfmcys.ysm.model.resource.client.remote.RemotePresentationFetcher;
 import com.elfmcys.ysm.model.storage.ModelHashing;
 import com.elfmcys.ysm.model.storage.PreviewStore;
 import com.elfmcys.ysm.natives.image.ImageSource;
+import com.elfmcys.ysm.natives.image.Image;
 import com.elfmcys.ysm.network.forge.ClientSessionRuntime;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
@@ -222,8 +227,39 @@ public final class ClientAssetRepository {
             if (!file.startsWith(rootPath)) {
                 throw new IOException("Pack cover is unavailable");
             }
-            return CompletableFuture.completedFuture(new FileImageSource(
-                    file, pack.coverSize(), pack.coverHash(), pack.coverFormat()));
+            if (Files.isRegularFile(file)) {
+                return CompletableFuture.completedFuture(new FileImageSource(
+                        file, pack.coverSize(), pack.coverHash(), pack.coverFormat()));
+            }
+            // Builtin assets can live inside the mod JAR.  Such a resource has a
+            // logical path but is not necessarily an ordinary filesystem file.
+            if (pack.rootKind() == CatalogRootKind.BUILTIN) {
+                var resource = "assets/ysm/builtin/" + hierarchy + "/ysm-pack.png";
+                return CompletableFuture.completedFuture(() -> {
+                    try (InputStream stream = ClientAssetRepository.class.getClassLoader()
+                            .getResourceAsStream(resource)) {
+                        if (stream == null) throw new IOException("Pack cover is unavailable: " + resource);
+                        var bytes = stream.readAllBytes();
+                        if (bytes.length != pack.coverSize()
+                                || !ModelHashing.blake3(bytes).equals(pack.coverHash())) {
+                            throw new IOException("Builtin pack cover content mismatch: " + resource);
+                        }
+                        var buffer = ArrayBuffer.move(bytes);
+                        try {
+                            var image = Image.probe(buffer);
+                            if (!image.format().name().equalsIgnoreCase(pack.coverFormat())) {
+                                image.close();
+                                throw new IOException("Builtin pack cover format mismatch: " + resource);
+                            }
+                            return image;
+                        } catch (IOException | RuntimeException | Error failure) {
+                            buffer.close();
+                            throw failure;
+                        }
+                    }
+                });
+            }
+            throw new IOException("Pack cover is unavailable");
         } catch (IOException | RuntimeException failure) {
             return CompletableFuture.failedFuture(failure);
         }
