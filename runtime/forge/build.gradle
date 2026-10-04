@@ -17,6 +17,8 @@ processResources {
     inputs.property 'runtime_version', runtimeVersion
     filesMatching('META-INF/mods.toml') { expand runtime_version: runtimeVersion }
     from(rootProject.file('../LICENSE'))
+    from(rootProject.file('../LICENSE-ARTWORK.md'))
+    from(rootProject.file('../logo/Lib.png')) { rename { 'oh-my-ysm-lib.png' } }
     from(rootProject.file('third-party/jorbis-0.0.17-sources.jar')) {
         into 'third-party-sources'
         rename { 'jorbis-0.0.17-sources.zip' } // Preserve the archive; Shadow expands .jar resources.

@@ -1,11 +1,12 @@
 modLoader="javafml"
 loaderVersion="[46,)"
-license="Apache-2.0"
+license="Apache-2.0 (code); proprietary icons, see LICENSE-ARTWORK.md"
 
 [[mods]]
 modId="ysm_runtime"
 version="${runtime_version}"
 displayName="Oh my ysm lib"
+logoFile="oh-my-ysm-lib.png"
 authors="AndreaFrederica"
 description="Modular YSM runtime with mandatory Java implementations and optional native acceleration."
 

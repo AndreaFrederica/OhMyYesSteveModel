@@ -1,4 +1,7 @@
 # Oh My Yes Steve Model
+
+<img src="logo/main.png" alt="Oh My Yes Steve Model 图标" width="256" height="256">
+
 **鬼故事 上游也不稳定 且硅基话 我懒得且没时间写人肉文档了 看不明白直接呼叫agent吧**
 
 本 fork 的正式全称是 **Oh My Yes Steve Model**，简称 **Oh My YSM**；其中 YSM 延续 Yes Steve Model 的缩写，便于兼容既有模型、协议和 API。带有两个可安装 JAR 的自动构建发布于 [本 fork 的 Releases](https://github.com/AndreaFrederica/OhMyYesSteveModel/releases)；YSM 本体和 Oh my ysm lib 必须一起放入 `mods/`。构建方式与可选 native 加速的安装见[构建指南](docs/build.md)。
@@ -101,6 +104,7 @@ cd YesSteveModel
 - 除另有声明的内容外，本仓库的原创代码按 [Apache License 2.0](LICENSE) 开源。
 - Asset Container Spec、Model Schema、规范性 Proto 快照及一致性要求是独立于 YSM 和 Minecraft 的标准，按 [CC0 1.0 Universal](LICENSES/CC0-1.0.txt) 发布。
 - 内置模型资产不属于 Apache-2.0；每个资产目录中的 `ysm.json` 是其许可证的权威清单。
+- 主 Mod 和 Lib 的图标保留版权，单独适用 [图标授权协议](LICENSE-ARTWORK.md)。允许随本项目及其分叉版本分发、在启动器和介绍页面展示；创作性修改或作为其他项目的标识使用需另行授权。项目名称可自由使用，不受图标协议限制。
 - 项目包含直接拷贝或修改的第三方代码以及随包依赖，详见[NOTICE.md](NOTICE.md)。
 
-Apache-2.0 不覆盖上述独立标准、内置资产或第三方作品；对应文件中的单独声明优先。
+Apache-2.0 不覆盖上述独立标准、内置资产、图标或第三方作品；对应文件中的单独声明优先。

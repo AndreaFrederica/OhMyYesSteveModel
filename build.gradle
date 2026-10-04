@@ -168,6 +168,8 @@ processResources {
 
     from("LICENSE")
     from("NOTICE.md")
+    from("LICENSE-ARTWORK.md")
+    from("logo/main.png") { rename { 'oh-my-ysm.png' } }
 
     filesMatching("META-INF/mods.toml") {
         expand "mod_version": resourceModVersion

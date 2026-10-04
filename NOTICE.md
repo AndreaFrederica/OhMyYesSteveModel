@@ -6,6 +6,10 @@
 
 `assets/ysm/builtin/**/ysm.json` 中的 `metadata.license` 是每个内置模型资产的权威许可证声明，`metadata.authors` 保留其作者与归属信息。
 
+## 项目图标许可
+
+`logo/main.png` 与 `logo/Lib.png` 及安装包中的对应图标不属于 Apache License 2.0，单独适用 [LICENSE-ARTWORK.md](LICENSE-ARTWORK.md)，保留版权并授予有限展示与随项目分发许可。项目名称可自由使用；名称的使用不授予图标权利。其他资产与第三方作品继续适用各自的许可声明。
+
 ## 第三方许可证与来源声明
 
 本仓库包含通过源码拷贝、修改或构建期 shading 纳入的第三方作品。第三方作品保留其原始许可证和版权声明，不因位于本仓库内而改为 Apache License 2.0。

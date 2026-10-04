@@ -1,5 +1,7 @@
 # Oh my ysm lib 前置
 
+<img src="../logo/Lib.png" alt="Oh my ysm lib 图标" width="256" height="256">
+
 进入世界后按 **F3**，右侧显示实际加载的前置版本和各能力的当前 provider；AVIF 单独标注 `Chicory (JVM/WASM)`。Mod ID 为 `ysm_runtime`。
 
 本项目是独立构建的 Java 17 运行库与 Forge 1.20/1.20.1 前置 Mod。本体只依赖接口和服务入口；前置负责提供实现。当前版本 `0.1.1` 是迁移中的开发制品，已接入归档、BLAKE3、zstd、图像、音频、V3 和 CPU 渲染能力；本体编译、资源生成和客户端 / 服务器启动均不再使用官方 native。
@@ -95,6 +97,10 @@ java -jar ysm-runtime-forge-0.1.1.jar restore output/<generation>.v3d restored.y
 - provider 在打开时发生 `LinkageError` 可回退 Java；内容/I/O 错误直接传播。已经返回的归档对象不得在部分读取后透明切换 provider。未来 native provider 必须在交付对象前完成加载、绑定与能力自检。
 
 后续能力、验收顺序与当前缺口见[独立前置与迁移](../docs/architecture/native-runtime/portable-runtime.md)。
+
+## 项目代码与图标授权
+
+除另有声明的内容外，原创代码按 [Apache License 2.0](../LICENSE) 开源。Lib 与主 Mod 的图标保留版权，单独适用 [图标授权协议](../LICENSE-ARTWORK.md)，协议随两个安装包提供。允许随本项目及其分叉版本分发、在启动器和介绍页面展示；创作性修改或作为其他项目的标识使用需另行授权。项目名称可自由使用，不受图标协议限制。
 
 ## 第三方依赖
 

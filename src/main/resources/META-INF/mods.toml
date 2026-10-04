@@ -1,6 +1,6 @@
 modLoader="javafml"
 loaderVersion="[46,)"
-license="Apache-2.0"
+license="Apache-2.0 (code); proprietary icons, see LICENSE-ARTWORK.md"
 issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
 
 [[mods]]
@@ -9,7 +9,7 @@ issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
     displayName="Oh My Yes Steve Model"
     displayURL="https://ysm.cfpa.team/"
     # updateJSONURL="https://change.me.example.invalid/updates.json"
-    logoFile="ysm.png"
+    logoFile="oh-my-ysm.png"
     credits="bernie-g (GeckoLib), fadookie (mclib), TT432 & SQwatermark (helped me solve many difficult problems)"
     authors="YS Group, TartaricAcid, TomatoPuddin, AryochiL"
     description="A mod based on GeckoLib that modifies the player model"
