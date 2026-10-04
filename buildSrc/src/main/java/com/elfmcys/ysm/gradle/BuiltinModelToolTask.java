@@ -102,7 +102,7 @@ public abstract class BuiltinModelToolTask extends DefaultTask {
                 workDirectory, name -> getLogger().lifecycle(
                         "Using unsigned Forge development classpath for {}: {}", getName(), name));
         getExecOperations().javaexec(spec -> {
-            spec.setClasspath(getProject().files(toolClasspath));
+            spec.classpath(toolClasspath.toArray());
             spec.getMainClass().set("com.elfmcys.ysm.tool.BuiltinModelIndexTool");
             spec.setExecutable(getJavaExecutable().get());
             spec.args(arguments);

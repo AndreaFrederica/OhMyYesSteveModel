@@ -1,0 +1,107 @@
+// Explicit hardware check; ordinary unit tests do not require a display/GL driver.
+configurations { sceneGraphicsNatives }
+def sceneOsName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def sceneArchitecture = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+def sceneNativeOs = sceneOsName.contains('win') ? 'windows' : sceneOsName.contains('mac') ? 'macos' : 'linux'
+def sceneNativeArch = sceneArchitecture in ['aarch64', 'arm64'] ? '-arm64' : sceneArchitecture in ['x86', 'i386'] ? '-x86' : ''
+def sceneNativeClassifier = providers.gradleProperty('sceneGraphicsNativeClassifier')
+        .getOrElse("natives-${sceneNativeOs}${sceneNativeArch}")
+dependencies {
+    ['lwjgl', 'lwjgl-glfw', 'lwjgl-opengl'].each { artifact ->
+        sceneGraphicsNatives "org.lwjgl:${artifact}:3.3.1:${sceneNativeClassifier}"
+    }
+}
+tasks.register('sceneTextureGpuVerification', JavaExec) {
+    group = 'verification'
+    description = 'Verifies production float texture upload, mipmaps and GL state restoration in a hidden GL context.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+    mainClass = 'com.elfmcys.ysm.model.resource.client.render.SceneTextureGpuVerification'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
+}
+tasks.register('realMeshGpuVerification', JavaExec) {
+    group = 'verification'
+    description = 'Loads the real PMX/VMD and FBX assets supplied for generic mesh verification through the production target owner.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+    mainClass = 'com.elfmcys.ysm.model.resource.client.render.RealMeshGpuVerification'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
+    doFirst {
+        def root = providers.gradleProperty('meshAuditRoot').getOrElse('D:/Projects/ysm/vrc-mmd')
+        if (!new File(root).isDirectory()) throw new GradleException('meshAuditRoot must be an existing directory')
+        args root
+        // Forward optional inspection inputs to the forked JavaExec process.
+        // Gradle project properties keep Windows paths with spaces intact.
+        ['meshGpuMode', 'meshGpuModel', 'meshGpuMotion', 'meshGpuFbx', 'meshGpuStageSeconds'].each { key ->
+            def value = providers.gradleProperty(key)
+            if (value.isPresent()) systemProperty("ysm.${key}", value.get())
+        }
+    }
+}
+tasks.register('vrmMaterialGpuVerification', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the production VRM MToon surface program in a hidden GL context.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+    mainClass = 'com.elfmcys.ysm.model.resource.client.render.VrmMaterialGpuVerification'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
+}
+tasks.register('meshFormatAudit', JavaExec) {
+    group = 'verification'
+    description = 'Reads real PMX/PMD/VMD/FBX assets and classifies unsupported containers without GPU publication.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.elfmcys.ysm.tool.MeshFormatAudit'
+    doFirst {
+        def root = providers.gradleProperty('meshAuditRoot')
+        if (!root.isPresent() || !new File(root.get()).isDirectory()) {
+            throw new GradleException('meshAuditRoot must be an existing directory')
+        }
+        args root.get()
+        def maxBytes = providers.gradleProperty('meshAuditMaxBytes')
+        if (maxBytes.isPresent()) args maxBytes.get()
+        def maxElements = providers.gradleProperty('meshAuditMaxElements')
+        if (maxElements.isPresent()) args maxElements.get()
+    }
+}
+
+['mmdOptimizationGpuVerification', 'mmdOptimizationGpuBenchmark'].each { taskName ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        dependsOn tasks.named('testClasses')
+        classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+        mainClass = 'com.elfmcys.ysm.model.resource.client.render.MmdOptimizationGpuVerification'
+        maxHeapSize = '3g'
+        systemProperty 'ysm.mmd.benchmark.run', taskName.endsWith('Benchmark')
+        ['ysm.scene.cacheVerification','ysm.native.skinning.library','ysm.native.physics.library','ysm.runtime.skinningLibrary','ysm.runtime.physicsLibrary','ysm.mmd.benchmark.corpus','ysm.mmd.benchmark.extraCorpus','ysm.mmd.benchmark.extraModel','ysm.mmd.benchmark.samples'].each { key ->
+            def value = System.getProperty(key); if(value != null) systemProperty key, value
+        }
+        if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
+    }
+}
+
+tasks.register('mmdMaterialGpuVerification', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+    mainClass = 'com.elfmcys.ysm.model.resource.client.render.SceneTextureGpuVerification'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    systemProperty 'ysm.scene.enablePolygonMode', 'true'
+    args 'mmd-only'
+    if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
+}
+
+tasks.register('sceneMaterialGpuVerification', JavaExec) {
+    group = 'verification'
+    description = 'Verifies MMD/glTF/VRM materials and raster state, including GUI projection winding.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+    mainClass = 'com.elfmcys.ysm.model.resource.client.render.SceneTextureGpuVerification'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    systemProperty 'ysm.scene.enablePolygonMode', 'true'
+    args 'materials-only'
+    if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
+}

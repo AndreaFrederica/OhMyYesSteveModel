@@ -29,6 +29,7 @@ apply from: 'gradle/native.gradle'
 apply from: 'gradle/fast-run.gradle'
 apply from: 'gradle/schema.gradle'
 apply from: 'gradle/builtin-index.gradle'
+apply from: 'gradle/scene-graphics-verification.gradle'
 
 version = mod_version
 group = 'com.elfmcys.ysm'
@@ -159,16 +160,17 @@ sourceSets {
     }
 }
 
+def resourceModVersion = project.version.toString()
 processResources {
     exclude 'META-INF/native/**'
-    inputs.property "mod_version", project.version
+    inputs.property "mod_version", resourceModVersion
     filteringCharset "UTF-8"
 
     from("LICENSE")
     from("NOTICE.md")
 
     filesMatching("META-INF/mods.toml") {
-        expand "mod_version": project.version
+        expand "mod_version": resourceModVersion
     }
 }
 
@@ -236,6 +238,8 @@ dependencies {
     // Supplied by the separate prerequisite mod, never shaded into YSM itself.
     compileOnly 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.1'
     testImplementation 'cc.sirrus.ysmlib:ysm-runtime-core:0.1.1'
+    testImplementation 'cc.sirrus.ysmlib:ysm-runtime-java-scene:0.1.1'
+    testImplementation 'cc.sirrus.ysmlib:ysm-runtime-java-mmd:0.1.1'
     testImplementation 'cc.sirrus.ysmlib:ysm-runtime-java-v3:0.1.1'
     modRuntimeOnly('cc.sirrus.ysmlib:ysm-runtime-forge:0.1.1') { transitive = false }
     processorAsm 'org.ow2.asm:asm:9.7.1'
@@ -358,10 +362,11 @@ dependencies {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
-    doFirst {
-        classpath = files(com.elfmcys.ysm.gradle.ForgeDevelopmentClasspath.unsigned(
-                classpath.files, temporaryDir.toPath().resolve('unsigned-forge'),
-                jarName -> logger.lifecycle("Using unsigned Forge development classpath for ${name}: ${jarName}")))
+    def unsignedTestClasspath = objects.fileCollection()
+    doFirst { Test testTask ->
+        testTask.classpath = unsignedTestClasspath.from(com.elfmcys.ysm.gradle.ForgeDevelopmentClasspath.unsigned(
+                testTask.classpath.files, testTask.temporaryDir.toPath().resolve('unsigned-forge'),
+                jarName -> testTask.logger.lifecycle("Using unsigned Forge development classpath for ${testTask.name}: ${jarName}")))
     }
 }
 
@@ -869,6 +874,10 @@ reobfJarTask.configure {
 def developmentMainOutput = sourceSets.main.output.files.collect {
     it.toPath().toAbsolutePath().normalize()
 }
+def reobfArchive = reobfJarTask.flatMap { it.archiveFile }
+def processorArchive = relocateProcessorAsmTask.flatMap { it.archiveFile }
+def reobfTree = project.zipTree(reobfArchive)
+def processorTree = project.zipTree(processorArchive)
 
 tasks.named('shadowJar') {
     // Dependency manifests can declare multi-release even when no versioned entries survive.
@@ -877,12 +886,8 @@ tasks.named('shadowJar') {
     addMultiReleaseAttribute = false
     dependsOn reobfJarTask
     dependsOn relocateProcessorAsmTask
-    from(reobfJarTask.flatMap { it.archiveFile }.map { archive ->
-        project.zipTree(archive.asFile)
-    })
-    from(relocateProcessorAsmTask.flatMap { it.archiveFile }.map { archive ->
-        project.zipTree(archive.asFile)
-    })
+    from(reobfTree)
+    from(processorTree)
     configurations = [project.configurations.ysmImplementation]
     archiveClassifier = ''
     exclude { entry ->
