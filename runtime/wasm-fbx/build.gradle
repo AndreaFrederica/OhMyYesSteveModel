@@ -1,0 +1,13 @@
+dependencies {
+    api project(':ysm-runtime-scene-api')
+    implementation 'com.dylibso.chicory:runtime:1.7.5'
+    implementation 'com.dylibso.chicory:compiler:1.7.5'
+    implementation 'com.dylibso.chicory:wasi:1.7.5'
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
+
+test {
+    maxHeapSize = '2g'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    systemProperty 'ysm.runtime.fbxLibrary', 'deliberately-missing-native-fbx'
+}

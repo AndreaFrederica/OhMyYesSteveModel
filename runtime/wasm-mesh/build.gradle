@@ -1,0 +1,7 @@
+dependencies {
+    api project(':ysm-runtime-scene-api')
+    implementation 'com.dylibso.chicory:runtime:1.7.5'
+    implementation 'com.dylibso.chicory:compiler:1.7.5'
+    implementation 'com.dylibso.chicory:wasi:1.7.5'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+}

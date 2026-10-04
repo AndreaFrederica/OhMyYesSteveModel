@@ -1,0 +1,12 @@
+{
+  "generator": "Blender evaluated depsgraph",
+  "version": "4.5.3 LTS",
+  "buildHash": "67807e1800cc",
+  "fixtureLicense": "Apache-2.0 (project-generated fixture)",
+  "space": "Blender world (x,y,z) mapped to right-handed Y-up (x,z,-y), metres",
+  "note": "Five influences per vertex; shape keys and linear armature deformation evaluated by Blender before export comparison.",
+  "files": {
+    "weighted-morph.fbx": "75a87546406afbb4f96398516d3f95537cbd2395b8bd0b7c9e3b1f4a69dc4c1e",
+    "weighted-morph.json": "56e3629ea4902309034ce37032aba63cc3e4e5dbd1184fcffa9a17b6eea4a4cd"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "reference": "Unmodified Blender 4.5.3 Mesh.calc_tangents",
+  "fixture": "Project-owned synthetic triangle meshes; no third-party model assets",
+  "files": {
+    "corners.json": "4ecbd08e80e2a9bcc62122124a004ad516e84ae198a6aaf03a5d8a37e30aec31"
+  }
+}

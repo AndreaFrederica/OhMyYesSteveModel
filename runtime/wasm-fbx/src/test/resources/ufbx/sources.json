@@ -1,0 +1,150 @@
+{
+  "revision": "5955c5c0b042ac2dc6f32955ab206aaec0620cfc",
+  "source": "Unmodified ufbx test assets",
+  "files": {
+    "maya_anim_layers_7500_binary.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_anim_layers_7500_binary.fbx",
+      "sha256": "4ddaada6ac4075197e448a1d9b5bc5d8d9214fe0d52424656c8221da6603bd70"
+    },
+    "maya_cube_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_cube_7500_ascii.fbx",
+      "sha256": "00a26466be678131f143a1fa29804eab09a7520f40787c7dc51f5b4bb9e6b98c"
+    },
+    "maya_cube_7500_binary.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_cube_7500_binary.fbx",
+      "sha256": "d80844d7978fd3dc49d779e098fd2ea8a1524ad125c88939edba70ca3eb9d13c"
+    },
+    "maya_pivots_7500_binary.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_pivots_7500_binary.fbx",
+      "sha256": "7c4c69ec1c25c883bf1656a0fcbf1422c224bde7b923f58757ab6370d2dbd529"
+    },
+    "maya_blend_inbetween_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_7500_ascii.fbx",
+      "sha256": "e6abc04dd587d3b9f919ad03fa83b6abb8bf17cfca995e0d655865c45decb9a6"
+    },
+    "maya_transformed_skin_7700_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_transformed_skin_7700_ascii.fbx",
+      "sha256": "225589db02340da56c5b36d5c99492525acdb56fc518b7d6fb0743214c8b8759"
+    },
+    "maya_anim_light_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_anim_light_7500_ascii.fbx",
+      "sha256": "6eb1c048fedc233d95cfa14208de3289cbf7f750e94896273675dfdef18dae4a"
+    },
+    "maya_constraint_zoo_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_constraint_zoo_7500_ascii.fbx",
+      "sha256": "239c9340448c33bd0bd0c2d686d6acc5874acfb0c0ce40eda8a827cce32ff85b"
+    },
+    "blender_279_shape_weights_7400_binary.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/blender_279_shape_weights_7400_binary.fbx",
+      "sha256": "35437239b577b0871e4ce3977334ed5d36c26ee620ca7c7ddf42b54615410f70"
+    },
+    "maya_material_anim_7700_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_material_anim_7700_ascii.fbx",
+      "sha256": "49bfa0fe72017fa13e59cc233154fe525d72f98a6e518aad6c8161763b6c8d0f"
+    },
+    "maya_uv_set_tangent_w_7700_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_uv_set_tangent_w_7700_ascii.fbx",
+      "sha256": "ce9ff12ecdf2004b5cd1c019ef6d7378406b11e982740e499280b4ad84caa851"
+    },
+    "maya_camera_light_axes_y_up_7700_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_camera_light_axes_y_up_7700_ascii.fbx",
+      "sha256": "85fe8986c3f7445588263f46138072a94f44aab241f3fd3d2928bf95f9593f11"
+    },
+    "maya_instanced_skin_7700_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_instanced_skin_7700_ascii.fbx",
+      "sha256": "7294773313461e56d1bb94e4b084b3da5efb18b643b0673ce211337e51d26003"
+    },
+    "maya_blend_inbetween_1.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_1.obj",
+      "sha256": "13454f195fef6483aea96d15cd50fe33b4eb55b9c78ba84085547c7847555e93"
+    },
+    "maya_blend_inbetween_30.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_30.obj",
+      "sha256": "2d803c04851631429787d772c354a5f3724fd2d1494f649345c038cffa0fe57a"
+    },
+    "maya_blend_inbetween_60.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_60.obj",
+      "sha256": "0903fc2f0a0f84f11ce66563b6b785d9a00f88f9f3d98da8a73371e5e00ac2a9"
+    },
+    "maya_blend_inbetween_65.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_65.obj",
+      "sha256": "f8a5846e7aa9a27447cf2f359e49c185c20ed6e9eedf4dd9cf47792ccf6bb84a"
+    },
+    "maya_blend_inbetween_71.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_71.obj",
+      "sha256": "73d76c6fd051c8d3b8f7541770033e4195d9bd8b2cfdcace68d2e9bf84bee264"
+    },
+    "maya_blend_inbetween_80.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_80.obj",
+      "sha256": "17b6983b006e979986a2e845f65297e0325087d03f2a7e4764f7b68fa8ba8daa"
+    },
+    "maya_blend_inbetween_89.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_89.obj",
+      "sha256": "011c7c7b8928816828371053b2a0eb781db71ef97b86b62ae5881c2e6930bc14"
+    },
+    "maya_blend_inbetween_120.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_blend_inbetween_120.obj",
+      "sha256": "d301f84b3f175e12e17631fbfa51dde91b84443f6cb0d80f0f564c8ea3f3ac08"
+    },
+    "maya_transformed_skin_0.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_transformed_skin_0.obj",
+      "sha256": "5b45f6f91ab44a49dca9451a6f064bdb98ac1e9646ea09d3345991fe68a18c24"
+    },
+    "maya_transformed_skin_4.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_transformed_skin_4.obj",
+      "sha256": "fdb486a5cd5902cad21b13a8205ecd08f57e7aabd6c947274e2883f0ebbf5714"
+    },
+    "maya_transformed_skin_8.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_transformed_skin_8.obj",
+      "sha256": "f0d543a4cc7219ca3ad9ad0af4bea09746b68ece37fc5868ae89b5f92ac6e2a0"
+    },
+    "maya_instanced_skin_0.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_instanced_skin_0.obj",
+      "sha256": "5e6e272433626b67d7d7bf1cf0ca40b79cae5dc3cbc35153dd0873f83ef86838"
+    },
+    "maya_instanced_skin_4.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_instanced_skin_4.obj",
+      "sha256": "1de95fc82c091ea77b8a36eb262ff690e0d50e674b495bbd73db44fddf8b475d"
+    },
+    "maya_instanced_skin_8.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_instanced_skin_8.obj",
+      "sha256": "17e82cc8d67b85726a366eb794aa92f05e3d6dd4dce2026ec2dff48fe0b4e2e0"
+    },
+    "maya_dual_quaternion_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dual_quaternion_7500_ascii.fbx",
+      "sha256": "eb8f603f65df21fb7decd934d215fe6b0b0fab75691535ca5ad7abc1e52d1e26"
+    },
+    "maya_dual_quaternion.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dual_quaternion.obj",
+      "sha256": "ef17ac5fe964889e8962928977a5e9907f51f02691f1d5979232c77827a555c5"
+    },
+    "maya_dual_quaternion_scale_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dual_quaternion_scale_7500_ascii.fbx",
+      "sha256": "5383f6d331c38e3527c56642ca948df3c7bab315bec428c0e14e235eefe31d56"
+    },
+    "maya_dual_quaternion_scale.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dual_quaternion_scale.obj",
+      "sha256": "48267bd758357747730b778051f760a67a74dc91ecf9181c25e92b54cafc2423"
+    },
+    "maya_dq_weights_7500_ascii.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dq_weights_7500_ascii.fbx",
+      "sha256": "41a4bc5b8b209b8dbfea7a53dbae96d2ba1a3539e031be7c3607cc0f605236fd"
+    },
+    "maya_dq_weights_10.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dq_weights_10.obj",
+      "sha256": "f4af559759b1a3ce4bd2e027ddb6fbe474e1b10afd2ef9d8dd543239f4d85028"
+    },
+    "maya_dq_weights_18.obj": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/maya_dq_weights_18.obj",
+      "sha256": "b3e774ac46d3a8b8a268f696d9012ba71d6e5cd6daecd92ad8aa58320e30ec9c"
+    },
+    "blender_293_textures_7400_binary.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/blender_293_textures_7400_binary.fbx",
+      "sha256": "375a3f0793e729ae67b1174b2cae1d74ec1f79145b5ffcf050bd4ed5b3edc18b"
+    },
+    "blender_293_embedded_textures_7400_binary.fbx": {
+      "url": "https://raw.githubusercontent.com/ufbx/ufbx/5955c5c0b042ac2dc6f32955ab206aaec0620cfc/data/blender_293_embedded_textures_7400_binary.fbx",
+      "sha256": "0747b141c0ea4467574719bbebe855ef2a0f25c9bf51792439a6bf1d2f380944"
+    }
+  }
+}
