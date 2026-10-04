@@ -13,6 +13,10 @@ import cc.sirrus.ysmlib.render.natives.NativeRenderProvider;
 
 /** Portable service entry point shared by the Forge prerequisite and headless tools. */
 public final class YsmRuntime {
+  private static final cc.sirrus.ysmlib.scene.SceneProvider SCENES = new SceneServices();
+
+  /** Portable general mesh imports and CPU animation/deformation, independent of the MC backend. */
+  public static cc.sirrus.ysmlib.scene.SceneProvider scenes() { return SCENES; }
   private static final cc.sirrus.ysmlib.legacy.V3EnvelopeProvider V3 =
       new cc.sirrus.ysmlib.legacy.java.JavaV3EnvelopeProvider();
 
@@ -110,6 +114,16 @@ public final class YsmRuntime {
     return AUDIO;
   }
 
+  private static final PhysicsServices PHYSICS = PhysicsServices.configured();
+  private static final DeformationServices DEFORMATION = DeformationServices.configured();
+  public static cc.sirrus.ysmlib.scene.DeformationProvider deformation() { return DEFORMATION.provider; }
+
+  /** Headless rigid/soft-body solver. Creating the service does not initialize a WASM world. */
+  public static cc.sirrus.ysmlib.scene.physics.PhysicsProvider physics() { return PHYSICS.provider; }
+
+  /** Cached startup selection reason; empty when the accelerator was accepted. */
+  public static String physicsFallbackReason() { return PHYSICS.fallbackReason; }
+
   /** Read-only service selections, not a history of which formats have been used. */
   public record ModuleStatus(String module, String implementation) {}
 
@@ -126,6 +140,11 @@ public final class YsmRuntime {
         new ModuleStatus("Images", IMAGES.id()),
         new ModuleStatus("AVIF", IMAGES.avifDecoderId()),
         new ModuleStatus("Audio", AUDIO.id()),
+        new ModuleStatus("Physics", physics().id() + " abi=" + physics().capabilities().abi()
+            + " features=0x" + Long.toHexString(physics().capabilities().featureBits())
+            + (PHYSICS.fallbackReason.isEmpty() ? "" : " fallback=" + PHYSICS.fallbackReason)),
+        new ModuleStatus("Skinning",deformation().id()+(DEFORMATION.fallbackReason.isEmpty()?"":" fallback="+DEFORMATION.fallbackReason)),
+        new ModuleStatus("Scene", SCENES.profile()),
         new ModuleStatus("V3 envelope", V3.getClass().getSimpleName()),
         new ModuleStatus("V3 import", LEGACY.getClass().getSimpleName()),
         new ModuleStatus("Decoded", DECODED.getClass().getSimpleName()),

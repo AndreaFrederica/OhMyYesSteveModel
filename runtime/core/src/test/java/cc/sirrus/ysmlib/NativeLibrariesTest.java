@@ -29,4 +29,14 @@ class NativeLibrariesTest {
                     platform.equals("macos") ? "Mac OS X" : "Linux", "aarch64"));
         }
     }
+
+    @Test void discoversPhysicsOnVerifiedX64Platforms() throws Exception {
+        for (var platform : new String[]{"windows", "linux"}) {
+            var parent = Files.createDirectories(directory.resolve(platform + "-x64"));
+            var name = platform.equals("windows") ? "ysmlib_physics.dll" : "libysmlib_physics.so";
+            var file = Files.write(parent.resolve(name), new byte[0]);
+            assertEquals(file, NativeLibraries.find(directory, "physics",
+                    platform.equals("windows") ? "Windows 11" : "Linux", "x86_64"));
+        }
+    }
 }

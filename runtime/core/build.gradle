@@ -1,4 +1,12 @@
 dependencies {
+    implementation project(':ysm-runtime-wasm-fbx')
+    implementation project(':ysm-runtime-java-vrm')
+    implementation project(':ysm-runtime-java-bvh')
+    implementation project(':ysm-runtime-java-scene')
+    implementation project(':ysm-runtime-java-gltf')
+    implementation project(':ysm-runtime-java-mmd')
+    api project(':ysm-runtime-scene-api')
+    implementation project(':ysm-runtime-wasm-physics')
     api project(':ysm-runtime-v3d')
     implementation project(':ysm-runtime-java-v3')
     api project(':ysm-runtime-render-api')
@@ -11,4 +19,32 @@ dependencies {
     implementation project(':ysm-runtime-native-codec')
     implementation project(':ysm-runtime-java-image')
     implementation project(':ysm-runtime-java-audio')
+}
+dependencies {
+    implementation project(':ysm-runtime-native-physics')
+    implementation project(':ysm-runtime-native-scene')
+}
+
+tasks.register('sceneCacheVerification', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cc.sirrus.ysmlib.SceneCacheVerification'
+    maxHeapSize = '4g'
+    args providers.gradleProperty('sceneCacheArgs').map { it.split('~@~') as List }.getOrElse([])
+}
+
+tasks.named('processTestResources') {
+    from(project(':ysm-runtime-java-image').file('src/test/resources')) { include 'scene-image-oracle/*' }
+    from(project(':ysm-runtime-java-mmd').file('src/test/resources')) {
+        include 'mmd-oracle/*.pmx', 'mmd-oracle/*.pmd', 'mmd-oracle/*.vmd', 'pmm-oracle/*.pmm'
+    }
+    from(project(':ysm-runtime-java-gltf').file('src/test/resources')) {
+        include 'khronos/SimpleSkin/glTF/*'
+    }
+    from(project(':ysm-runtime-java-vrm').file('src/test/resources')) {
+        include 'three-vrm-oracle/first-person-avatar.gltf', 'three-vrm-oracle/retarget-avatar.gltf', 'three-vrm-oracle/retarget-source.gltf'
+    }
+    from(project(':ysm-runtime-wasm-fbx').file('src/test/resources')) {
+        include 'ufbx/maya_blend_inbetween_7500_ascii.fbx'
+    }
 }
