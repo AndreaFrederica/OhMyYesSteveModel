@@ -1,0 +1,5 @@
+dependencies {
+    api project(':ysm-runtime-scene-api')
+    implementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation project(':ysm-runtime-java-scene')
+}

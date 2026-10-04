@@ -1,0 +1,107 @@
+[
+  {
+    "file": "rgb.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "193e6b28383d10ad845d56e303b294e3732d7529bb177191c747c00bf3f90c1b",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "rgba-rle.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "918b290079606241dc41ae1f9ca78be8c3129b8dfb82002ddef503ed20c13146",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "gray-alpha.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "597a2d80a021097236ffd5ad6097dbb7d1dfe1e4cdafd4a766874ce78c5f2a11",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "palette.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "06685aac18dfcbf2e48e42fb079ddb2e4dfca962ecffb5df079c140519b1be62",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "rgb.bmp",
+    "width": 3,
+    "height": 2,
+    "sha256": "31dc6d8e0da93eab40ca0613e58c0c57eee870e6810ba97df804a271f24cbe1c",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "palette.bmp",
+    "width": 3,
+    "height": 2,
+    "sha256": "ebaf5089992fdc2edd701a342efbb2934b529f89b03d7c0e684f15e7a5243ce2",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "mono.bmp",
+    "width": 3,
+    "height": 2,
+    "sha256": "74c310170682139d57fb6755325884480762fd2f59e03ef090eba14b4435873d",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "rgba.png",
+    "width": 3,
+    "height": 2,
+    "sha256": "154276a862711d921a053c945064ca404f6fbd556cf87b5c6fc8833b48a9f527",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "rgba.webp",
+    "width": 3,
+    "height": 2,
+    "sha256": "fbe4701bf090f77350c3214aca7c4311bbffc92615c6d55fa8060ad427f05a5a",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "rgb.jpg",
+    "width": 3,
+    "height": 2,
+    "sha256": "5258fa3bd7f99e101cc5248f10722b3528b1f382cb32a9e631b5bf63b421f4fb",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "origin-00.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "918b290079606241dc41ae1f9ca78be8c3129b8dfb82002ddef503ed20c13146",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "origin-10.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "e667ccfe169eb6b200a9f64b574ed81d41b29cf2249ccecae72cc970a4f14a13",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "origin-20.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "adbc75c1faa2fdfea6efb425df37429e4b54dae94cd7d1ba4783bc99a024bf7a",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "origin-30.tga",
+    "width": 3,
+    "height": 2,
+    "sha256": "0cbfdbb0e2fb687ede98dc361343bf0ff99cab03e0ed45c167b4d9034bd67357",
+    "reference": "Pillow 12.3.0"
+  },
+  {
+    "file": "rle8.bmp",
+    "width": 3,
+    "height": 2,
+    "sha256": "af96508a5d4c3d7756b2eaed1a6b1b8199f3e63aac9f230dfd5de6f330cb86a5",
+    "reference": "Pillow 12.3.0"
+  }
+]

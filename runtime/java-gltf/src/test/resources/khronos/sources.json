@@ -1,0 +1,81 @@
+{
+  "repository": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "revision": "edc7c9e67c639d230715049ee31f9a96a6babbbe",
+  "files": [
+    {
+      "path": "AnimatedMorphCube/README.md",
+      "sha256": "b872b016a274f02a0060117976150b1180f4090aa5042e1b5861d5d178d0971d",
+      "bytes": 1244
+    },
+    {
+      "path": "AnimatedMorphCube/glTF/AnimatedMorphCube.bin",
+      "sha256": "4aba93918adba56c1cc688a38c527bc647e26f2c386802e119b4d01b7250dd23",
+      "bytes": 4284
+    },
+    {
+      "path": "AnimatedMorphCube/glTF/AnimatedMorphCube.gltf",
+      "sha256": "0b910ed4b52fd9fbb565911fc7f9f285edb0f30fa4913a93143466d439d1092e",
+      "bytes": 4621
+    },
+    {
+      "path": "BoxInterleaved/README.md",
+      "sha256": "6cedb2eff1d0249ba5bfc0ab1275189a8c1baa74e8bc7e4a99160cd112583edb",
+      "bytes": 1049
+    },
+    {
+      "path": "BoxInterleaved/glTF/BoxInterleaved.bin",
+      "sha256": "e4e58932bd0772677b557b9aa06ba84ce0b41efdd853645c140ea69f0aece9ed",
+      "bytes": 648
+    },
+    {
+      "path": "BoxInterleaved/glTF/BoxInterleaved.gltf",
+      "sha256": "b69bec5fa3a8f0331743ae5591af14fe5ab41ebc657c7447cfbb996a8b4aa325",
+      "bytes": 2877
+    },
+    {
+      "path": "SimpleSkin/README.md",
+      "sha256": "6545a0f376b1418c1b2fb3a54706c828c60239a6d9483e03276dca24ebdcc996",
+      "bytes": 1314
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin.gltf",
+      "sha256": "8d92e9888340eb98e82a65a1f8b037d9a1d9f09e5fd0b6ba6d40fd93700b3239",
+      "bytes": 2386
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_animation.bin",
+      "sha256": "ff21b1bc3d0abbe53f7665060ec6c22d873b6e85a7669171a2b6b8ae01c39347",
+      "bytes": 240
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_geometry.bin",
+      "sha256": "35f0ca6bc07976c0aadc163d4737758989cfcc9870a99800004c4478fe698b63",
+      "bytes": 168
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_inverseBindMatrices.bin",
+      "sha256": "5844ab221cd2ad367420a248f6387b46e5f8498604427730a37ee96b4d4ec599",
+      "bytes": 128
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_skinningData.bin",
+      "sha256": "413bc8a8c0da673df767874e6f05f0b00c9261756a08586b9d555bd5535414b5",
+      "bytes": 320
+    },
+    {
+      "path": "SimpleSparseAccessor/README.md",
+      "sha256": "3281bb3b677f543b91db2bf66ed8cc303084041e921cd5f0a693d3d60e310a3c",
+      "bytes": 1294
+    },
+    {
+      "path": "SimpleSparseAccessor/glTF/SimpleSparseAccessor.bin",
+      "sha256": "8b01fde2d485b480626115ff804f972edb4ef87f23d2600054bcc859cee38f92",
+      "bytes": 284
+    },
+    {
+      "path": "SimpleSparseAccessor/glTF/SimpleSparseAccessor.gltf",
+      "sha256": "852cea1ab8665caca6bee912422ed246feb42819c9905ba17a542937e058825a",
+      "bytes": 1756
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+dependencies {
+    api project(':ysm-runtime-scene-api')
+    implementation project(':ysm-runtime-java-scene')
+    testImplementation project(':ysm-runtime-wasm-physics')
+}

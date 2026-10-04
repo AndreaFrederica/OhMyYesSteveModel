@@ -7,3 +7,9 @@ src/generated/**/*.json text eol=lf
 # Preserve whitespace in unmodified upstream source and license snapshots.
 runtime/concentus/src/main/java/** whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
 runtime/forge/src/main/resources/licenses/** whitespace=-blank-at-eol,-blank-at-eof
+
+# Frozen reference assets and licensed source snapshots retain exact bytes/hashes.
+runtime/*/src/test/resources/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+src/test/resources/*-oracle/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+runtime/forge/src/main/resources/licenses/** -text
+runtime/native/src/math/** -text

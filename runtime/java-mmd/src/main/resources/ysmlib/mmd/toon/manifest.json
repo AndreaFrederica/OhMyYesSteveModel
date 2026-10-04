@@ -1,0 +1,52 @@
+[
+  {
+    "name": "toon01.bmp",
+    "sha256": "5e2da47c174dbbd0befb547346bdbeed36fa5daa74898ad261bd6720dce31302",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon01.bmp"
+  },
+  {
+    "name": "toon02.bmp",
+    "sha256": "af1246cd9cf57d833f0eccc1fadbe7c7f88baddf3173bc103d373c2e3e82aed1",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon02.bmp"
+  },
+  {
+    "name": "toon03.bmp",
+    "sha256": "4268976ada66f2a7c3b5fd84c29d1183fd6069c2fdf2ce5c424f815a2680f25c",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon03.bmp"
+  },
+  {
+    "name": "toon04.bmp",
+    "sha256": "3e30ab164bc574241f2ac6c12172b6c75799afe5a03d4eb5cdb43c223f23de6e",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon04.bmp"
+  },
+  {
+    "name": "toon05.bmp",
+    "sha256": "ef1b687f0e5bbc6cd32909f8ebf890fd72cb1b704ebdf366fb7a4e3f8b1fae08",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon05.bmp"
+  },
+  {
+    "name": "toon06.bmp",
+    "sha256": "a8811f63ecd91f8ff5cc7347011b2cc74c9ff028b1b08bd6438dab03ae9bf8f8",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon06.bmp"
+  },
+  {
+    "name": "toon07.bmp",
+    "sha256": "b03c8464c66f7359f303a0d3f00e7d5570159fb3b8fe3c712095e59ef75ff4a0",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon07.bmp"
+  },
+  {
+    "name": "toon08.bmp",
+    "sha256": "b03c8464c66f7359f303a0d3f00e7d5570159fb3b8fe3c712095e59ef75ff4a0",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon08.bmp"
+  },
+  {
+    "name": "toon09.bmp",
+    "sha256": "b03c8464c66f7359f303a0d3f00e7d5570159fb3b8fe3c712095e59ef75ff4a0",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon09.bmp"
+  },
+  {
+    "name": "toon10.bmp",
+    "sha256": "b03c8464c66f7359f303a0d3f00e7d5570159fb3b8fe3c712095e59ef75ff4a0",
+    "source": "https://github.com/benikabocha/saba/blob/29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332/viewer/Saba/Viewer/resource/mmd/toon10.bmp"
+  }
+]

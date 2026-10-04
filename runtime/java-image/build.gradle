@@ -1,8 +1,10 @@
 dependencies {
     api project(':ysm-runtime-api')
+    api project(':ysm-runtime-scene-api')
     implementation project(':ysm-runtime-java-codec')
     implementation project(':ysm-runtime-wasm-avif')
     implementation 'com.twelvemonkeys.imageio:imageio-webp:3.12.0'
+    implementation 'com.twelvemonkeys.imageio:imageio-bmp:3.12.0'
 }
 test {
     systemProperty 'java.awt.headless', 'true'

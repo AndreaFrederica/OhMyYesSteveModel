@@ -1,0 +1,38 @@
+{
+  "packages": {
+    "@pixiv/three-vrm": {
+      "version": "3.5.5",
+      "url": "https://registry.npmjs.org/@pixiv/three-vrm/-/three-vrm-3.5.5.tgz",
+      "integrity": "sha512-RPXy7jYAXs704NIpZlosB0U2ENu21G9DrqGWdQgRe8dShaCo1ugpj+6BVPRCy91nt+MPMA96j5rbsSzEl0HlQA=="
+    },
+    "three": {
+      "version": "0.180.0",
+      "url": "https://registry.npmjs.org/three/-/three-0.180.0.tgz",
+      "integrity": "sha512-o+qycAMZrh+TsE01GqWUxUIKR1AL0S8pq7zDkYOQw8GqfX8b8VoCKYUoHbhiX5j+7hr8XsuHDVU6+gkQJQKg9w=="
+    },
+    "@pixiv/three-vrm-animation": {
+      "version": "3.5.5",
+      "url": "https://registry.npmjs.org/@pixiv/three-vrm-animation/-/three-vrm-animation-3.5.5.tgz",
+      "integrity": "sha512-Q0kEtmftxfv0iCUHQkJH2jAr1zmT9ywYXnAzhxnLPMYCsx0Kken3J3U2GJF9PdGZmLlKpoK0LFEXVdD/L7ZA4Q=="
+    }
+  },
+  "sha256": {
+    "@pixiv/three-vrm": "6f0102f987bc8abc9b9e78ef5b3259ea9f0dc51e30bf51d32aea6218394ea755",
+    "three": "ad66d724565ee29a2467277fa84daa5ed0211d6b8d446e9ef29f6bae0cd14144",
+    "@pixiv/three-vrm-animation": "da61ce647c42876e803654156e9fb3a75ff50d8f5c31a43ae2b902114876f2ec"
+  },
+  "generator": "YSM authored inputs; unmodified published three-vrm and three.js packages",
+  "files": {
+    "constraints.json": "3ebf0543607d53dd073c94571ebacc6b661eceabbcbc2d9497547ba8977031b4",
+    "expressions.json": "f7e41509a2b36ce2a8d3a88b650eec1268344e8b28b9a1b4625392b10a1fa0b2",
+    "first-person-avatar.gltf": "d2c1e941b4fc6c021a61678fdfc7e4b526e8658242924d7bb63a4481e251d2bc",
+    "first-person.json": "41beab3811b06d74c235569732abe2f4c031002abd9696712c42898dba787be7",
+    "materials-avatar.gltf": "6d45fc330a9e8f8a5419132c1143f786f75b178ccb9e3a2e6a670f90b07c27ef",
+    "materials.json": "9b29ef7d9c697d90da61445e5b08d6aaa3a61e494f63d9b4d32e48381e39f396",
+    "portable-avatar.gltf": "eb76bb64b8c32c4d000cd3edf5272a6896ebd2c9fc97873bde982d260d1ad5f7",
+    "retarget-avatar.gltf": "5a7aeaae8a90ad45468af8a241671e621429c7e0538ab13af5184176bb63ccb2",
+    "retarget-source.gltf": "85b1b73a45c7a3b2d229b626317b288a2a9a61466590ca9c66c3a0a7371695e2",
+    "retarget.json": "001a47de49fc7326253c47afdf072f740d2062d0ab718b70831d417e4ef2133a",
+    "springs.json": "d5ce78eeb412b0126f2310bd443b043a01e6f4a4efa8899abc766856dbbbf46f"
+  }
+}

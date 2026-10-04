@@ -1,0 +1,202 @@
+[
+  {
+    "alphaTest": 0,
+    "transparent": false,
+    "depthWrite": true,
+    "side": 0,
+    "renderOrder": 19,
+    "baseColor": [
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "emissive": [
+      0.1,
+      0.05,
+      0.025
+    ],
+    "shadeColorFactor": [
+      0.2,
+      0.4,
+      0.6
+    ],
+    "matcapFactor": [
+      0.7,
+      0.8,
+      0.9
+    ],
+    "parametricRimColorFactor": [
+      0.1,
+      0.2,
+      0.3
+    ],
+    "outlineColorFactor": [
+      0.3,
+      0.2,
+      0.1
+    ],
+    "shadingShiftFactor": -0.2,
+    "shadingToonyFactor": 0.75,
+    "giEqualizationFactor": 0.6,
+    "rimLightingMixFactor": 0.2,
+    "parametricRimFresnelPowerFactor": 3,
+    "parametricRimLiftFactor": 0.15,
+    "outlineWidthMode": "worldCoordinates",
+    "outlineWidthFactor": 0.01,
+    "outlineLightingMixFactor": 0.4,
+    "uvAnimationScrollXSpeedFactor": 0.15,
+    "uvAnimationScrollYSpeedFactor": -0.2,
+    "uvAnimationRotationSpeedFactor": 0.7
+  },
+  {
+    "alphaTest": 0.35,
+    "transparent": false,
+    "depthWrite": true,
+    "side": 2,
+    "renderOrder": 19,
+    "baseColor": [
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "emissive": [
+      0.1,
+      0.05,
+      0.025
+    ],
+    "shadeColorFactor": [
+      0.2,
+      0.4,
+      0.6
+    ],
+    "matcapFactor": [
+      0.7,
+      0.8,
+      0.9
+    ],
+    "parametricRimColorFactor": [
+      0.1,
+      0.2,
+      0.3
+    ],
+    "outlineColorFactor": [
+      0.3,
+      0.2,
+      0.1
+    ],
+    "shadingShiftFactor": -0.2,
+    "shadingToonyFactor": 0.75,
+    "giEqualizationFactor": 0.6,
+    "rimLightingMixFactor": 0.2,
+    "parametricRimFresnelPowerFactor": 3,
+    "parametricRimLiftFactor": 0.15,
+    "outlineWidthMode": "worldCoordinates",
+    "outlineWidthFactor": 0.01,
+    "outlineLightingMixFactor": 0.4,
+    "uvAnimationScrollXSpeedFactor": 0.15,
+    "uvAnimationScrollYSpeedFactor": -0.2,
+    "uvAnimationRotationSpeedFactor": 0.7
+  },
+  {
+    "alphaTest": 0,
+    "transparent": true,
+    "depthWrite": true,
+    "side": 0,
+    "renderOrder": 4,
+    "baseColor": [
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "emissive": [
+      0.1,
+      0.05,
+      0.025
+    ],
+    "shadeColorFactor": [
+      0.2,
+      0.4,
+      0.6
+    ],
+    "matcapFactor": [
+      0.7,
+      0.8,
+      0.9
+    ],
+    "parametricRimColorFactor": [
+      0.1,
+      0.2,
+      0.3
+    ],
+    "outlineColorFactor": [
+      0.3,
+      0.2,
+      0.1
+    ],
+    "shadingShiftFactor": -0.2,
+    "shadingToonyFactor": 0.75,
+    "giEqualizationFactor": 0.6,
+    "rimLightingMixFactor": 0.2,
+    "parametricRimFresnelPowerFactor": 3,
+    "parametricRimLiftFactor": 0.15,
+    "outlineWidthMode": "worldCoordinates",
+    "outlineWidthFactor": 0.01,
+    "outlineLightingMixFactor": 0.4,
+    "uvAnimationScrollXSpeedFactor": 0.15,
+    "uvAnimationScrollYSpeedFactor": -0.2,
+    "uvAnimationRotationSpeedFactor": 0.7
+  },
+  {
+    "alphaTest": 0,
+    "transparent": true,
+    "depthWrite": false,
+    "side": 2,
+    "renderOrder": 16,
+    "baseColor": [
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "emissive": [
+      0.1,
+      0.05,
+      0.025
+    ],
+    "shadeColorFactor": [
+      0.2,
+      0.4,
+      0.6
+    ],
+    "matcapFactor": [
+      0.7,
+      0.8,
+      0.9
+    ],
+    "parametricRimColorFactor": [
+      0.1,
+      0.2,
+      0.3
+    ],
+    "outlineColorFactor": [
+      0.3,
+      0.2,
+      0.1
+    ],
+    "shadingShiftFactor": -0.2,
+    "shadingToonyFactor": 0.75,
+    "giEqualizationFactor": 0.6,
+    "rimLightingMixFactor": 0.2,
+    "parametricRimFresnelPowerFactor": 3,
+    "parametricRimLiftFactor": 0.15,
+    "outlineWidthMode": "worldCoordinates",
+    "outlineWidthFactor": 0.01,
+    "outlineLightingMixFactor": 0.4,
+    "uvAnimationScrollXSpeedFactor": 0.15,
+    "uvAnimationScrollYSpeedFactor": -0.2,
+    "uvAnimationRotationSpeedFactor": 0.7
+  }
+]

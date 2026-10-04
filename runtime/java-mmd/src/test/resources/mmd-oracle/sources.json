@@ -1,0 +1,19 @@
+{
+  "reference": "https://github.com/benikabocha/saba",
+  "revision": "29b8efa8b31c8e746f9a88020fb0ad9dcdcf3332",
+  "referenceRepair": "PMXFile.cpp QDEF weight indices [0,1,3,4] corrected to [0,1,2,3]; deformation unchanged",
+  "readerSha256": "efaeb61e1bdf08cb9d00e868133d6f481041fb45e40693161e5cce16863609a6",
+  "coordinates": "MMD source coordinates; Saba Z reflection removed",
+  "fixture": "Project-owned synthetic model and motion",
+  "sha256": {
+    "skin.pmx": "8ebe84db3fc2d1abcb1a05838b039aab314202f24bf62cc847341f5d52610e96",
+    "skin.vmd": "0f2970b73272e0bb01ffcf59cf5d56cfc6dedd10f66a039d8751d758bb2ba10c",
+    "skin.csv": "13348ce874404abb0b3c7bad5b4fa42542cfc6799682f3500f88f792e503b397",
+    "morph.pmx": "cd61b62b4a7d7b4f77f5ad57702e2debb75350b0a502565ab67b052b6aaade4f",
+    "morph.vmd": "842801bd2b568a1027ce52a9760612473db4c4a5d13b93d792bae49e8938f8d0",
+    "morph.csv": "db8dd0670308c3560ed09da22ccbfee1a5f82c60b5e164403de19c7c980a358e",
+    "pmd.pmd": "5d046860debdc264b07223297fd7ac390e0ff0f209b76d8327a07e68bf79e113",
+    "pmd.vmd": "0f2970b73272e0bb01ffcf59cf5d56cfc6dedd10f66a039d8751d758bb2ba10c",
+    "pmd.csv": "8e4b52328d858c6ca78f962a9a9482aff3db565e0642c5a55593ab4a396f5a9b"
+  }
+}

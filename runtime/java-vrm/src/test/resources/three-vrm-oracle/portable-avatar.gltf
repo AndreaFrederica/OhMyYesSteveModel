@@ -1,0 +1,289 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "YSM synthetic portable runtime fixture"
+  },
+  "nodes": [
+    {
+      "name": "hips",
+      "translation": [
+        0,
+        1,
+        0
+      ],
+      "children": [
+        1,
+        3,
+        6
+      ]
+    },
+    {
+      "name": "spine",
+      "translation": [
+        0,
+        0.2,
+        0
+      ],
+      "children": [
+        2,
+        9,
+        12
+      ]
+    },
+    {
+      "name": "head",
+      "translation": [
+        0,
+        0.5,
+        0
+      ],
+      "children": [
+        15
+      ]
+    },
+    {
+      "name": "leftUpperLeg",
+      "translation": [
+        0.1,
+        -0.05,
+        0
+      ],
+      "children": [
+        4
+      ]
+    },
+    {
+      "name": "leftLowerLeg",
+      "translation": [
+        0,
+        -0.4,
+        0
+      ],
+      "children": [
+        5
+      ]
+    },
+    {
+      "name": "leftFoot",
+      "translation": [
+        0,
+        -0.4,
+        0.1
+      ],
+      "children": []
+    },
+    {
+      "name": "rightUpperLeg",
+      "translation": [
+        -0.1,
+        -0.05,
+        0
+      ],
+      "children": [
+        7
+      ]
+    },
+    {
+      "name": "rightLowerLeg",
+      "translation": [
+        0,
+        -0.4,
+        0
+      ],
+      "children": [
+        8
+      ]
+    },
+    {
+      "name": "rightFoot",
+      "translation": [
+        0,
+        -0.4,
+        0.1
+      ],
+      "children": []
+    },
+    {
+      "name": "leftUpperArm",
+      "translation": [
+        0.3,
+        0.3,
+        0
+      ],
+      "children": [
+        10
+      ]
+    },
+    {
+      "name": "leftLowerArm",
+      "translation": [
+        0.3,
+        0,
+        0
+      ],
+      "children": [
+        11
+      ]
+    },
+    {
+      "name": "leftHand",
+      "translation": [
+        0.3,
+        0,
+        0
+      ],
+      "children": []
+    },
+    {
+      "name": "rightUpperArm",
+      "translation": [
+        -0.3,
+        0.3,
+        0
+      ],
+      "children": [
+        13
+      ]
+    },
+    {
+      "name": "rightLowerArm",
+      "translation": [
+        -0.3,
+        0,
+        0
+      ],
+      "children": [
+        14
+      ]
+    },
+    {
+      "name": "rightHand",
+      "translation": [
+        -0.3,
+        0,
+        0
+      ],
+      "children": []
+    },
+    {
+      "name": "hair",
+      "translation": [
+        0,
+        0.1,
+        0
+      ],
+      "children": [
+        16
+      ]
+    },
+    {
+      "name": "hairTip",
+      "translation": [
+        0,
+        -0.3,
+        0
+      ],
+      "children": []
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0,
+  "extensionsUsed": [
+    "VRMC_vrm",
+    "VRMC_springBone"
+  ],
+  "extensions": {
+    "VRMC_vrm": {
+      "specVersion": "1.0",
+      "meta": {
+        "name": "Portable avatar",
+        "authors": [
+          "YSM"
+        ],
+        "licenseUrl": "https://vrm.dev/licenses/1.0/"
+      },
+      "humanoid": {
+        "humanBones": {
+          "hips": {
+            "node": 0
+          },
+          "spine": {
+            "node": 1
+          },
+          "head": {
+            "node": 2
+          },
+          "leftUpperLeg": {
+            "node": 3
+          },
+          "leftLowerLeg": {
+            "node": 4
+          },
+          "leftFoot": {
+            "node": 5
+          },
+          "rightUpperLeg": {
+            "node": 6
+          },
+          "rightLowerLeg": {
+            "node": 7
+          },
+          "rightFoot": {
+            "node": 8
+          },
+          "leftUpperArm": {
+            "node": 9
+          },
+          "leftLowerArm": {
+            "node": 10
+          },
+          "leftHand": {
+            "node": 11
+          },
+          "rightUpperArm": {
+            "node": 12
+          },
+          "rightLowerArm": {
+            "node": 13
+          },
+          "rightHand": {
+            "node": 14
+          }
+        }
+      },
+      "expressions": {
+        "preset": {
+          "happy": {}
+        }
+      }
+    },
+    "VRMC_springBone": {
+      "specVersion": "1.0",
+      "springs": [
+        {
+          "joints": [
+            {
+              "node": 15,
+              "gravityPower": 0.5,
+              "gravityDir": [
+                1,
+                0,
+                0
+              ],
+              "stiffness": 0.7
+            },
+            {
+              "node": 16
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

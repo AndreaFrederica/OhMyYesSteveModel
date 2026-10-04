@@ -1,0 +1,49 @@
+{
+  "revision": "30acffaa29f5d2eb9e997d69418f2e4b97b5894f",
+  "files": {
+    "nanoem/nanoem.c": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/nanoem.c",
+      "sha256": "b16d18c98462d51ef8147f19b7290230e5099a76110ad7e9c18c6703142cf818"
+    },
+    "nanoem/nanoem.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/nanoem.h",
+      "sha256": "3db8a1614a46e40d7d125d9d58c2ef15270a7ebae55daf7bca0d99d3b1e9f7e0"
+    },
+    "nanoem/nanoem_p.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/nanoem_p.h",
+      "sha256": "ba881ae0fa580b79383d3aa7fa6eef61485163174b6ed9d0f75be11a6d834044"
+    },
+    "nanoem/khash.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/khash.h",
+      "sha256": "41e778a9b0d79addccb83263667533ff2af81a8836da7edc6160dfade150968a"
+    },
+    "nanoem/ext/document.c": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/ext/document.c",
+      "sha256": "15511548ef81270fb7650db630c3ecb3f4eeae21f92cf199d660811e1a68b09a"
+    },
+    "nanoem/ext/document.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/ext/document.h",
+      "sha256": "e31d9be070940ca4ac6f52a5a55efdcd869c5f0f6d5f7e41b79b4de683820e93"
+    },
+    "nanoem/ext/document_p.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/ext/document_p.h",
+      "sha256": "a0b64d7004f677e57c2c115031b6a5de2bf16c177afbe6e9a201c30356bf124d"
+    },
+    "nanoem/ext/mutable.c": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/ext/mutable.c",
+      "sha256": "395e2987e8c678ab6416dec70b8d004f3f4284650192567aa3f5d109d48259f6"
+    },
+    "nanoem/ext/mutable.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/ext/mutable.h",
+      "sha256": "36343e73e639a4e042cb8c5a92693a70ede339d56856d970a18a4910211a74d3"
+    },
+    "nanoem/ext/mutable_p.h": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/nanoem/ext/mutable_p.h",
+      "sha256": "51346abde98080a2f06e76c58060299a41d4af0af35a2e26dd8f46f51d5d3308"
+    },
+    "LICENSE.MIT": {
+      "url": "https://raw.githubusercontent.com/hkrn/nanoem/30acffaa29f5d2eb9e997d69418f2e4b97b5894f/LICENSE.MIT",
+      "sha256": "3dc45b6240fe47a018d4969a68e1a0cd44ed958955ce9985b8ac2d4022d58d2c"
+    }
+  }
+}

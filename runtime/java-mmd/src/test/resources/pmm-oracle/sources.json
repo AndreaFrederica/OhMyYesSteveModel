@@ -1,0 +1,9 @@
+{
+  "reference": "30acffaa29f5d2eb9e997d69418f2e4b97b5894f",
+  "generator": "Unmodified nanoem PMM writer and reader; YSM authored synthetic scene",
+  "pmm1": "YSM authored PMM1 verified by original nanoem reader with project-owned PMD schema; upstream PMM1 model writer is not implemented",
+  "files": {
+    "project.pmm": "7b0fd9666eac7d2d1dbe4bddbf8837d6f2ff79ba96dc2e5eb574f8e7cf3053b9",
+    "project-v1.pmm": "e357d8cb5ac71e0d9c48c05d05e57236e32768ade74b6fc09ced8c8662a62dc0"
+  }
+}
