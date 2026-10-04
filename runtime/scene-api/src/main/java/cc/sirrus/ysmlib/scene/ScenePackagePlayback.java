@@ -36,6 +36,10 @@ public interface ScenePackagePlayback extends AutoCloseable {
   ScenePackageAssets assets();
   Selection selection();
   Frame seek(double seconds);
+  /** null detaches world input; independent previews retain source physics. */
+  default void physicsInput(ScenePhysicsInput input) {}
+  /** Hosts retaining a timeline across clip/player changes can own the derivatives themselves. */
+  default void physicsEnvironment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment) {}
   default void boneRotations(Map<Integer,Rotation> rotations) { if(!rotations.isEmpty()) throw new UnsupportedOperationException("Bone overlay unavailable for this format"); }
   /** Absolute local deltas from rest, after source animation and before MMD IK/physics. Empty releases ownership. */
   default void bonePoses(Map<Integer,Pose> poses) { if(!poses.isEmpty()) throw new UnsupportedOperationException("Bone pose overrides unavailable for this format"); }

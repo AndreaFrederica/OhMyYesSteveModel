@@ -14,8 +14,9 @@ public final class PhysicsDistributionSmoke {
         require(provider.capabilities().nativeAcceleration() == nativeExpected, "Wrong physics selection");
         require(nativeExpected ? YsmRuntime.physicsFallbackReason().isEmpty()
                 : YsmRuntime.physicsFallbackReason().contains(args[1]), "Wrong fallback reason");
-        if (nativeExpected) require(provider.capabilities().abi() == 5 && provider.capabilities().featureBits() == 0xff,
+        if (nativeExpected) require(provider.capabilities().abi() == 6 && provider.capabilities().featureBits() == 0x1ff,
                 "Wrong native ABI/features");
+        require(YsmRuntime.hostPhysics() == provider, "Live host selection changed provider");
         var status = YsmRuntime.diagnostics().stream().filter(s -> s.module().equals("Physics")).findFirst().orElseThrow();
         require(status.implementation().contains(provider.id()), "Diagnostic provider mismatch");
         require(nativeExpected || status.implementation().contains("fallback="), "Diagnostic reason missing");
@@ -33,6 +34,12 @@ public final class PhysicsDistributionSmoke {
             var output = ByteBuffer.allocateDirect(52).order(ByteOrder.nativeOrder()).asFloatBuffer();
             require(world.readBodyStates(output) == 1 && output.position() == 13, "Packed readback failed");
             require(Math.abs(output.get(1)-5.018333f) < .001, "Physics trajectory mismatch");
+            var input = new ScenePhysicsInput(0,30_000_000,0,0,Matrix4.IDENTITY,Vec3.ZERO,
+                    List.of(),List.of(),ScenePhysicsInput.Settings.defaults());
+            world.environment(new PhysicsEnvironment(input,Vec3.ZERO,new Vec3(1,0,0),Vec3.ZERO,Vec3.ZERO,false));
+            world.step();
+            require(world.bodyStates().get(0).linearVelocity().x()<0, "Host environment symbol/force failed");
+            world.environment(null);
         }
         var scenes = YsmRuntime.scenes();
         var limits = ReadLimits.DEFAULT;

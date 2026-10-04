@@ -9,6 +9,17 @@ import static cc.sirrus.ysmlib.scene.vrm.VrmFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class VrmSpringsTest {
+  @Test void liveSpringUsesHostGravityInertiaAndTeleportWithoutAdvancingOnSample(){
+    int[] parents={-1,0,1};var rest=List.of(Transform.IDENTITY,Transform.IDENTITY,new Transform(new Vec3(0,-1,0),Rotation.IDENTITY,Vec3.ONE));
+    var document=springDocument(scene(parents,rest),-1,new Joint(1,.05f,0,0,new Vec3(0,-1,0),.1f),null);
+    var solver=new VrmSpringSolver(document);var pose=pose(parents,rest);var rotations=rest.stream().map(Transform::rotation).toList();
+    var input=new ScenePhysicsInput(0,0,0,0,Matrix4.IDENTITY,Vec3.ZERO,List.of(),List.of(),ScenePhysicsInput.Settings.defaults());
+    solver.environment(new cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment(input,Vec3.ZERO,new Vec3(10,0,0),Vec3.ZERO,Vec3.ZERO,false));
+    var driven=solver.step(pose,rotations,1.0/60);assertTrue(VrmMath.position(driven.pose().globalMatrices().get(2)).x()<0);
+    for(int i=0;i<10;i++)assertEquals(driven.pose().globalMatrices(),solver.sample(pose,rotations).pose().globalMatrices());
+    solver.environment(new cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment(input,Vec3.ZERO,Vec3.ZERO,Vec3.ZERO,Vec3.ZERO,true));
+    var reset=solver.step(pose,rotations,1.0/60);assertEquals(0,VrmMath.position(reset.pose().globalMatrices().get(2)).x(),1e-6);
+  }
   private VrmDocument springDocument(SceneAsset scene,int center,Joint parameters,Collider collider) {
     return new VrmDocument(new GltfDocument(scene,new ByteData(new byte[0]),Map.of()),Version.VRM_1,Map.of(),List.of(),List.of(),
         collider==null?List.of():List.of(collider),collider==null?List.of():List.of(new ColliderGroup("",new IntData(0))),

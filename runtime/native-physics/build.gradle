@@ -6,6 +6,15 @@ dependencies {
 
 sourceSets.test.resources.srcDir('../java-mmd/src/test/resources')
 
+tasks.register('hostPhysicsBenchmark', JavaExec) {
+  dependsOn testClasses
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'cc.sirrus.ysmlib.scene.physics.natives.NativeHostPhysicsBenchmark'
+  maxHeapSize = '2g'
+  def nativeLibrary = System.getProperty('ysm.native.physics.library')
+  if (nativeLibrary != null) systemProperty 'ysm.native.physics.library', nativeLibrary
+}
+
 tasks.withType(Test).configureEach {
   def nativeLibrary = System.getProperty('ysm.native.physics.library')
   if (nativeLibrary != null) {

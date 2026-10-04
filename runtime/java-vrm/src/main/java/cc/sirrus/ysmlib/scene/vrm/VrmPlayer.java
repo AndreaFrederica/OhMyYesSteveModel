@@ -10,6 +10,15 @@ public final class VrmPlayer implements VrmPlayback {
   private VrmSpringSolver solver;
   private long steps;
   private VrmEvaluation.Frame frame;
+  private final cc.sirrus.ysmlib.scene.physics.ScenePhysicsMotion hostMotion=new cc.sirrus.ysmlib.scene.physics.ScenePhysicsMotion();
+  private cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment;
+  public synchronized void physicsInput(cc.sirrus.ysmlib.scene.ScenePhysicsInput input){
+    physicsEnvironment(input==null?null:hostMotion.update(input));if(input==null)hostMotion.reset();
+  }
+  public synchronized void physicsEnvironment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment input){
+    environment=input;
+    if(solver!=null)solver.environment(environment);
+  }
   public VrmPlayer(VrmDocument document,Source source,Settings settings) {
     this.document=Objects.requireNonNull(document);this.source=Objects.requireNonNull(source);this.settings=Objects.requireNonNull(settings);
     var start=source.evaluate(0);frame=start;
@@ -20,6 +29,9 @@ public final class VrmPlayer implements VrmPlayback {
     if(!settings.physicsEnabled()) { frame=source.evaluate(seconds);return frame; }
     double count=Math.floor(seconds/settings.fixedStep()+1e-9);if(count>Long.MAX_VALUE) throw new IllegalArgumentException("Preview time overflow");long target=(long)count;
     boolean backward=seconds<frame.pose().seconds();long start=backward?0:steps;
+    if(backward&&environment!=null)throw new IllegalStateException("Cannot replay historical host environment");
+    // Live world frames have a bounded catch-up; independent preview keeps full deterministic replay.
+    if(environment!=null)start=Math.max(start,target-8);
     if(target-start>settings.maximumStepsPerSeek()) throw new IllegalArgumentException("VRM replay exceeds work budget");
     VrmSpringSolver candidate=backward?new VrmSpringSolver(document):solver;var saved=backward?null:solver.snapshot();
     try {

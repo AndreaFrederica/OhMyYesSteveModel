@@ -14,12 +14,12 @@
 /* Compiled as C, not C++: validates the public ABI and rejects partial writes.
  */
 int main(void) {
-  CHECK(ysm_physics_abi() == 5);
+  CHECK(ysm_physics_abi() == 6);
   CHECK(ysm_physics_scalar_bits() == 32 && ysm_physics_thread_count() == 1);
   CHECK(!ysm_physics_create(0, NAN, 0, 1.f / 60));
   ysm_physics_world *w = ysm_physics_create(0, -9.8f, 0, 1.f / 60);
   CHECK(w);
-  CHECK(ysm_physics_features() == 0xff);
+  CHECK(ysm_physics_features() == 0x1ff);
   CHECK(ysm_physics_kinematic_filter(0, 1) == -1);
   CHECK(ysm_physics_kinematic_filter(w, 2) == -1);
   CHECK(ysm_physics_kinematic_filter(w, 1) == 0);
@@ -41,6 +41,15 @@ int main(void) {
   CHECK(ysm_physics_set_poses(w, ids, poses, 2) == -1);
   CHECK(ysm_physics_read_bodies(w, out, 13) == 0);
   CHECK(out[0] == 0 && out[1] == 2);
+  float env[51] = {0};
+  env[0]=env[5]=env[10]=env[15]=env[16]=env[21]=env[26]=env[31]=1;
+  env[45]=-9.8f;env[47]=1;env[48]=4;env[49]=.85f;
+  CHECK(ysm_physics_environment(w,env,50,0,0)==-1);
+  CHECK(ysm_physics_environment(w,env,51,1,0)==-1);
+  env[35]=NAN;CHECK(ysm_physics_environment(w,env,51,0,0)==-1);env[35]=0;
+  CHECK(ysm_physics_environment(w,env,51,0,0)==0);
+  CHECK(ysm_physics_body_count(w)==1);
+  CHECK(ysm_physics_clear_environment(w)==0);
   body[7] = body[10] = 0;
   CHECK(ysm_physics_body(w, body, 20) == -1);
   CHECK(ysm_physics_body_count(w) == 1);

@@ -75,6 +75,9 @@ public interface PhysicsWorld extends AutoCloseable {
   /** Temporarily drive an originally dynamic body from animation, retaining its mass/inertia for resumption. */
   void setKinematic(int body,boolean enabled);
   void setGravity(Vec3 gravity);
+  /** Publish host forces and replace nearby collision objects, separate from source body IDs.
+   * null clears the host environment. Requires capability bit 0x100. */
+  default void environment(PhysicsEnvironment environment) { throw new UnsupportedOperationException("Host physics environment unavailable"); }
   /** Target for the next step. Only pinned vertices may be driven; queries return the last simulated state. */
   void setSoftBodyPin(int softBody,int vertex,Vec3 position);
   /** Packed targets for pinned vertices, applied by the next explicit step. Input positions are preserved. */

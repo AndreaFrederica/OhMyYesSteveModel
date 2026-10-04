@@ -1,4 +1,5 @@
 #include "physics.h"
+#include "physics_environment.h"
 #include <BulletDynamics/ConstraintSolver/btGeneric6DofSpringConstraint.h>
 #include <BulletSoftBody/btSoftBodyHelpers.h>
 #include <BulletSoftBody/btSoftBodyRigidBodyCollisionConfiguration.h>
@@ -19,22 +20,13 @@ struct Body {
   btVector3 inertia{0, 0, 0};
   int group{1}, mask{0xffff};
 };
-struct KinematicPairFilter : btOverlapFilterCallback {
-  bool needBroadphaseCollision(btBroadphaseProxy *a,
-                               btBroadphaseProxy *b) const override {
-    if (!(a->m_collisionFilterGroup & b->m_collisionFilterMask) ||
-        !(b->m_collisionFilterGroup & a->m_collisionFilterMask))
-      return false;
-    auto *x = static_cast<btCollisionObject *>(a->m_clientObject);
-    auto *y = static_cast<btCollisionObject *>(b->m_clientObject);
-    return !x || !y || x->isKinematicObject() == y->isKinematicObject();
-  }
-};
+using KinematicPairFilter=YsmHostPairFilter;
 struct ysm_physics_world {
   btRigidBody fixed{0, nullptr, nullptr};
   std::unique_ptr<btDefaultCollisionConfiguration> config;
   std::unique_ptr<btCollisionDispatcher> dispatcher;
   KinematicPairFilter kinematicFilter;
+  YsmHostEnvironment host;
   std::unique_ptr<btBroadphaseInterface> broadphase;
   std::unique_ptr<btSequentialImpulseConstraintSolver> solver;
   std::unique_ptr<btSoftRigidDynamicsWorld> world;
@@ -47,6 +39,7 @@ struct ysm_physics_world {
   ~ysm_physics_world() {
     if (!world)
       return;
+    host.clear(*world);
     for (auto &j : joints)
       world->removeConstraint(j.get());
     for (auto &s : soft)
@@ -141,10 +134,10 @@ static bool validJointConfig(const float *c, int n, size_t bodies) {
         return false;
   return true;
 }
-extern "C" int32_t ysm_physics_abi() try { return 5; } catch (...) {
+extern "C" int32_t ysm_physics_abi() try { return 6; } catch (...) {
   return -3;
 }
-extern "C" uint64_t ysm_physics_features() try { return 0xff; } catch (...) {
+extern "C" uint64_t ysm_physics_features() try { return 0x1ff; } catch (...) {
   return -3;
 }
 extern "C" int32_t ysm_physics_scalar_bits() try {
@@ -185,6 +178,7 @@ extern "C" ysm_physics_world *ysm_physics_create(float gx, float gy, float gz,
   w->world->getWorldInfo().m_gravity = {gx, gy, gz};
   w->world->getWorldInfo().m_sparsesdf.Initialize();
   w->solver->setRandSeed(0);
+  w->world->getPairCache()->setOverlapFilterCallback(&w->kinematicFilter);
   return owner.release();
 } catch (...) {
   return nullptr;
@@ -544,8 +538,7 @@ extern "C" int32_t ysm_physics_kinematic_filter(ysm_physics_world *w,
   if (!w || enabled < 0 || enabled > 1 || !w->bodies.empty() ||
       !w->soft.empty())
     return -1;
-  w->world->getPairCache()->setOverlapFilterCallback(
-      enabled ? &w->kinematicFilter : nullptr);
+  w->kinematicFilter.excludeMixed=enabled!=0;
   return 0;
 } catch (...) {
   if (w)
@@ -570,11 +563,22 @@ extern "C" int32_t ysm_physics_set_gravity(ysm_physics_world *w, const float *g,
     w->failed = true;
   return -3;
 }
+extern "C" int32_t ysm_physics_environment(ysm_physics_world* w,const float* values,int32_t count,int32_t boxes,int32_t fluids) try {
+  if(w && w->failed)return -3;
+  if(!w || !YsmHostEnvironment::valid(values,count,boxes,fluids))return -1;
+  w->host.update(*w->world,boxes,fluids,values);return 0;
+} catch (...) {if(w)w->failed=true;return -3;}
+extern "C" int32_t ysm_physics_clear_environment(ysm_physics_world* w) try {
+  if(w && w->failed)return -3;if(!w)return -1;w->host.clear(*w->world);return 0;
+} catch (...) {if(w)w->failed=true;return -3;}
 extern "C" int32_t ysm_physics_step(ysm_physics_world *w) try {
   if (w && w->failed)
     return -3;
   if (!w)
     return -1;
+  for(auto& b:w->bodies)w->host.apply(b.body.get(),w->step);
+  for(auto& body:w->soft)w->host.apply(body.get(),w->step);
+  w->host.finishStep();
   for (const auto &b : w->bodies)
     if (!validState(b.body.get()) || !finite(b.body->getTotalForce()) ||
         !finite(b.body->getTotalTorque()))

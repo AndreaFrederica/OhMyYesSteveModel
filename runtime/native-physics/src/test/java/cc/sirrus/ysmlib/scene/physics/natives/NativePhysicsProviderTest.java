@@ -20,7 +20,7 @@ class NativePhysicsProviderTest {
   private static PhysicsSpec.Body dynamic(float y) { return new PhysicsSpec.Body(PhysicsSpec.Shape.SPHERE,new Vec3(.25f,0,0),at(0,y,0),PhysicsSpec.Motion.DYNAMIC,1,0,0,0,.5f,.04f,1,0xffff); }
 
   @Test void capabilitiesAndSoftBodyPinAndNormalReadback() {
-    var p=provider();assertEquals(5,p.capabilities().abi());assertEquals(0xffL,p.capabilities().featureBits());
+    var p=provider();assertEquals(6,p.capabilities().abi());assertEquals(0x1ffL,p.capabilities().featureBits());
     try(var world=p.createWorld(PhysicsSpec.World.defaults().withoutReplay())) {
       int soft=world.addSoftBody(new PhysicsSpec.SoftBody(List.of(new Vec3(-1,2,0),new Vec3(1,2,0),new Vec3(-1,2,1),new Vec3(1,2,1)),List.of(0,2,1,1,2,3),false,List.of(0,1),1,.02f,1,0xffff,PhysicsSpec.SoftConfig.defaults()));
       for(int i=0;i<60;i++)world.step();var vertices=world.softBodyVertices(soft);assertEquals(new Vec3(-1,2,0),vertices.get(0));assertEquals(new Vec3(1,2,0),vertices.get(1));assertTrue(vertices.get(2).y()<1.9f);assertEquals(4,world.softBodyNormals(soft).size());

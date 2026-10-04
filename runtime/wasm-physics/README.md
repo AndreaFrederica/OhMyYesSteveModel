@@ -4,10 +4,16 @@ This module executes scalar, single-thread Bullet 3.25 inside Chicory 1.7.5 on
 Java 17. It does not load JNI, launch an external engine, or require a platform
 physics library. Each world owns isolated WASM memory (256 MiB maximum), solver
 state and explicit fixed-step time. Rendering and queries never advance time.
-Reactor ABI 4 includes the optional construction-time RS kinematic-pair filter;
+Reactor ABI 5 includes host environments and the construction-time RS kinematic-pair filter;
 group/mask filtering and ordinary Bullet contacts remain the default. Packed pose
 input preserves quaternion scalars, and packed readback copies raw solver values
 so evaluated MMD poses normalize them once, matching the native adapter.
+
+The environment capability is `0x100`. Native Bullet remains the preferred
+installed accelerator; this reactor provides the same host contacts and forces
+when native is absent or rejected. Both build the shared visual policy in
+`runtime/native/src/physics_environment.h`; standard Java builds use the bundled
+reactor and do not invoke a C++ toolchain.
 
 The public contract is in `scene-api`. Primitive rigid bodies, collision masks,
 6DOF spring and other supported joint constructors, triangle/rope soft bodies,

@@ -27,7 +27,7 @@ def main():
     library = ctypes.CDLL(str(binary))
     library.ysm_physics_features.restype = ctypes.c_uint64
     if (library.ysm_physics_abi(), library.ysm_physics_features(),
-            library.ysm_physics_scalar_bits(), library.ysm_physics_thread_count()) != (5, 0xff, 32, 1):
+            library.ysm_physics_scalar_bits(), library.ysm_physics_thread_count()) != (6, 0x1ff, 32, 1):
         raise ValueError('Refusing to package an incompatible physics binary')
 
     source = ROOT / '.cache' / 'bullet'
@@ -84,7 +84,7 @@ def main():
         bundle.write(ROOT.parents[1] / 'LICENSE', 'LICENSE')
     build_info = json.loads((build / 'meson-info' / 'intro-buildoptions.json').read_text())
     toolchain = json.loads((build / 'meson-info' / 'intro-compilers.json').read_text())
-    manifest = {'abi': 5, 'features': 0xff, 'scalarBits': 32, 'solverThreads': 1,
+    manifest = {'abi': 6, 'features': 0x1ff, 'scalarBits': 32, 'solverThreads': 1,
                 'platform': system + '-' + arch, 'bulletRevision': record['revision'],
                 'bulletArchiveSha256': record['archive_sha256'], 'patch': patch,
                 'nativePatch': native_patch, 'portableMath': math_record,

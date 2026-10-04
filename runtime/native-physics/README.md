@@ -1,7 +1,7 @@
 # Optional Bullet accelerator
 
-Java 17 adapter for the independently built `ysmlib_physics` library. Native ABI 5
-uses float32, one solver thread and feature bits `0xff`. Each world owns its Bullet
+Java 17 adapter for the independently built `ysmlib_physics` library. Native ABI 6
+uses float32, one solver thread and feature bits `0x1ff`. Each world owns its Bullet
 objects; no STL types or C++ exceptions cross the public C ABI. Runtime selection
 prefers an installed accelerator and falls back to JVM/WASM on startup rejection.
 
@@ -18,7 +18,7 @@ Use an explicit native library when validating the accelerator:
 
 ```powershell
 $env:JAVA_HOME='<JDK-17-directory>'
-.\gradlew.bat '-Dysm.native.physics.library=<absolute-library-path>' -p runtime :ysm-runtime-native-physics:test --no-daemon
+.\gradlew.bat '-Dysm.native.physics.library=<absolute-library-path>' -p runtime :ysm-runtime-native-physics:test --configuration-cache
 ```
 
 From `runtime/native`, `pixi run package-physics` builds and tests the library and
@@ -32,6 +32,14 @@ exactly one kinematic object is excluded. The policy is immutable after structur
 creation and is retained when replay creates a replacement world. Ordinary Bullet
 contacts remain the default. MMD settings independently select joints and linked
 body collision behavior.
+
+`PhysicsWorld.environment` publishes actual host placement, inertial derivatives,
+gravity, fluid volumes/flow and convex terrain in one JNI call. Live worlds reuse a
+direct buffer; preview journals own copies and replay environment changes. Terrain
+objects occupy a separate bounded pool, not source body IDs. Native and WASM use
+the same `runtime/native/src/physics_environment.h` policy. Source self-collision
+masks and the optional mixed-kinematic filter do not disable host terrain contact.
+`hostPhysicsBenchmark` measures publication, stepping and packed readback together.
 
 Worlds support scalar and reusable direct-buffer transfers. Direct scalar views
 must have native byte order and alignment. Input positions are preserved; output

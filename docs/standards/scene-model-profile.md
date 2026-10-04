@@ -18,6 +18,7 @@
 | retarget | 绑定键到 YSM 源骨名的映射、动画源模型及位移比例 |
 | transitions | 状态间一次性过渡片段列表 |
 | heldItems | 左右持物挂点与第一人称呈现选择 |
+| hostPhysics | 世界中的视觉物理：惯性、流体力与方块碰撞 |
 
 placement 包含 `metersPerUnit`（米/源单位）、`sizeMode`（SCALE 或 HEIGHT）、`scale`、`height`（米）、`referenceHeight`（朝上轴的源单位参考高度）、`footY`（朝上轴的源单位脚底参考）、`x/y/z`（米）及 `yaw`（角度）。SCALE 的最终单位比例为 metersPerUnit × scale；HEIGHT 为 height / referenceHeight，不能再次乘 scale。统一放置先在朝上坐标中减去脚底参考，再缩放、转向和加米制偏移。参数必须有限，长度比例严格为正；编辑不改变 Minecraft 碰撞箱。
 
@@ -41,4 +42,6 @@ transitions 是 `{from, to, animation}` 对象数组。from/to 为非空状态�
 
 缺省 transitions 读取为空数组，retarget.sourceModel 缺省为 `@ysm/default`。此前生成的 sidecar 可缺省 metadata 与 retarget，读取补上述元数据默认值及 `{"sourceBones":{},"translationScale":1}`，下次保存输出完整字段。这是附加创作文件的可编辑性，不构成旧客户端协议兼容。已出现但类型不合法的字段及未知字段仍拒绝。
 
-预览物理启停、时间轴位置、相机缩放和调试骨骼选择不进入模型配置。读取失败应保留文件及错误原因；编辑保存须检查外部修改冲突，使用同目录临时文件与原子替换。源模型原始字节不修改。
+hostPhysics 为 `{worldCollision, inertia, fluidDrag, buoyancy, teleportDistance}`。缺省值分别为 `true, 1, 4, 0.85, 4`。inertia 是移动/旋转惯性倍率，fluidDrag 是每秒流体阻力，buoyancy 是视觉浮力倍率，teleportDistance 是以米计的运动历史重置距离。所有数字必须有限且在 `[0,100]` 内，teleportDistance 严格大于零。方块碰撞仅影响来源刚体、软体或 SpringBone，不改变实体 hitbox、移动或伤害。设置保存在附加文件，并可在 Alt+Y 编辑器的“世界物理”页修改。未提供该字段的附加文件读取时补默认值；出现但缺字段、类型非法或含未知字段仍拒绝。
+
+预览物理启停、时间轴位置、相机缩放和调试骨骼选择不进入模型配置。世界环境参数不使编辑器自动启用物理，也不把游戏环境带入独立预览。读取失败应保留文件及错误原因；编辑保存须检查外部修改冲突，使用同目录临时文件与原子替换。源模型原始字节不修改。

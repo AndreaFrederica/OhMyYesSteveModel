@@ -13,7 +13,9 @@ public final class SceneModelProfileCodec {
     if(tree.isJsonObject()&&!tree.getAsJsonObject().has("retarget"))tree.getAsJsonObject().add("retarget",JSON.toJsonTree(SceneModelProfile.Retarget.empty()));
     if(tree.isJsonObject()&&!tree.getAsJsonObject().has("transitions"))tree.getAsJsonObject().add("transitions",new JsonArray());
     if(tree.isJsonObject()&&!tree.getAsJsonObject().has("heldItems"))tree.getAsJsonObject().add("heldItems",JSON.toJsonTree(SceneModelProfile.HeldItems.defaults()));
-    var root=object(tree,"profile","schemaVersion","profileId","placement","bones","actions","presentation","metadata","retarget","transitions","heldItems");
+    if(tree.isJsonObject()&&!tree.getAsJsonObject().has("hostPhysics"))tree.getAsJsonObject().add("hostPhysics",JSON.toJsonTree(ScenePhysicsInput.Settings.defaults()));
+    var root=object(tree,"profile","schemaVersion","profileId","placement","bones","actions","presentation","metadata","retarget","transitions","heldItems","hostPhysics");
+    object(root.get("hostPhysics"),"hostPhysics","worldCollision","inertia","fluidDrag","buoyancy","teleportDistance");
     if(root.get("retarget").isJsonObject()&&!root.getAsJsonObject("retarget").has("sourceModel"))root.getAsJsonObject("retarget").addProperty("sourceModel","@ysm/default");
     var retarget=object(root.get("retarget"),"retarget","sourceBones","translationScale","sourceModel");
     if(!retarget.get("sourceBones").isJsonObject())throw new IllegalArgumentException("retarget.sourceBones must be an object");

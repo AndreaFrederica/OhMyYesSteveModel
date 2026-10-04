@@ -25,10 +25,15 @@ final class MmdPhysicsBinding implements AutoCloseable {
   private final FloatBuffer poseValues,impulseValues,bodyValues;
   private final boolean[] resetBodies;
   private final DeformationProvider.Session deformation;
+  private final Vec3 sourceGravity;
+  private PhysicsEnvironment environment;
+  private boolean environmentDirty,resetHost;
+  void environment(PhysicsEnvironment input){environment=input;environmentDirty=true;resetHost|=input!=null&&input.reset();}
 
   MmdPhysicsBinding(PmxDocument source,MeshAsset mesh,MmdRig rig,PhysicsProvider provider,MmdPlayback.Settings settings,
                     List<CompatibilityReport.Diagnostic> diagnostics,boolean packed,DeformationProvider.Session deformation) {
     this.deformation=deformation;
+    sourceGravity=settings.gravity();
     this.packed=packed;hasPhysicsWithBone=source.rigidBodies().stream().anyMatch(b->b.mode()==2);
     if(source.rigidBodies().size()>65536)throw new IllegalArgumentException("MMD rigid body budget exceeded");
     this.diagnostics=Objects.requireNonNull(diagnostics);
@@ -133,6 +138,15 @@ final class MmdPhysicsBinding implements AutoCloseable {
   }
 
   void step(MmdRig rig) {
+    if(environmentDirty){world.environment(environment);if(environment==null)world.setGravity(sourceGravity);environmentDirty=false;}
+    if(resetHost) {
+      // Teleports/stalls discard momentum without resetting authored constraints or IDs.
+      for(int i=0;i<bodies.length;i++) {
+        int driver=drivers[i];if(driver>=0)world.setBodyPose(bodies[i],rig.world[driver].multiply(offsets[i]));
+        world.resetBodyForces(bodies[i]);
+      }
+      resetHost=false;
+    }
     var states=packed?null:world.bodyStates();
     if(packed) {
       poseIds.clear();poseValues.clear();

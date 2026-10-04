@@ -20,10 +20,11 @@ enum ysm_physics_feature {
   YSM_PHYSICS_NORMAL_READBACK = 16,
   YSM_PHYSICS_FINITE_READBACK = 32,
   YSM_PHYSICS_LOCAL_IMPULSE = 64,
-  YSM_PHYSICS_KINEMATIC_FILTER = 128
+  YSM_PHYSICS_KINEMATIC_FILTER = 128,
+  YSM_PHYSICS_HOST_ENVIRONMENT = 256
 };
 
-/* ABI 5: body=20 floats, joint=37, soft config=34, state=13.
+/* ABI 6: body=20 floats, joint=37, soft config=34, state=13; host environment added.
  * Poses use
  * position + normalized XYZW; matrices/vertex IDs use source space.
  * Batches
@@ -98,6 +99,10 @@ YSM_PHYSICS_API int32_t ysm_physics_set_gravity(ysm_physics_world *,
                                                 const float *gravity,
                                                 int32_t count);
 YSM_PHYSICS_API int32_t ysm_physics_step(ysm_physics_world *);
+/* Header 51 floats, terrain hulls 24 each, fluids 10 each. Separate collision objects do not occupy body IDs.
+ * All entries validated before mutation; failure during allocation poisons the world. */
+YSM_PHYSICS_API int32_t ysm_physics_environment(ysm_physics_world *,const float *values,int32_t count,int32_t boxes,int32_t fluids);
+YSM_PHYSICS_API int32_t ysm_physics_clear_environment(ysm_physics_world *);
 YSM_PHYSICS_API int32_t ysm_physics_body_count(const ysm_physics_world *);
 YSM_PHYSICS_API int32_t ysm_physics_read_bodies(const ysm_physics_world *,
                                                 float *output, int32_t count);

@@ -1,5 +1,5 @@
 // YSM headless Bullet bridge. Bullet is separately licensed under the zlib license.
-// ABI 4 uses caller-owned little-endian float/int arrays. One isolated world per reactor.
+// ABI 5 adds host environments; caller-owned little-endian arrays. One isolated world per reactor.
 #include <btBulletDynamicsCommon.h>
 #include <BulletSoftBody/btSoftBodyRigidBodyCollisionConfiguration.h>
 #include <BulletSoftBody/btSoftRigidDynamicsWorld.h>
@@ -12,16 +12,10 @@
 #include <utility>
 #include <cmath>
 #include <cstdint>
+#include "../../native/src/physics_environment.h"
 
 namespace {
-struct KinematicPairFilter : btOverlapFilterCallback {
-    bool needBroadphaseCollision(btBroadphaseProxy* a,btBroadphaseProxy* b) const override {
-        if (!(a->m_collisionFilterGroup & b->m_collisionFilterMask) || !(b->m_collisionFilterGroup & a->m_collisionFilterMask)) return false;
-        auto* x=static_cast<btCollisionObject*>(a->m_clientObject);
-        auto* y=static_cast<btCollisionObject*>(b->m_clientObject);
-        return !x || !y || x->isKinematicObject()==y->isKinematicObject();
-    }
-};
+using KinematicPairFilter=YsmHostPairFilter;
 struct State {
     struct PinTarget { int soft; int vertex; btVector3 position; };
     btSoftBodyRigidBodyCollisionConfiguration config;
@@ -37,8 +31,10 @@ struct State {
     std::vector<btTypedConstraint*> joints;
     std::vector<btSoftBody*> softBodies;
     std::vector<PinTarget> pinTargets;
+    YsmHostEnvironment host;
     btScalar dt = 1.0f/60;
     ~State() {
+        host.clear(world);
         for (auto* joint : joints) { world.removeConstraint(joint); delete joint; }
         for (auto* body : softBodies) { world.removeSoftBody(body); delete body; }
         for (auto* body : bodies) { world.removeRigidBody(body); delete body->getMotionState(); delete body; }
@@ -55,7 +51,7 @@ void putVec(float* p,const btVector3& v) { p[0]=v.x();p[1]=v.y();p[2]=v.z(); }
 }
 
 extern "C" {
-int ysm_physics_abi() { return 4; }
+int ysm_physics_abi() { return 5; }
 int ysm_physics_create(const float* cfg) {
     if (state || !finite(cfg,6) || cfg[3]<=0 || cfg[3]>1 || cfg[4]<1 || cfg[4]>1000 || (cfg[5]!=0 && cfg[5]!=1)) return -1;
     state = new State();
@@ -65,7 +61,8 @@ int ysm_physics_create(const float* cfg) {
     info.m_gravity=vec(cfg); info.m_sparsesdf.Initialize();
     state->world.getSolverInfo().m_numIterations=static_cast<int>(cfg[4]);
     state->solver.setRandSeed(0);
-    if(cfg[5]==1) state->world.getPairCache()->setOverlapFilterCallback(&state->kinematicFilter);
+    state->kinematicFilter.excludeMixed=cfg[5]==1;
+    state->world.getPairCache()->setOverlapFilterCallback(&state->kinematicFilter);
     return 0;
 }
 void ysm_physics_destroy() { delete state; state=nullptr; }
@@ -219,8 +216,18 @@ int ysm_physics_set_gravity(const float* p) {
     if (!state || !finite(p,3)) return -1;state->world.setGravity(vec(p));state->world.getWorldInfo().m_gravity=vec(p);
     for(auto* body:state->bodies) body->activate(true);for(auto* body:state->softBodies) body->activate(true);return 0;
 }
+int ysm_physics_environment(int boxes,int fluids,const float* p) {
+    if(!state || !YsmHostEnvironment::valid(p,51+boxes*24+fluids*10,boxes,fluids))return -1;
+    state->host.update(state->world,boxes,fluids,p);return 0;
+}
+int ysm_physics_clear_environment() {
+    if(!state)return -1;state->host.clear(state->world);return 0;
+}
 int ysm_physics_step() {
     if (!state) return -1;
+    for(auto* body:state->bodies)state->host.apply(body,state->dt);
+    for(auto* body:state->softBodies)state->host.apply(body,state->dt);
+    state->host.finishStep();
     for (const auto& p:state->pinTargets) {
         auto& node=state->softBodies[p.soft]->m_nodes[p.vertex];node.m_v=(p.position-node.m_x)/state->dt;
     }

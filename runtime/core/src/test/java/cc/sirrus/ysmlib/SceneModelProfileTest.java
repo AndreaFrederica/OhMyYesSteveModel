@@ -6,6 +6,16 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SceneModelProfileTest {
+  @Test void hostPhysicsRoundTripsAndAllProfileEditsPreserveItsValues(){
+    var options=new ScenePhysicsInput.Settings(false,.3,6,1.1,8);
+    var profile=SceneModelProfile.defaults(.08,18,0).withHostPhysics(options);
+    var result=YsmRuntime.scenes().readModelProfile(YsmRuntime.scenes().writeModelProfile(profile));
+    assertEquals(profile,result);
+    result=result.withBones(Map.of()).withActions(Map.of()).withPlacement(result.placement()).withMetadata(result.metadata())
+        .withPresentation(result.presentation()).withRetarget(result.retarget()).withTransitions(List.of()).withHeldItems(result.heldItems());
+    assertEquals(options,result.hostPhysics());
+    assertThrows(IllegalArgumentException.class,()->new ScenePhysicsInput.Settings(true,Double.NaN,1,1,4));
+  }
   @Test void malformedProfileFieldsCannotSilentlyFallBackToDefaults() {
     var bytes=YsmRuntime.scenes().writeModelProfile(SceneModelProfile.defaults(.08,18,0));
     var json=new String(bytes.copy(),java.nio.charset.StandardCharsets.UTF_8);

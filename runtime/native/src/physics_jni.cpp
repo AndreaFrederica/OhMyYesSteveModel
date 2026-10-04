@@ -1,5 +1,24 @@
 #include "physics.h"
 #include <jni.h>
+extern "C" JNIEXPORT jint JNICALL
+Java_cc_sirrus_ysmlib_scene_physics_natives_NativePhysicsProvider_nEnvironment(
+    JNIEnv* e,jclass,jlong p,jfloatArray values,jint boxes,jint fluids){
+  if(!values||boxes<0||boxes>4096||fluids<0||fluids>4096||e->GetArrayLength(values)!=51+boxes*24+fluids*10)return -1;
+  auto* data=e->GetFloatArrayElements(values,nullptr);if(!data)return -3;
+  int result=ysm_physics_environment(reinterpret_cast<ysm_physics_world*>(p),data,e->GetArrayLength(values),boxes,fluids);
+  e->ReleaseFloatArrayElements(values,data,JNI_ABORT);return result;
+}
+extern "C" JNIEXPORT jint JNICALL
+Java_cc_sirrus_ysmlib_scene_physics_natives_NativePhysicsProvider_nEnvironmentDirect(
+    JNIEnv* e,jclass,jlong p,jobject values,jint boxes,jint fluids){
+  if(!values||boxes<0||boxes>4096||fluids<0||fluids>4096)return -1;
+  auto* data=static_cast<float*>(e->GetDirectBufferAddress(values));auto count=e->GetDirectBufferCapacity(values);
+  if(!data||reinterpret_cast<uintptr_t>(data)%alignof(float)!=0||count!=51+boxes*24+fluids*10)return -1;
+  return ysm_physics_environment(reinterpret_cast<ysm_physics_world*>(p),data,int32_t(count),boxes,fluids);
+}
+extern "C" JNIEXPORT jint JNICALL
+Java_cc_sirrus_ysmlib_scene_physics_natives_NativePhysicsProvider_nClearEnvironment(
+    JNIEnv*,jclass,jlong p){return ysm_physics_clear_environment(reinterpret_cast<ysm_physics_world*>(p));}
 template <typename T> static bool aligned(const T *p) {
   return p && reinterpret_cast<uintptr_t>(p) % alignof(T) == 0;
 }

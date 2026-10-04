@@ -11,4 +11,6 @@ public interface VrmPlayback {
   }
   VrmEvaluation.Frame seek(double seconds);
   VrmEvaluation.Frame frame();
+  default void physicsInput(cc.sirrus.ysmlib.scene.ScenePhysicsInput input) { throw new UnsupportedOperationException("Host physics input unavailable"); }
+  default void physicsEnvironment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment) { throw new UnsupportedOperationException("Host physics environment unavailable"); }
 }

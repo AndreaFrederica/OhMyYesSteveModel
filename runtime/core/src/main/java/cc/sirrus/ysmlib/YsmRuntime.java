@@ -120,6 +120,17 @@ public final class YsmRuntime {
 
   /** Headless rigid/soft-body solver. Creating the service does not initialize a WASM world. */
   public static cc.sirrus.ysmlib.scene.physics.PhysicsProvider physics() { return PHYSICS.provider; }
+  /** Select before creating a live world. Older optional accelerators cannot silently omit host contacts. */
+  public static cc.sirrus.ysmlib.scene.physics.PhysicsProvider hostPhysics() { return HostPhysics.PROVIDER; }
+  private static final class HostPhysics {
+    static final cc.sirrus.ysmlib.scene.physics.PhysicsProvider PROVIDER=select();
+    private static cc.sirrus.ysmlib.scene.physics.PhysicsProvider select(){
+      var candidate=physics();if((candidate.capabilities().featureBits()&0x100L)!=0)return candidate;
+      System.getLogger(YsmRuntime.class.getName()).log(System.Logger.Level.INFO,
+          "Live host physics uses JVM/WASM: optional accelerator lacks environment capability");
+      return new cc.sirrus.ysmlib.scene.physics.wasm.WasmPhysicsProvider();
+    }
+  }
 
   /** Cached startup selection reason; empty when the accelerator was accepted. */
   public static String physicsFallbackReason() { return PHYSICS.fallbackReason; }

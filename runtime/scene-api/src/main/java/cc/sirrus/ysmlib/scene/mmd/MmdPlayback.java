@@ -42,6 +42,8 @@ public interface MmdPlayback extends AutoCloseable {
     public Frame { primitives=primitives.stream().map(Map::copyOf).toList(); }
   }
   Frame current();
+  default void physicsInput(ScenePhysicsInput input) { throw new UnsupportedOperationException("Host physics input unavailable"); }
+  default void physicsEnvironment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment) { throw new UnsupportedOperationException("Host physics environment unavailable"); }
   /** Advance at fixed simulation steps and evaluate remaining fractional animation time without a solver step. */
   Frame advance(double elapsedSeconds);
   /** Rebuild and replay on backward seeks. A live session with replayable=false rejects backward seeks. */

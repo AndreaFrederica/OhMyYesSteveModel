@@ -15,6 +15,8 @@ final class ScenePackagePlayer implements ScenePackagePlayback {
   private final Runnable release;
   private boolean closed;
   private Frame current;
+  private java.util.function.Consumer<ScenePhysicsInput> physicsInput=input->{};
+  private java.util.function.Consumer<cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment> physicsEnvironment=input->{};
   private java.util.function.Consumer<Map<Integer,Rotation>> boneOverlay=rotations->{ if(!rotations.isEmpty()) throw new UnsupportedOperationException("Bone overlay is currently MMD-only"); };
   private java.util.function.Consumer<Map<Integer,Pose>> poseOverlay=poses->{if(!poses.isEmpty())throw new UnsupportedOperationException("Bone poses are currently MMD-only");};
   private java.util.function.Consumer<Map<Integer,Boolean>> ikOverlay=switches->{if(!switches.isEmpty())throw new UnsupportedOperationException("IK overrides are currently MMD-only");};
@@ -55,6 +57,8 @@ final class ScenePackagePlayer implements ScenePackagePlayback {
         animation=time->avatarAnimation.evaluate(clip,sourceTime(settings,time),VrmEvaluation.Input.NONE);
       }
       var player=services.playback(avatar,animation,settings.vrm());var materials=services.materials(avatar);
+      physicsInput=player::physicsInput;
+      physicsEnvironment=player::physicsEnvironment;
       evaluator=time->{ var frame=player.seek(time);return new Frame(time,scaled(third.compile(frame.pose())),scaled(first.compile(frame.pose())),new Vrm(frame,materials.evaluate(frame.materials(),sourceTime(settings,time)))); };
     } else if(model instanceof ScenePackageAssets.Pmx || model instanceof ScenePackageAssets.Pmd) {
       AnimationClip clip;
@@ -70,11 +74,12 @@ final class ScenePackagePlayer implements ScenePackagePlayback {
       final MeshAsset mesh;final MmdPlayback player;
       var mmdSettings=settings.mmd().withAnimationRange(settings.animationRange());
       var deformation=settings.deferMmdDeformation()?new cc.sirrus.ysmlib.scene.java.DeferredDeformationProvider():YsmRuntime.deformation();
-      if(model instanceof ScenePackageAssets.Pmx pmx) { mesh=pmx.mesh();player=settings.deferMmdDeformation()
-          ?MmdPlayer.packed(pmx.value(),clip,YsmRuntime.physics(),mmdSettings,Map.of(),deformation):services.playback(pmx.value(),clip,mmdSettings,Map.of()); }
-      else { var pmd=(ScenePackageAssets.Pmd)model;mesh=pmd.mesh();player=settings.deferMmdDeformation()
-          ?MmdPlayer.packed(pmd.value(),clip,YsmRuntime.physics(),mmdSettings,Map.of(),deformation):services.playback(pmd.value(),clip,mmdSettings,Map.of()); }
+      var physics=settings.mmd().replayable()?YsmRuntime.physics():YsmRuntime.hostPhysics();
+      if(model instanceof ScenePackageAssets.Pmx pmx) { mesh=pmx.mesh();player=MmdPlayer.packed(pmx.value(),clip,physics,mmdSettings,Map.of(),deformation); }
+      else { var pmd=(ScenePackageAssets.Pmd)model;mesh=pmd.mesh();player=MmdPlayer.packed(pmd.value(),clip,physics,mmdSettings,Map.of(),deformation); }
       closer=player::close;
+      physicsInput=player::physicsInput;
+      physicsEnvironment=player::physicsEnvironment;
       boneOverlay=player::boneRotations;
       poseOverlay=player::bonePoses;ikOverlay=player::ikOverrides;
       evaluator=time->{
@@ -130,6 +135,8 @@ final class ScenePackagePlayer implements ScenePackagePlayback {
   }
   public ScenePackageAssets assets() { return assets; }
   public Selection selection() { return selection; }
+  public void physicsInput(ScenePhysicsInput input){if(closed)throw new IllegalStateException("Scene package player is closed");physicsInput.accept(input);}
+  public void physicsEnvironment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment){if(closed)throw new IllegalStateException("Scene package player is closed");physicsEnvironment.accept(environment);}
   public void boneRotations(Map<Integer,Rotation> rotations) { boneOverlay.accept(rotations);current=null; }
   public void bonePoses(Map<Integer,Pose> poses) { if(closed)throw new IllegalStateException("Scene package player is closed");poseOverlay.accept(poses);current=null; }
   public void ikOverrides(Map<Integer,Boolean> switches) { if(closed)throw new IllegalStateException("Scene package player is closed");ikOverlay.accept(switches);current=null; }

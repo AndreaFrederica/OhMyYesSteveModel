@@ -12,8 +12,8 @@ import java.util.*;
 
 /** Optional Bullet accelerator. The caller owns its world, clock and bounded replay journal. */
 public final class NativePhysicsProvider implements PhysicsProvider {
-  private static final int ABI = 5;
-  public static final long FEATURE_BITS = 0xffL;
+  private static final int ABI = 6;
+  public static final long FEATURE_BITS = 0x1ffL;
 
   public NativePhysicsProvider(Path library) {
     System.load(library.toAbsolutePath().normalize().toString());
@@ -29,15 +29,20 @@ public final class NativePhysicsProvider implements PhysicsProvider {
       w.step();
       if(Math.abs(w.bodyStates().get(0).linearVelocity().y()+9.8f/60)>1e-5)
         throw new UnsatisfiedLinkError("ysmlib physics trajectory self-check failed");
+      var input=new cc.sirrus.ysmlib.scene.ScenePhysicsInput(0,0,0,0,cc.sirrus.ysmlib.scene.Matrix4.IDENTITY,
+          Vec3.ZERO,List.of(),List.of(),cc.sirrus.ysmlib.scene.ScenePhysicsInput.Settings.defaults());
+      w.environment(new PhysicsEnvironment(input,Vec3.ZERO,new Vec3(2,0,0),Vec3.ZERO,Vec3.ZERO,false));w.step();w.environment(null);
+      if(Math.abs(w.bodyStates().get(0).linearVelocity().x()+2f/60)>1e-5)
+        throw new UnsatisfiedLinkError("ysmlib host environment self-check failed");
     }
   }
-  @Override public String id() { return "bullet-3.25-native-v5"; }
+  @Override public String id() { return "bullet-3.25-native-v6"; }
   @Override public PhysicsCapabilities capabilities() { return new PhysicsCapabilities(id(),ABI,FEATURE_BITS,true); }
   @Override public PhysicsWorld createWorld(PhysicsSpec.World settings) { return new World(settings); }
   public int scalarBits() { return nScalarBits(); }
   public int solverThreads() { return nThreadCount(); }
 
-  private enum Operation { BODY, JOINT, IMPULSES, FORCES, CLAMP, OPTIONS, ANCHOR, POSE, POSES, VELOCITY, IMPULSE, RESET, KINEMATIC, GRAVITY, PIN, STEP }
+  private enum Operation { BODY, JOINT, IMPULSES, FORCES, CLAMP, OPTIONS, ANCHOR, POSE, POSES, VELOCITY, IMPULSE, RESET, KINEMATIC, GRAVITY, PIN, STEP, ENVIRONMENT, CLEAR_ENVIRONMENT }
   /** All arrays are constructed internally or copied before being placed in a command. */
   private record Command(Operation op,float[] values,int[] args) implements ReplayCommand {
     public long bytes() { return 80L+4L*(values.length+args.length); }
@@ -59,6 +64,8 @@ public final class NativePhysicsProvider implements PhysicsProvider {
         case GRAVITY -> nGravity(p,values);
         case PIN -> nSoftPin(p,args[0],args[1],values);
         case STEP -> nStep(p);
+        case ENVIRONMENT -> nEnvironment(p,values,args[0],args[1]);
+        case CLEAR_ENVIRONMENT -> nClearEnvironment(p);
       };
     }
   }
@@ -70,6 +77,17 @@ public final class NativePhysicsProvider implements PhysicsProvider {
   }
 
   private static final class World implements PhysicsWorld {
+    private FloatBuffer environmentBuffer;
+    @Override public synchronized void environment(PhysicsEnvironment environment){
+      open();if(environment==null){send(Operation.CLEAR_ENVIRONMENT,NO_FLOATS);return;}
+      int size=environment.packedSize();
+      if(environmentBuffer==null||environmentBuffer.capacity()<size)
+        environmentBuffer=java.nio.ByteBuffer.allocateDirect(Math.max(256,size)*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+      environmentBuffer.clear();environment.writePacked(environmentBuffer);environmentBuffer.flip();
+      if(settings.recordReplay()){
+        float[] copy=new float[size];environmentBuffer.duplicate().get(copy);send(Operation.ENVIRONMENT,copy,environment.solidCount(),environment.input().fluids().size());
+      }else{nativeCalls++;checked(nEnvironmentDirect(nativeWorld,environmentBuffer.slice(),environment.solidCount(),environment.input().fluids().size()));}
+    }
     final PhysicsSpec.World settings;
     final Object identity=new Object();
     final ArrayList<ReplayCommand> history=new ArrayList<>();
@@ -286,6 +304,9 @@ public final class NativePhysicsProvider implements PhysicsProvider {
   private static int putVec(float[] a,int o,Vec3 v) { Objects.requireNonNull(v);a[o++]=v.x();a[o++]=v.y();a[o++]=v.z();return o; }
   private static int putPose(float[] a,int o,Pose p) { Objects.requireNonNull(p);o=putVec(a,o,p.position());a[o++]=p.rotation().x();a[o++]=p.rotation().y();a[o++]=p.rotation().z();a[o++]=p.rotation().w();return o; }
   private static native int nAbiVersion();
+  private static native int nEnvironment(long p,float[] values,int boxes,int fluids);
+  private static native int nEnvironmentDirect(long p,FloatBuffer values,int boxes,int fluids);
+  private static native int nClearEnvironment(long p);
   private static native long nFeatureBits();
   private static native int nScalarBits();
   private static native int nThreadCount();

@@ -26,7 +26,7 @@ import java.util.function.Function;
 /** Scalar Bullet 3.25 executed entirely by the JVM. No JNI, subprocess or native discovery. */
 public final class WasmPhysicsProvider implements PhysicsProvider {
   @Override public String id() { return "bullet-3.25-chicory-jvm-v1"; }
-  @Override public PhysicsCapabilities capabilities() { return new PhysicsCapabilities(id(), 4, 0xffL, false); }
+  @Override public PhysicsCapabilities capabilities() { return new PhysicsCapabilities(id(), 5, 0x1ffL, false); }
   @Override public PhysicsWorld createWorld(PhysicsSpec.World settings) { return new World(settings); }
 
   private static final class Code {
@@ -65,7 +65,7 @@ public final class WasmPhysicsProvider implements PhysicsProvider {
       try {
         instance=Instance.builder(Code.MODULE).withMachineFactory(Code.FACTORY)
             .withImportValues(ImportValues.builder().addFunction(wasi.toHostFunctions()).build()).build();
-        if (call("ysm_physics_abi")!=4) throw new IllegalStateException("Bullet reactor ABI mismatch");
+        if (call("ysm_physics_abi")!=5) throw new IllegalStateException("Bullet reactor ABI mismatch");
         var b=buffer(24);vector(b,settings.gravity());b.putFloat(settings.stepSeconds()).putFloat(settings.solverIterations()).putFloat(settings.kinematicFilter()?1:0);
         write(b.array()); checked("ysm_physics_create", scratch);
       } catch (RuntimeException | Error failure) {
@@ -118,6 +118,11 @@ public final class WasmPhysicsProvider implements PhysicsProvider {
   }
 
   private static final class World implements PhysicsWorld {
+    @Override public synchronized void environment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment) {
+      if(environment==null){simple("ysm_physics_clear_environment");return;}
+      var b=buffer(environment.packedSize()*4);environment.writePacked(b.asFloatBuffer());
+      send("ysm_physics_environment",b,environment.solidCount(),environment.input().fluids().size());
+    }
     private final PhysicsSpec.World settings;
     private final Object identity=new Object();
     private final ArrayList<Command> history=new ArrayList<>();

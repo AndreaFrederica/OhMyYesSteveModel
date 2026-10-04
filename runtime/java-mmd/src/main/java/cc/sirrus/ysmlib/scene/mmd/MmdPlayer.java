@@ -28,6 +28,16 @@ public final class MmdPlayer implements MmdPlayback {
   private AnimationFrame vpd;
   private final Map<String,List<Integer>> boneNames;
   private boolean overlayDirty;
+  private final cc.sirrus.ysmlib.scene.physics.ScenePhysicsMotion hostMotion=new cc.sirrus.ysmlib.scene.physics.ScenePhysicsMotion();
+  private cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment hostEnvironment;
+  @Override public synchronized void physicsInput(ScenePhysicsInput input) {
+    open();physicsEnvironment(input==null?null:hostMotion.update(input));
+    if(input==null)hostMotion.reset();
+  }
+  @Override public synchronized void physicsEnvironment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment) {
+    open();hostEnvironment=environment;
+    if(simulation.physics!=null)simulation.physics.environment(hostEnvironment);
+  }
   @Override public synchronized void bonePoses(Map<Integer,Pose> poses) {
     open();var next=Map.copyOf(poses);
     for(int index:next.keySet())if(index<0 || index>=source.bones().size())throw new IllegalArgumentException("Invalid pose override bone");
@@ -200,6 +210,7 @@ public final class MmdPlayer implements MmdPlayback {
     if(!settings.physicsEnabled()) { current=simulation.sample(seconds);overlayDirty=false;return current; }
     long target=(long)Math.floor(seconds*settings.frequencyHz()+1e-9);boolean backwards=seconds<current.seconds();
     if(backwards && !settings.replayable()) throw new IllegalStateException("Backward seek is disabled in this live session");
+    if(backwards && hostEnvironment!=null)throw new IllegalStateException("Cannot replay historical host environment; detach world input before preview seek");
     long work=target-(backwards?0:simulation.step);
     if(work>settings.maxStepsPerSeek()) throw new IllegalArgumentException("Playback seek work budget exceeded");
     if(liveClock!=null) {

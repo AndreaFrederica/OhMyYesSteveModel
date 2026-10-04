@@ -15,6 +15,9 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
   private final int[] parents,order,segmentByNode;
   private final List<Segment> segments;
   private State[] states;
+  private cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment environment;
+  private boolean resetHost;
+  public void environment(cc.sirrus.ysmlib.scene.physics.PhysicsEnvironment input){environment=input;resetHost|=input!=null&&input.reset();}
   public VrmSpringSolver(VrmDocument document) {
     this.document=Objects.requireNonNull(document);VrmTopology.validateSprings(document);parents=VrmTopology.parents(document.scene());
     var rest=new SceneEvaluator(document.scene()).evaluate(null,0);var list=new ArrayList<Segment>();
@@ -63,6 +66,7 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
   }
   public NodeConstraintEvaluation.Frame step(ScenePose pose,List<Rotation> rotations,double seconds) {
     if(!Double.isFinite(seconds) || seconds<=0 || seconds>1) throw new IllegalArgumentException("Spring step must be in (0,1] seconds");
+    if(resetHost){reset(pose,rotations);resetHost=false;}
     return evaluate(pose,rotations,seconds);
   }
   public NodeConstraintEvaluation.Frame sample(ScenePose pose,List<Rotation> rotations) { return evaluate(pose,rotations,0); }
@@ -87,7 +91,15 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
         float length=(float)Math.sqrt(current.transformDirection(relativeTip).dot(current.transformDirection(relativeTip)));
         Vec3 axis=baseline.transformDirection(s.restTail()).normalized();var p=s.settings();
         Vec3 inertial=previous.current().add(previous.current().subtract(previous.previous()).multiply(1-p.dragForce()));
-        Vec3 tail=center.transformPoint(inertial).add(axis.multiply((float)(dt*p.stiffness()))).add(p.gravityDir().multiply((float)(dt*p.gravityPower())));
+        Vec3 gravity=p.gravityDir();
+        if(environment!=null&&environment.sourceGravity().dot(environment.sourceGravity())>1e-20)
+          gravity=gravity.add(environment.sourceGravity().normalized().add(new Vec3(0,1,0)).multiply(-gravity.y()));
+        Vec3 tail=center.transformPoint(inertial).add(axis.multiply((float)(dt*p.stiffness()))).add(gravity.multiply((float)(dt*p.gravityPower())));
+        if(environment!=null) {
+          var position=center.transformPoint(previous.current());
+          var velocity=center.transformDirection(previous.current().subtract(previous.previous())).multiply((float)(1/dt));
+          tail=tail.add(environment.accelerationAt(position,velocity,dt).multiply((float)(dt*dt)));
+        }
         tail=lengthConstraint(head,tail,length,axis);
         for(int c:s.colliders().copy()) {
           var collider=document.colliders().get(c);Matrix4 world=global[collider.node()];
@@ -104,6 +116,8 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
             tail=lengthConstraint(head,point.add(direction.multiply((float)radius)),length,axis);
           }
         }
+        if(environment!=null)for(int contact=0;contact<4;contact++)
+          tail=lengthConstraint(head,environment.collideTip(tail,p.hitRadius()),length,axis);
         result=s.restRotation().multiply(VrmMath.fromTo(s.restTail(),baseline.inverse().transformPoint(tail)));
         next[index]=new State(previous.current(),center.inverse().transformPoint(tail),result);
       }

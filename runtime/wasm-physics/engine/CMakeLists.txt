@@ -39,7 +39,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
       ysm_physics_body_count ysm_physics_read_bodies ysm_physics_soft ysm_physics_anchor
       ysm_physics_soft_count ysm_physics_read_soft ysm_physics_read_soft_normals ysm_physics_pin
       ysm_physics_reset_forces ysm_physics_configure_joint ysm_physics_set_kinematic ysm_physics_set_gravity
-      ysm_physics_forces ysm_physics_clamp_velocities)
+      ysm_physics_forces ysm_physics_clamp_velocities ysm_physics_environment ysm_physics_clear_environment)
     target_link_options(physics PRIVATE "-Wl,--export=${symbol}")
   endforeach()
 endif()

@@ -11,6 +11,20 @@ import static cc.sirrus.ysmlib.scene.mmd.MmdRigTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MmdPlaybackTest {
+  @Test void actualPackedPlayerReceivesWorldGravityTerrainAndTeleportReset() throws Exception {
+    var model=withPhysics(source(),List.of(body(0,0),body(1,1)),List.of(),List.of());
+    var empty=new AnimationClip("",List.of(),30);
+    try(var actual=MmdPlayer.packed(model,empty,new WasmPhysicsProvider(),MmdPlayback.Settings.preview(),Map.of())) {
+      var floor=new ScenePhysicsInput.Box(new Vec3(-10,-1,-10),new Vec3(10,0,10));
+      actual.physicsInput(new ScenePhysicsInput(0,30_000_000,0,0,Matrix4.IDENTITY,new Vec3(0,-9.8f,0),List.of(floor),List.of(),ScenePhysicsInput.Settings.defaults()));
+      var resting=actual.seek(1);assertEquals(.1,resting.pose().bones().get(1).position().y(),.025);
+      assertSame(resting,actual.seek(1));
+      assertThrows(IllegalStateException.class,()->actual.seek(.5));
+      actual.physicsInput(new ScenePhysicsInput(1,30_000_020,0,0,Matrix4.IDENTITY,Vec3.ZERO,List.of(),List.of(),ScenePhysicsInput.Settings.defaults()));
+      var reset=actual.seek(1+1.0/60);assertEquals(1,reset.pose().bones().get(1).position().y(),.001);
+      actual.physicsInput(null);assertDoesNotThrow(()->actual.seek(.5));
+    }
+  }
   private ByteData resource(String name) throws Exception { try(var input=getClass().getResourceAsStream("/mmd-oracle/"+name)) { return new ByteData(Objects.requireNonNull(input).readAllBytes()); } }
   private PmxDocument source() throws Exception { return new PmxReader().read(resource("skin.pmx"),ReadLimits.DEFAULT); }
   private AnimationClip clip() throws Exception { return new VmdAnimation().compile(new VmdReader().read(resource("skin.vmd"),ReadLimits.DEFAULT)).clip(); }
