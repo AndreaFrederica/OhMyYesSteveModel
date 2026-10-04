@@ -2,6 +2,26 @@
 
 <img src="logo/main.png" alt="Oh My Yes Steve Model 图标" width="256" height="256">
 
+---
+一个带有一堆修补和额外功能的YSM3.0分支 用以移植到1.12 为1.12带来YSM/CPM和MMD/VRC模型支持
+
+| 组件 | 状态 |
+|---|---|
+|YSM Native替代（Oh My YSM Lib|完成传统YSM Native的大部分功能|
+|Oh My YSM MMD|Demo|
+|Oh My YSM VRC Inport tool|Plan|
+
+其他计划
+- 拆分关于通用模型渲染的功能到Lib
+- 重写联机协议
+
+主要计划
+- 1.12移植
+- 修补大部分Bug
+---
+ai sloop分割线
+---
+
 **鬼故事 上游也不稳定 且硅基话 我懒得且没时间写人肉文档了 看不明白直接呼叫agent吧**
 
 本 fork 的正式全称是 **Oh My Yes Steve Model**，简称 **Oh My YSM**；其中 YSM 延续 Yes Steve Model 的缩写，便于兼容既有模型、协议和 API。带有两个可安装 JAR 的自动构建发布于 [本 fork 的 Releases](https://github.com/AndreaFrederica/OhMyYesSteveModel/releases)；YSM 本体和 Oh my ysm lib 必须一起放入 `mods/`。构建方式与可选 native 加速的安装见[构建指南](docs/build.md)。
@@ -12,7 +32,7 @@
 
 **功能由 JVM 基线保证，native 负责可选加速。** 没有加速库时仍应使用相同的模型功能，而不是停用模型或只显示默认玩家；有可用加速时优先使用加速。完整功能迁移是目标，已经完成的验证范围单独公开，不以“能启动”代替功能验收。
 
-| 部分 | 这份 fork 提供什么 |
+| 部分 | 功能 |
 |---|---|
 | YSM 主体 | Minecraft / Forge 接入、模型与资源生命周期、动画、网络同步、游戏渲染和命令；编译与运行均通过我们的前置，不再要求官方 YSM native |
 | Oh my ysm lib | 独立前置 Mod 与可复用 Java 17 算法模块，命名空间 `cc.sirrus.ysmlib`；接口、JVM 实现与可选 native provider 分开，算法模块不依赖 Minecraft |
