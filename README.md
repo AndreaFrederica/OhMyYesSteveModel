@@ -13,6 +13,7 @@
 | 组件 | 状态 |
 |---|---|
 |YSM Native替代（Oh My YSM Lib|完成传统YSM Native的大部分功能|
+|CPM模型支持|Plan|
 |Oh My YSM MMD|Demo|
 |Oh My YSM VRC Inport tool|Plan|
 |纯Java物理|远期|
