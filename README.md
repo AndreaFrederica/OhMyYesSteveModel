@@ -5,6 +5,7 @@
   <img src="logo/Lib.png" alt="Oh My Yes Steve Model Lib 图标" width="256" height="256">
 </div>
 
+> 您可以根据[主许可证](./LICENSE)自由处理项目的资源 除了两个图标 它们使用[受限许可证](./LICENSE-ARTWORK.md) 如果您需要修改图标 请不要派生，而是直接替换他们，许可证赋予您分发的权利，但是不允许修改。
 ---
 一个带有一堆修补和额外功能的YSM3.0分支 用以移植到1.12 为1.12带来YSM/CPM和MMD/VRC模型支持
 用Oh My YSM Lib 替换传统的YSM Native环境 提供可插拔的Native加速和基础的Java渲染支持
