@@ -1,47 +1,40 @@
 package com.elfmcys.ysm.capability;
 
-import net.minecraft.core.Direction;
-import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
-import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class AuthModelsCapabilityProvider implements ICapabilitySerializable<ListTag> {
-    public static Capability<AuthModelsCapability> AUTH_MODELS_CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
-    private AuthModelsCapability instance = null;
+public class AuthModelsCapabilityProvider implements ICapabilitySerializable<NBTTagList> {
+    @CapabilityInject(AuthModelsCapability.class)
+    public static Capability<AuthModelsCapability> AUTH_MODELS_CAP = null;
+    private final AuthModelsCapability instance;
 
-    @NotNull
-    @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return AUTH_MODELS_CAP.orEmpty(cap, LazyOptional.of(this::createCapability));
-    }
-
-    @NotNull
-    @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap) {
-        return getCapability(cap, null);
-    }
-
-    @NotNull
-    private AuthModelsCapability createCapability() {
-        if (instance == null) {
-            this.instance = new AuthModelsCapability();
-        }
-        return instance;
+    public AuthModelsCapabilityProvider() {
+        this.instance = AUTH_MODELS_CAP.getDefaultInstance();
     }
 
     @Override
-    public void deserializeNBT(ListTag nbt) {
-        createCapability().deserializeNBT(nbt);
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == AUTH_MODELS_CAP;
+    }
+
+    @Nullable
+    @Override
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        return hasCapability(cap, side) ? AUTH_MODELS_CAP.cast(instance) : null;
     }
 
     @Override
-    public ListTag serializeNBT() {
-        return createCapability().serializeNBT();
+    public void deserializeNBT(NBTTagList nbt) {
+        instance.deserializeNBT(nbt);
+    }
+
+    @Override
+    public NBTTagList serializeNBT() {
+        return instance.serializeNBT();
     }
 }

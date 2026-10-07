@@ -9,7 +9,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import net.minecraft.ChatFormatting;
+import net.minecraft.util.text.TextFormatting;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -73,12 +73,12 @@ public final class CatalogModelTooltipFormatter {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(translator, "translator");
         var lines = new ArrayList<Line>();
-        lines.add(new Line(input.name(), ChatFormatting.GOLD));
+        lines.add(new Line(input.name(), TextFormatting.GOLD));
         appendTips(lines, input.name(), input.tips());
         appendMetadata(lines, input, translator);
         if (input.loadError() != null) {
             lines.add(new Line(translator.translate(KEY_PREFIX + "error",
-                    errorSummary(input.loadError())), ChatFormatting.RED));
+                    errorSummary(input.loadError())), TextFormatting.RED));
         }
         if (detailed) {
             appendDetails(lines, input, translator);
@@ -92,7 +92,7 @@ public final class CatalogModelTooltipFormatter {
         for (var value : tips.replace("\r", "").split("\n", -1)) {
             var line = value.trim();
             if (!line.isEmpty() && !normalize(line).equals(normalizedName)) {
-                lines.add(new Line(line, ChatFormatting.GRAY));
+                lines.add(new Line(line, TextFormatting.GRAY));
             }
         }
     }
@@ -109,11 +109,11 @@ public final class CatalogModelTooltipFormatter {
             if (remaining > 0) {
                 authors += " " + translator.translate(KEY_PREFIX + "authors_more", remaining);
             }
-            lines.add(new Line(translator.translate(KEY_PREFIX + "authors", authors), ChatFormatting.GRAY));
+            lines.add(new Line(translator.translate(KEY_PREFIX + "authors", authors), TextFormatting.GRAY));
         }
         if (!input.license().isBlank()) {
             lines.add(new Line(translator.translate(KEY_PREFIX + "license", input.license()),
-                    ChatFormatting.GRAY));
+                    TextFormatting.GRAY));
         }
         if (lines.size() > firstMetadataLine) {
             lines.add(firstMetadataLine, Line.SPACE);
@@ -134,13 +134,13 @@ public final class CatalogModelTooltipFormatter {
     private static void appendStats(List<Line> lines, Stats stats, Translator translator) {
         lines.add(Line.SPACE);
         lines.add(new Line(translator.translate(KEY_PREFIX + "stats",
-                stats.bones(), stats.cubes(), stats.faces()), ChatFormatting.GOLD));
+                stats.bones(), stats.cubes(), stats.faces()), TextFormatting.GOLD));
         lines.add(new Line(translator.translate(KEY_PREFIX + "textures", stats.textures()),
-                ChatFormatting.GOLD));
+                TextFormatting.GOLD));
     }
 
     private static Line detail(Translator translator, String key, Object... arguments) {
-        return new Line(translator.translate(KEY_PREFIX + key, arguments), ChatFormatting.DARK_GRAY);
+        return new Line(translator.translate(KEY_PREFIX + key, arguments), TextFormatting.DARK_GRAY);
     }
 
     private static String normalize(String value) {
@@ -204,8 +204,8 @@ public final class CatalogModelTooltipFormatter {
     public record Stats(int bones, int cubes, int faces, int textures) {
     }
 
-    public record Line(String text, ChatFormatting color) {
-        static final Line SPACE = new Line(" ", ChatFormatting.GRAY);
+    public record Line(String text, TextFormatting color) {
+        static final Line SPACE = new Line(" ", TextFormatting.GRAY);
 
         public Line {
             Objects.requireNonNull(text, "text");

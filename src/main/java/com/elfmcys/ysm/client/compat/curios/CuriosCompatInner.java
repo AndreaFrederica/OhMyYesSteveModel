@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.curios;
 
+/*
 import com.elfmcys.ysm.client.compat.curios.functions.HasAnyCurios;
 import com.elfmcys.ysm.client.compat.curios.functions.HasAnyCuriosWithAllTag;
 import com.elfmcys.ysm.client.compat.curios.functions.HasAnyCuriosWithAnyTag;
@@ -17,9 +18,11 @@ import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import java.util.function.Predicate;
 
 public class CuriosCompatInner {
+*/
     /**
      * 搜索整个饰品栏，性能很差。
      */
+    /*
     @Nullable
     public static ItemStack searchCuriosInventory(ICuriosItemHandler curiosInventory, Predicate<ItemStack> itemPredicate) {
         for (var curiosHandler : curiosInventory.getCurios().values()) {
@@ -30,10 +33,12 @@ public class CuriosCompatInner {
         }
         return null;
     }
+    */
 
     /**
      * 仅搜索一类饰品槽位
      */
+    /*
     @Nullable
     public static ItemStack searchCuriosHandler(ICurioStacksHandler curiosHandler, Predicate<ItemStack> itemPredicate) {
         var rendersToggle = curiosHandler.getRenders();
@@ -73,16 +78,16 @@ public class CuriosCompatInner {
         }
         CuriosApi.getCuriosInventory(ctx.entity()).ifPresent(inventory -> {
             for (var entry : inventory.getCurios().entrySet()) {
-                ctx.debugPrint(Component.literal("-------- Type ").append(ComponentUtils.copyOnClickText(entry.getKey())).append(" --------"));
+                ctx.debugPrint(Component.literal("-------- Type ").append(ComponentUtils.suggestOnClickText(entry.getKey())).append(" --------"));
                 ctx.debugPrint("");
                 searchCuriosHandler(entry.getValue(), itemStack -> {
-                    ctx.debugPrint(Component.literal("Display ").append(ComponentUtils.copyOnClickText(itemStack.getHoverName().getString(99))));
+                    ctx.debugPrint(Component.literal("Display ").append(ComponentUtils.suggestOnClickText(itemStack.getHoverName().getString(99))));
 
                     var holder = itemStack.getItemHolder();
                     holder.unwrapKey().ifPresent(key -> ctx.debugPrint(
-                            Component.literal("Name ").append(ComponentUtils.copyOnClickText(key.location().toString()))));
+                            Component.literal("Name ").append(ComponentUtils.suggestOnClickText(key.location().toString()))));
                     holder.tags().forEach(tagKey -> ctx.debugPrint(
-                            Component.literal("Tag ").append(ComponentUtils.copyOnClickText(tagKey.location().toString()))));
+                            Component.literal("Tag ").append(ComponentUtils.suggestOnClickText(tagKey.location().toString()))));
 
                     ctx.debugPrint("");
                     return false;
@@ -92,3 +97,4 @@ public class CuriosCompatInner {
         return null;
     }
 }
+*/

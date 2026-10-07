@@ -5,7 +5,7 @@ import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.internal.PlatformDependent;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.PacketBuffer;
 import org.lwjgl.system.MemoryUtil;
 
 import java.lang.ref.Reference;
@@ -14,7 +14,7 @@ public final class ForgeUniBufferIO {
     private ForgeUniBufferIO() {
     }
 
-    public static void write(FriendlyByteBuf target, UniBuffer source) {
+    public static void write(PacketBuffer target, UniBuffer source) {
         try {
             if (source instanceof ArrayBuffer array) {
                 target.writeBytes(array.array(), array.arrayOffset(), array.size());
@@ -22,12 +22,14 @@ public final class ForgeUniBufferIO {
             }
             var nativeBuffer = (NativeBuffer) source;
             var length = nativeBuffer.size();
-            var index = target.writerIndex();
-            target.ensureWritable(length);
             if (target.hasMemoryAddress()) {
+                var index = target.writerIndex();
+                target.ensureWritable(length);
                 PlatformDependent.copyMemory(nativeBuffer.ptr(), target.memoryAddress() + index, length);
                 target.writerIndex(index + length);
             } else if (target.hasArray()) {
+                var index = target.writerIndex();
+                target.ensureWritable(length);
                 PlatformDependent.copyMemory(nativeBuffer.ptr(), target.array(),
                         target.arrayOffset() + index, length);
                 target.writerIndex(index + length);
@@ -40,7 +42,7 @@ public final class ForgeUniBufferIO {
         }
     }
 
-    public static NativeBuffer readNative(FriendlyByteBuf source, int length) {
+    public static NativeBuffer readNative(PacketBuffer source, int length) {
         if (length < 0 || length > source.readableBytes()) {
             throw new IndexOutOfBoundsException();
         }
@@ -63,16 +65,8 @@ public final class ForgeUniBufferIO {
                     || targetOffset > target.size() - length) {
                 throw new IndexOutOfBoundsException();
             }
-            if (source.hasMemoryAddress()) {
-                PlatformDependent.copyMemory(source.memoryAddress() + sourceIndex,
-                        target.ptr() + targetOffset, length);
-            } else if (source.hasArray()) {
-                PlatformDependent.copyMemory(source.array(), source.arrayOffset() + sourceIndex,
-                        target.ptr() + targetOffset, length);
-            } else {
-                source.getBytes(sourceIndex,
-                        MemoryUtil.memByteBuffer(target.ptr() + targetOffset, length));
-            }
+            source.getBytes(sourceIndex,
+                    MemoryUtil.memByteBuffer(target.ptr() + targetOffset, length));
         } finally {
             Reference.reachabilityFence(source);
             Reference.reachabilityFence(target);

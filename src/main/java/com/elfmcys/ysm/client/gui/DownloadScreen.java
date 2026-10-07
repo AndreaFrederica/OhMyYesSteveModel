@@ -1,10 +1,8 @@
 package com.elfmcys.ysm.client.gui;
 
 import com.elfmcys.ysm.client.gui.button.FlatColorButton;
-import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.util.text.TextFormatting;
 
 public class DownloadScreen extends Screen {
     private final PlayerModelScreen parent;
@@ -12,22 +10,22 @@ public class DownloadScreen extends Screen {
     private int y;
 
     public DownloadScreen(PlayerModelScreen parent) {
-        super(Component.literal("YSM Config GUI"));
+        super();
         this.parent = parent;
     }
 
     @Override
-    protected void init() {
+    public void initGui() {
         this.x = (width - 420) / 2;
         this.y = (height - 235) / 2;
 
-        addRenderableWidget(new FlatColorButton(x + 5, y, 80, 18, Component.translatable("gui.yes_steve_model.model.return"), (b) -> this.getMinecraft().setScreen(parent)));
+        addButton(new FlatColorButton(x + 5, y, 80, 18, I18n.format("gui.yes_steve_model.model.return"), (b) -> this.mc.displayGuiScreen(parent)));
     }
 
     @Override
-    public void render(GuiGraphics graphics, int pMouseX, int pMouseY, float pPartialTick) {
-        renderBackground(graphics);
-        graphics.drawCenteredString(font, "Coming Soooooooooooooooooooooooooon™", width / 2, height / 2 - 5, ChatFormatting.DARK_RED.getColor());
-        super.render(graphics, pMouseX, pMouseY, pPartialTick);
+    public void drawScreen(int pMouseX, int pMouseY, float pPartialTick) {
+        drawDefaultBackground();
+        this.drawCenteredString(fontRenderer, TextFormatting.DARK_RED + "Coming Soooooooooooooooooooooooooon™", width / 2, height / 2 - 5, 0xffffffff);
+        super.drawScreen(pMouseX, pMouseY, pPartialTick);
     }
 }

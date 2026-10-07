@@ -18,8 +18,9 @@ import com.elfmcys.ysm.model.service.ModelExportService;
 import com.elfmcys.ysm.model.storage.PreviewStore;
 import com.elfmcys.ysm.natives.image.ImageEncoder;
 import com.elfmcys.ysm.natives.image.ImageSource;
+import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.util.Closeable;
-import com.mojang.blaze3d.platform.NativeImage;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -311,7 +312,7 @@ public final class ClientPreviewGenerator implements Closeable {
     }
 
     private void renderPublished(FactSlot slot, RenderInput input) {
-        NativeImage pixels = null;
+        BufferedImage pixels = null;
         Throwable failure = null;
         try {
             if (!slot.isClosed()) {
@@ -336,7 +337,7 @@ public final class ClientPreviewGenerator implements Closeable {
 
     private void renderDetached(FactSlot slot, DetachedFact detached) {
         ResourceLease lease = null;
-        NativeImage pixels = null;
+        BufferedImage pixels = null;
         Throwable failure = null;
         try {
             if (!slot.isClosed()) {
@@ -366,7 +367,7 @@ public final class ClientPreviewGenerator implements Closeable {
         slot.publish(new PixelsFact(pixels, failure));
     }
 
-    private void startFinish(Operation operation, NativeImage pixels) {
+    private void startFinish(Operation operation, BufferedImage pixels) {
         var slot = operation.begin();
         if (operation.submission instanceof ExportSubmission) {
             var prepared = operation.export;
@@ -390,7 +391,7 @@ public final class ClientPreviewGenerator implements Closeable {
     }
 
     private PreviewFinishedFact finishPreview(ModelContent content,
-                                               NativeImage pixels,
+                                               BufferedImage pixels,
                                                boolean persist) {
         PreviewStore.EncodedPreview encoded = null;
         Throwable failure = null;
@@ -413,7 +414,7 @@ public final class ClientPreviewGenerator implements Closeable {
     }
 
     private ExportFinishedFact finishExport(ModelExportService.PreparedExport prepared,
-                                            NativeImage pixels) {
+                                            BufferedImage pixels) {
         Path output = null;
         Throwable failure = null;
         try {
@@ -642,15 +643,8 @@ public final class ClientPreviewGenerator implements Closeable {
         return ((ModelRenderTargetLoader.LoadResult.Ready) outcome).candidate();
     }
 
-    private static Throwable closePixels(NativeImage pixels, Throwable failure) {
-        if (pixels == null) {
-            return failure;
-        }
-        try {
-            pixels.close();
-        } catch (Throwable closeFailure) {
-            return append(failure, closeFailure);
-        }
+    /** BufferedImage 是堆对象，无需显式释放；保留此接缝以维持上游的故障聚合语义。 */
+    private static Throwable closePixels(BufferedImage pixels, Throwable failure) {
         return failure;
     }
 
@@ -683,14 +677,37 @@ public final class ClientPreviewGenerator implements Closeable {
         return current;
     }
 
-    private static PreviewStore.EncodedPreview encode(NativeImage pixels) throws IOException {
-        try (var encoded = ImageEncoder.encodeLossy(
-                pixels, PreviewRenderHost.WIDTH, PreviewRenderHost.HEIGHT);
+    private static PreviewStore.EncodedPreview encode(BufferedImage pixels) throws IOException {
+        try (var raw = toPixels(pixels);
+             var encoded = ImageEncoder.encodeLossy(raw, pixels.getWidth(), pixels.getHeight(),
+                     PreviewRenderHost.WIDTH, PreviewRenderHost.HEIGHT);
              var data = encoded.data().acquireArray()) {
             var bytes = Arrays.copyOfRange(data.array(), data.arrayOffset(),
                     data.arrayOffset() + data.size());
             return PreviewStore.decode(bytes);
         }
+    }
+
+    /** 转成编码器需要的 RGBA 原生缓冲（ABGR int → RGBA byte）。 */
+    private static NativeBuffer toPixels(BufferedImage image) {
+        var width = image.getWidth();
+        var height = image.getHeight();
+        var argb = image.getRGB(0, 0, width, height, null, 0, width);
+        var pixels = NativeBuffer.allocate(width * height * 4);
+        var out = pixels.nio();
+        try {
+            for (var value : argb) {
+                out.put((byte) (value & 0xFF));
+                out.put((byte) ((value >>> 8) & 0xFF));
+                out.put((byte) ((value >>> 16) & 0xFF));
+                out.put((byte) (value >>> 24));
+            }
+            out.flip();
+        } catch (RuntimeException | Error error) {
+            pixels.close();
+            throw error;
+        }
+        return pixels;
     }
 
     record RenderInput(ResourceRequest request, ResourceLease lease) {
@@ -732,12 +749,12 @@ public final class ClientPreviewGenerator implements Closeable {
 
     @FunctionalInterface
     interface HostRenderer {
-        NativeImage render(ResourceRequest request, ResourceLease lease) throws Exception;
+        BufferedImage render(ResourceRequest request, ResourceLease lease) throws Exception;
     }
 
     @FunctionalInterface
     interface Encoder {
-        PreviewStore.EncodedPreview encode(NativeImage pixels) throws Exception;
+        PreviewStore.EncodedPreview encode(BufferedImage pixels) throws Exception;
     }
 
     @FunctionalInterface
@@ -814,7 +831,7 @@ public final class ClientPreviewGenerator implements Closeable {
                                 Throwable failure) implements Fact {
     }
 
-    private record PixelsFact(NativeImage pixels, Throwable failure) implements Fact {
+    private record PixelsFact(BufferedImage pixels, Throwable failure) implements Fact {
     }
 
     private record PreviewFinishedFact(PreviewStore.EncodedPreview preview,

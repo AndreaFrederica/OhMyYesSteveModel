@@ -33,6 +33,7 @@ import com.elfmcys.ysm.proto.network.PreviewMember;
 import com.elfmcys.ysm.proto.network.ResourceFailureReason;
 import com.elfmcys.ysm.proto.network.ResourceTransferFailure;
 import com.elfmcys.ysm.util.ProtoBytes;
+import com.elfmcys.ysm.util.ThreadTools;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -51,7 +52,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import net.minecraft.Util;
 import us.hebi.quickbuf.ProtoMessage;
 
 /** Owns typed server admission and accepted resource transfers for one exact connection. */
@@ -95,7 +95,7 @@ public final class ServerAssetTransfers implements AutoCloseable {
                                 ServerChunkRuntime serverChunks, PreviewStore previews) {
         this(owner, dispatch, transport, restrictedAuth, failureSink, serverChunks,
                 ServerAssetTransfers::catalogRoot, Objects.requireNonNull(previews, "previews"),
-                Util.backgroundExecutor());
+                ThreadTools::submit);
     }
 
     ServerAssetTransfers(ServerModelSession owner, ResourceDispatchWorker dispatch,

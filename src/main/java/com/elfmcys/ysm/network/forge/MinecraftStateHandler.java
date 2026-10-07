@@ -15,10 +15,9 @@ import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import net.minecraft.world.entity.Entity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.entity.Entity;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 public final class MinecraftStateHandler {
     private MinecraftStateHandler() {
@@ -94,22 +93,24 @@ public final class MinecraftStateHandler {
         return result;
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @SideOnly(Side.CLIENT)
     @SuppressWarnings("DataFlowIssue")
     private static void applyProjectile(Entity entity, Hash256 modelHash, Int2FloatOpenHashMap variables) {
-        entity.getCapability(ClientLazyCapabilityProvider.CAP).ifPresent(capability -> {
+        var capability = entity.getCapability(ClientLazyCapabilityProvider.CAP, null);
+        if (capability != null) {
             var animatable = capability.getProjectileAnimatableCapabilityProvider().initialize();
             animatable.init(modelHash);
             animatable.initRoamingVars(variables);
-        });
+        }
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @SideOnly(Side.CLIENT)
     private static void applyVehicle(Entity entity, Hash256 modelHash, Int2FloatOpenHashMap variables) {
-        entity.getCapability(ClientLazyCapabilityProvider.CAP).ifPresent(capability -> {
+        var capability = entity.getCapability(ClientLazyCapabilityProvider.CAP, null);
+        if (capability != null) {
             var animatable = capability.getVehicleAnimatableCapabilityProvider().initialize();
             animatable.init(modelHash);
             animatable.initRoamingVars(variables);
-        });
+        }
     }
 }

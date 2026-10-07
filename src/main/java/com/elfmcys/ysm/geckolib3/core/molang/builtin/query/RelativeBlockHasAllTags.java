@@ -2,14 +2,11 @@ package com.elfmcys.ysm.geckolib3.core.molang.builtin.query;
 
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
+import com.elfmcys.ysm.geckolib3.util.LegacyTags;
 import com.elfmcys.ysm.geckolib3.util.MolangUtils;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.resources.ResourceLocation;
-
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.ResourceLocation;
 
 public class RelativeBlockHasAllTags extends EntityFunction {
     @Override
@@ -24,8 +21,7 @@ public class RelativeBlockHasAllTags extends EntityFunction {
                 return null;
             }
 
-            TagKey<Block> tag = ForgeRegistries.BLOCKS.tags().createTagKey(tagId);
-            if (!block.is(tag)) {
+            if (!LegacyTags.blockHasTag(block, tagId)) {
                 return false;
             }
         }

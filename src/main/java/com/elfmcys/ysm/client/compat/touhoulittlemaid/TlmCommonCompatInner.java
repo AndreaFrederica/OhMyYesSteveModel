@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid;
 
+/*
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.ProjectileModelInfoCapabilityProvider;
 import com.elfmcys.ysm.capability.VehicleModelInfoCapabilityProvider;
@@ -19,10 +20,12 @@ import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.apache.commons.lang3.StringUtils;
+*/
 
 /**
  * 这个类是客户端和服务端都可能用到的类
  */
+/*
 public class TlmCommonCompatInner {
     static boolean isMaid(Entity entity) {
         return entity instanceof EntityMaid;
@@ -119,3 +122,4 @@ public class TlmCommonCompatInner {
     }
 
 }
+*/

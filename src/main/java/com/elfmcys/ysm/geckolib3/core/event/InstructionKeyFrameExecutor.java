@@ -23,24 +23,30 @@ public class InstructionKeyFrameExecutor {
 
     public void executeTo(ExpressionEvaluator<MolangContext<?>> evaluator, float currentTick, boolean allowEmitting) {
         evaluator.entity().setAllowEmitting(allowEmitting);
-        while (!reachEnd()) {
-            EventKeyFrame<IValue[]> keyFrame = list.get(nextIndex);
-            if (keyFrame.getStartTick() > currentTick) {
-                break;
+        try {
+            while (!reachEnd()) {
+                EventKeyFrame<IValue[]> keyFrame = list.get(nextIndex);
+                if (keyFrame.getStartTick() > currentTick) {
+                    break;
+                }
+                evalValues(evaluator, keyFrame.getEventData());
+                nextIndex++;
             }
-            evalValues(evaluator, keyFrame.getEventData());
-            nextIndex++;
+        } finally {
+            evaluator.entity().setAllowEmitting(false);
         }
-        evaluator.entity().setAllowEmitting(false);
     }
 
     public void executeRemaining(ExpressionEvaluator<MolangContext<?>> evaluator, boolean allowEmitting) {
         evaluator.entity().setAllowEmitting(allowEmitting);
-        for (int i = nextIndex; i < list.size(); i++) {
-            evalValues(evaluator, list.get(i).getEventData());
+        try {
+            for (int i = nextIndex; i < list.size(); i++) {
+                evalValues(evaluator, list.get(i).getEventData());
+            }
+            nextIndex = list.size();
+        } finally {
+            evaluator.entity().setAllowEmitting(false);
         }
-        evaluator.entity().setAllowEmitting(false);
-        nextIndex = list.size();
     }
 
     public boolean reachEnd() {

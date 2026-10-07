@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client;
 
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.capability.YsmMaidCapabilityProvider;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.event.SyncCapability;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.event.UpdateRemoteStruct;
@@ -87,3 +88,4 @@ public class TlmClientCompatInner {
         return customYsmMaidRenderer;
     }
 }
+*/

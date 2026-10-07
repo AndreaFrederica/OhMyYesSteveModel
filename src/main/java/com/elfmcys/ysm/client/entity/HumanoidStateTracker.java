@@ -2,11 +2,11 @@ package com.elfmcys.ysm.client.entity;
 
 import com.elfmcys.ysm.client.compat.immersivemelodies.ImmersiveMelodiesCompat;
 import com.elfmcys.ysm.geckolib3.model.EntityStateTracker;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumHand;
 
-public class HumanoidStateTracker<T extends LivingEntity> extends EntityStateTracker<T> {
+public class HumanoidStateTracker<T extends EntityLivingBase> extends EntityStateTracker<T> {
     private ImmersiveMelodiesCompat.ImmersiveMelodiesData imData = new ImmersiveMelodiesCompat.ImmersiveMelodiesData();
 
     private ItemStack mainhandItemStack = ItemStack.EMPTY;
@@ -29,16 +29,16 @@ public class HumanoidStateTracker<T extends LivingEntity> extends EntityStateTra
         ImmersiveMelodiesCompat.updateMelodyProgress(this.entity, imData);
     }
 
-    public ItemStack getHandItem(InteractionHand hand) {
-        if (hand == InteractionHand.MAIN_HAND) {
+    public ItemStack getHandItem(EnumHand hand) {
+        if (hand == EnumHand.MAIN_HAND) {
             return mainhandItemStack;
         } else {
             return offhandItemStack;
         }
     }
 
-    public void setHandItem(ItemStack stack, InteractionHand hand) {
-        if (hand == InteractionHand.MAIN_HAND) {
+    public void setHandItem(ItemStack stack, EnumHand hand) {
+        if (hand == EnumHand.MAIN_HAND) {
             this.mainhandItemStack = stack;
         } else {
             this.offhandItemStack = stack;

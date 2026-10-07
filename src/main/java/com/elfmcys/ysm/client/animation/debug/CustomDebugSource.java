@@ -2,7 +2,9 @@ package com.elfmcys.ysm.client.animation.debug;
 
 import com.elfmcys.ysm.geckolib3.core.molang.context.DebugSource;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.text.TextComponentTranslation;
 
 public class CustomDebugSource implements DebugSource {
     public static final CustomDebugSource INSTANCE = new CustomDebugSource();
@@ -12,17 +14,17 @@ public class CustomDebugSource implements DebugSource {
 
     @Override
     public void print(String message, Object...args) {
-        print(Component.literal(String.format(message, args)));
+        print(new TextComponentString(String.format(message, args)));
     }
 
     @Override
-    public void print(Component message) {
-        if(Minecraft.getInstance().player == null) {
+    public void print(ITextComponent message) {
+        if(Minecraft.getMinecraft().player == null) {
             return;
         }
-        Minecraft.getInstance().execute(() -> {
-            Minecraft.getInstance().player.sendSystemMessage(Component.translatable("message.yes_steve_model.model.debug_animation.output")
-                            .append(message));
+        Minecraft.getMinecraft().addScheduledTask(() -> {
+            Minecraft.getMinecraft().player.sendMessage(new TextComponentTranslation("message.yes_steve_model.model.debug_animation.output")
+                            .appendSibling(message));
         });
     }
 }

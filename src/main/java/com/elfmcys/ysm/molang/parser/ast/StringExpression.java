@@ -25,7 +25,7 @@
 package com.elfmcys.ysm.molang.parser.ast;
 
 import com.elfmcys.ysm.geckolib3.core.molang.util.StringPool;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

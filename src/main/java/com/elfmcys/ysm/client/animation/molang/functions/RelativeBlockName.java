@@ -4,14 +4,15 @@ import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.geckolib3.util.MolangUtils;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 public class RelativeBlockName extends EntityFunction {
     @Override
     protected Object eval(ExecutionContext<IContext<Entity>> ctx, ArgumentCollection arguments) {
-        var block = MolangUtils.getRelativeBlock(ctx, arguments);
+        IBlockState block = MolangUtils.getRelativeBlock(ctx, arguments);
         if (block == null) {
             return null;
         }

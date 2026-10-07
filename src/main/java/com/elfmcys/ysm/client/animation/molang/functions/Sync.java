@@ -8,8 +8,8 @@ import com.elfmcys.ysm.molang.runtime.ExecutionContext;
 import com.elfmcys.ysm.network.NetworkHandler;
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraft.client.entity.EntityPlayerSP;
 
 public class Sync extends PlayerEntityFunction {
     private static final int MAX_ARGS_SIZE = 16;
@@ -24,7 +24,7 @@ public class Sync extends PlayerEntityFunction {
             // 确认不是 GUI 渲染用
             if (NetworkHandler.isRemoteChannelPresent()) {
                 // 确认服务端已安装本模组
-                if (context.entity().entity() instanceof LocalPlayer) {
+                if (context.entity().entity() instanceof EntityPlayerSP) {
                     // 确认为 LocalPlayer 实体，向服务器发起同步
                     ClientProtocolGateway.emitMolangSync(packArguments(context, arguments));
                     return null;

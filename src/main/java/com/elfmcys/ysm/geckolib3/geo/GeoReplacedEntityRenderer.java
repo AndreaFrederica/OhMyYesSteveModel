@@ -6,192 +6,329 @@ import com.elfmcys.ysm.api.rendering.v0.TargetKind;
 import com.elfmcys.ysm.api.rendering.v0.event.RenderLayerEvent;
 import com.elfmcys.ysm.api.rendering.v0.event.RenderModelEvent;
 import com.elfmcys.ysm.capability.VehicleAnimatableCapabilityProvider;
+import com.elfmcys.ysm.client.compat.backport.BackportCompat;
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.geckolib3.core.util.Color;
-import com.elfmcys.ysm.geckolib3.util.EModelRenderCycle;
-import com.elfmcys.ysm.mixin.client.LivingEntityAccessor;
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.elfmcys.ysm.geckolib3.core.util.MathUtil;
+import com.elfmcys.ysm.mclib.utils.Interpolations;
+import com.elfmcys.ysm.natives.render.RenderContextType;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import java.util.List;
-import java.util.Optional;
+import net.minecraft.block.BlockHorizontal;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.model.PlayerModel;
-import net.minecraft.client.model.geom.ModelLayers;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.LivingEntityRenderer;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Pose;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.client.model.ModelPlayer;
+import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.entity.RenderLivingBase;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityHanging;
+import net.minecraft.entity.EntityLiving;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.client.event.RenderLivingEvent;
 import net.minecraftforge.common.MinecraftForge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Quaternionf;
+import org.lwjgl.opengl.GL11;
 
-public abstract class GeoReplacedEntityRenderer<TEntity extends LivingEntity, T extends CustomHumanoidEntity<TEntity>> extends LivingEntityRenderer<TEntity, PlayerModel<TEntity>> implements IGeoRenderer<T> {
+import java.util.List;
+
+public abstract class GeoReplacedEntityRenderer<TEntity extends EntityLivingBase, T extends CustomHumanoidEntity<TEntity>> extends RenderLivingBase<TEntity> implements IGeoRenderer<T> {
     protected final List<GeoLayerRenderer<T>> layerRenderers = new ObjectArrayList<>();
 
-    public GeoReplacedEntityRenderer(EntityRendererProvider.Context context) {
-        super(context, new PlayerModel<>(context.bakeLayer(ModelLayers.PLAYER_SLIM), true), 0.5F);
+    protected GeoReplacedEntityRenderer(RenderManager renderManager) {
+        super(renderManager, new ModelPlayer(0.0F, true), 0.5F);
     }
 
-    public static int getPackedOverlay(LivingEntity entity, float u) {
-        return OverlayTexture.pack(OverlayTexture.u(u), OverlayTexture.v(entity.hurtTime > 0 || entity.deathTime > 0));
+    public void renderAnimatableEntity(T animatableEntity, double x, double y, double z,
+                                       float entityYaw, float partialTick) {
+        renderAnimatableEntity(animatableEntity, null, x, y, z, entityYaw, partialTick);
     }
 
-    public void renderAnimatableEntity(T animatableEntity, float entityYaw, float partialTick,
-                                       PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
-        renderAnimatableEntity(animatableEntity, null,  entityYaw, partialTick, poseStack, bufferSource, packedLight);
-    }
-
-    public void renderAnimatableEntity(T animatableEntity, @Nullable ResourceLocation textureOverride, float entityYaw, float partialTick,
-                                       PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
-        if (MinecraftForge.EVENT_BUS.post(new RenderLivingEvent.Pre<>(animatableEntity.getEntity(), this, partialTick, poseStack, bufferSource, packedLight)))
+    public void renderAnimatableEntity(T animatableEntity, @Nullable ResourceLocation textureOverride,
+                                       double x, double y, double z, float entityYaw, float partialTick) {
+        if (MinecraftForge.EVENT_BUS.post(new RenderLivingEvent.Pre<>(animatableEntity.getEntity(), this, partialTick, x, y, z)))
             return;
         final TEntity entity = animatableEntity.getEntity();
-        var mc = Minecraft.getInstance();
+        var mc = Minecraft.getMinecraft();
         var data = animatableEntity.update(partialTick);
+        if (data != null) {
+            data.packedLight = data.ctx.nativeType() == RenderContextType.GUI
+                    ? 0x7FFF7FFF
+                    : entity.getBrightnessForRender();
+        }
         if (data != null && mc.player != null) {
-            poseStack.pushPose();
+            GlStateManager.pushMatrix();
+            GlStateManager.disableCull();
             try {
 
-                if (entity.getPose() == Pose.SLEEPING) {
-                    Direction direction = entity.getBedOrientation();
-                    if (direction != null) {
-                        float eyeOffset = entity.getEyeHeight(Pose.STANDING) - 0.1f;
-                        poseStack.translate(-direction.getStepX() * eyeOffset, 0, -direction.getStepZ() * eyeOffset);
-                    }
-                }
+                renderLivingAt(entity, x, y, z);
+                applyRotations(entity, data.animationData.lerpedAge, data.animationData.lerpBodyRot, partialTick);
 
-                setupRotations(entity, poseStack, data.animationData.lerpedAge, data.animationData.lerpBodyRot, partialTick);
-
-                if (animatableEntity.getEntity().getVehicle() != null) {
-                    animatableEntity.getEntity().getVehicle().getCapability(VehicleAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
+                if (animatableEntity.getEntity().getRidingEntity() != null) {
+                    var cap = animatableEntity.getEntity().getRidingEntity().getCapability(VehicleAnimatableCapabilityProvider.CAP, null);
+                    if (cap != null) {
                         var rot = cap.getRotation();
                         if (rot != null) {
-                            poseStack.mulPose(new Quaternionf().rotateZYX(rot.z, 0, rot.x).invert());
+                            GlStateManager.rotate(-MathUtil.radiansToDegrees(rot.x), 1, 0, 0);
+                            GlStateManager.rotate(-MathUtil.radiansToDegrees(rot.z), 0, 0, 1);
                         }
-                    });
+                    }
                 }
 
-                poseStack.translate(0, 0.01f, 0);
+                GlStateManager.enableRescaleNormal();
+                GlStateManager.enableAlpha();
+                GlStateManager.translate(0, 0.01f, 0);
 
-                var texture = textureOverride == null ? data.texture : textureOverride;
-                var bodyVisible = this.isBodyVisible(entity) && !entity.isInvisibleTo(mc.player);
-                var glowing = mc.shouldEntityAppearGlowing(entity);
-                var renderType = getRenderType(texture,
-                        bodyVisible, glowing,
-                        data.modelState.hasTranslucentVertices());
+                if (textureOverride != null) {
+                    data.texture = textureOverride;
+                }
+                var bodyVisible = this.isVisible(entity);
+                var ghost = !bodyVisible && !entity.isInvisibleToPlayer(mc.player);
 
                 var renderLayersFirst = data.renderLayersFirst;
-                var packedOverlay = getPackedOverlay(entity, getOverlayProgress(entity, partialTick));
 
-                if (renderType != null) {
-                    preRender(data, animatableEntity, poseStack, bufferSource,
-                            packedLight, packedOverlay, Color.WHITE);
-                    if (renderLayersFirst && !entity.isSpectator()) {
-                        renderLayer(poseStack, bufferSource, animatableEntity, data, packedLight, packedOverlay);
+                boolean scoreTeamColor = false;
+                boolean mainBrightness = false;
+
+                if (this.renderOutlines) {
+                    scoreTeamColor = this.setScoreTeamColor(entity);
+                    GlStateManager.enableColorMaterial();
+                    GlStateManager.enableOutlineMode(this.getTeamColor(entity));
+                } else {
+                    mainBrightness = this.setDoRenderBrightness(entity, partialTick);
+                }
+
+                if (bodyVisible || ghost) {
+                    preRender(data, animatableEntity, Color.WHITE);
+                    if (renderLayersFirst && (!(entity instanceof EntityPlayer player) || !player.isSpectator())) {
+                        renderLayer(animatableEntity, data, x, y, z);
                     }
 
+                    if (ghost) GlStateManager.enableBlendProfile(GlStateManager.Profile.TRANSPARENT_MODEL);
                     if (data.modelState.isValid()) {
                         var event = new RenderModelEvent(animatableEntity.getEntity(),
                                 TargetKind.PLAYER,
                                 data,
-                                bufferSource,
-                                renderType,
-                                poseStack,
-                                packedLight,
-                                packedOverlay,
                                 Color.WHITE.getColor());
                         if (!YesSteveModel.postEvent(event)) {
-                            render(data, animatableEntity, renderType, poseStack, bufferSource,
-                                    packedLight, packedOverlay, Color.WHITE);
+                            render(data, animatableEntity, Color.WHITE);
                         }
                     }
+                    if (ghost) GlStateManager.disableBlendProfile(GlStateManager.Profile.TRANSPARENT_MODEL);
 
-                    if (!renderLayersFirst && !entity.isSpectator()) {
-                        renderLayer(poseStack, bufferSource, animatableEntity, data, packedLight, packedOverlay);
+                    if (!this.renderOutlines) {
+                        if (mainBrightness) this.unsetBrightness();
+                        GlStateManager.depthMask(true);
                     }
-                    postRender(data, animatableEntity, poseStack, bufferSource,
-                            packedLight, packedOverlay, Color.WHITE);
+
+                    if (!renderLayersFirst && (!(entity instanceof EntityPlayer player) || !player.isSpectator())) {
+                        renderLayer(animatableEntity, data, x, y, z);
+                    }
+
+                    if (this.renderOutlines) {
+                        if (scoreTeamColor) this.unsetScoreTeamColor();
+                        GlStateManager.disableOutlineMode();
+                        GlStateManager.disableColorMaterial();
+                    }
+
+                    postRender(data, animatableEntity, Color.WHITE);
                 }
             } finally {
-                poseStack.popPose();
+                GlStateManager.disableRescaleNormal();
+                GlStateManager.setActiveTexture(OpenGlHelper.lightmapTexUnit);
+                GlStateManager.enableTexture2D();
+                GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+                GlStateManager.enableCull();
+                GlStateManager.popMatrix();
             }
         }
 
-        ((ILivingRenderer) this).ysm$renderNameTag(entity, entityYaw, partialTick, poseStack, bufferSource, packedLight);
-        MinecraftForge.EVENT_BUS.post(new RenderLivingEvent.Post<>(entity, this, partialTick, poseStack, bufferSource, packedLight));
+        if (this.renderManager.renderViewEntity != null) {
+            ((ILivingRenderer) this).ysm$renderNameTag(entity, x, y, z, entityYaw, partialTick);
+        }
+
+        MinecraftForge.EVENT_BUS.post(new RenderLivingEvent.Post<>(entity, this, partialTick, x, y, z));
+
+        if (!this.renderOutlines && entity instanceof EntityLiving mob) {
+            Entity leashHolder = mob.getLeashHolder();
+            //noinspection ConstantValue
+            if (leashHolder != null) {
+                this.renderLeash(entity, x, y, z, entityYaw, partialTick, leashHolder);
+            }
+        }
     }
 
-    protected void renderLayer(PoseStack poseStack, MultiBufferSource buffer, T animatable, GeoRenderData renderData, int packedLight, int overlay) {
+    protected void renderLayer(T animatable, GeoRenderData renderData, double x, double y, double z) {
         var event = new RenderLayerEvent(animatable.getEntity(),
                 TargetKind.PLAYER,
-                renderData,
-                poseStack,
-                buffer,
-                packedLight,
-                overlay);
+                renderData);
         if (!YesSteveModel.postEvent(event)) {
             for (GeoLayerRenderer<T> layerRenderer : this.layerRenderers) {
-                layerRenderer.render(poseStack, buffer, animatable, renderData, packedLight, overlay);
+                layerRenderer.render(animatable, renderData, x, y, z);
             }
         }
-    }
-
-    protected float getOverlayProgress(TEntity entity, float partialTicks) {
-        return 0.0F;
     }
 
     @Override
-    protected void setupRotations(TEntity pEntityLiving, @NotNull PoseStack poseStack, float pAgeInTicks, float pRotationYaw, float pPartialTicks) {
+    protected void renderLivingAt(@NotNull TEntity entity, double x, double y, double z) {
+        // RenderPlayer#renderLivingAt
+        if (entity instanceof EntityPlayer player && entity.isEntityAlive() && entity.isPlayerSleeping()) {
+            super.renderLivingAt(entity, x + player.renderOffsetX, y + player.renderOffsetY, z + player.renderOffsetZ);
+            return;
+        }
+
+        super.renderLivingAt(entity, x, y, z);
+    }
+
+    @Override
+    protected void applyRotations(@NotNull TEntity pEntityLiving, float pAgeInTicks, float pRotationYaw, float pPartialTicks) {
+        // RenderPlayer#applyRotations
+        if (pEntityLiving instanceof EntityPlayer player && pEntityLiving.isEntityAlive() && pEntityLiving.isPlayerSleeping()) {
+            GlStateManager.rotate(player.getBedOrientationInDegrees(), 0, 1, 0);
+            GlStateManager.rotate(this.getDeathMaxRotation(pEntityLiving), 0, 0, 1);
+            GlStateManager.rotate(270.0F, 0, 1, 0);
+            return;
+        }
+
         int deathTime = pEntityLiving.deathTime;
-        boolean autoSpineAttach = pEntityLiving.isAutoSpinAttack();
+        boolean autoSpineAttach = BackportCompat.getTridentAutoSpinAttack(pEntityLiving);
         if (deathTime > 0) {
             pEntityLiving.deathTime = 0;
         }
         if (autoSpineAttach) {
-            ((LivingEntityAccessor) pEntityLiving).setFlag(4, false);
+            BackportCompat.setTridentAutoSpinAttack(pEntityLiving, false);
         }
 
         // 爬梯时，禁止旋转
-        if (pEntityLiving.onClimbable()) {
-            Optional<BlockPos> climbablePos = pEntityLiving.getLastClimbablePos();
-            if (climbablePos.isPresent()) {
-                BlockState blockState = pEntityLiving.level().getBlockState(climbablePos.get());
-                Optional<Direction> optionalValue = blockState.getOptionalValue(HorizontalDirectionalBlock.FACING);
-                if (optionalValue.isPresent()) {
-                    pRotationYaw = optionalValue.get().getOpposite().get2DDataValue() * 90;
-                }
+        if (pEntityLiving.isOnLadder()) {
+            BlockPos climbablePos = new BlockPos(pEntityLiving.posX, pEntityLiving.getEntityBoundingBox().minY, pEntityLiving.posZ);
+            IBlockState blockState = pEntityLiving.world.getBlockState(climbablePos);
+            if (blockState.getPropertyKeys().contains(BlockHorizontal.FACING)) {
+                pRotationYaw = blockState.getValue(BlockHorizontal.FACING).getOpposite().getHorizontalIndex() * 90;
             }
         }
 
-        super.setupRotations(pEntityLiving, poseStack, pAgeInTicks, pRotationYaw, pPartialTicks);
+        super.applyRotations(pEntityLiving, pAgeInTicks, pRotationYaw, pPartialTicks);
 
         if (deathTime > 0) {
             pEntityLiving.deathTime = deathTime;
         }
         if (autoSpineAttach) {
-            ((LivingEntityAccessor) pEntityLiving).setFlag(4, true);
+            BackportCompat.setTridentAutoSpinAttack(pEntityLiving, true);
         }
     }
 
     @Override
-    public boolean shouldShowName(TEntity entity) {
-        double nameRenderDistance = entity.isDiscrete() ? 32d : 64d;
-        if (this.entityRenderDispatcher.distanceToSqr(entity) >= nameRenderDistance * nameRenderDistance) {
-            return false;
-        }
-        return entity == this.entityRenderDispatcher.crosshairPickEntity && entity.hasCustomName() && Minecraft.renderNames();
+    public boolean canRenderName(@NotNull TEntity entity) {
+        return entity == this.renderManager.pointedEntity && entity.hasCustomName() && Minecraft.isGuiEnabled();
     }
 
     public final boolean addLayer(GeoLayerRenderer<T> layer) {
         return this.layerRenderers.add(layer);
+    }
+
+    protected <THolder extends Entity> void renderLeash(
+            TEntity entity, double x, double y, double z,
+            float entityYaw, float partialTicks, THolder leashHolder
+    ) {
+        // RenderLiving#renderLeash
+        y = y - (1.6D - entity.height) * 0.5D;
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buffer = tess.getBuffer();
+
+        double holderYawRad = Math.toRadians(Interpolations.lerp(leashHolder.prevRotationYaw, leashHolder.rotationYaw, partialTicks * 0.5F));
+        double holderPitchRad = Math.toRadians(Interpolations.lerp(leashHolder.prevRotationPitch, leashHolder.rotationPitch, partialTicks * 0.5F));
+        double cosHolderYaw = Math.cos(holderYawRad);
+        double sinHolderYaw = Math.sin(holderYawRad);
+        double sinHolderPitch = Math.sin(holderPitchRad);
+        if (leashHolder instanceof EntityHanging) {
+            cosHolderYaw = 0.0D;
+            sinHolderYaw = 0.0D;
+            sinHolderPitch = -1.0D;
+        }
+        double cosHolderPitch = Math.cos(holderPitchRad);
+
+        double holderX = Interpolations.lerp(leashHolder.prevPosX, leashHolder.posX, partialTicks)
+                - cosHolderYaw * 0.7D - sinHolderYaw * 0.5D * cosHolderPitch;
+        double holderY = Interpolations.lerp(leashHolder.prevPosY + leashHolder.getEyeHeight() * 0.7D, leashHolder.posY + leashHolder.getEyeHeight() * 0.7D, partialTicks)
+                - sinHolderPitch * 0.5D - 0.25D;
+        double holderZ = Interpolations.lerp(leashHolder.prevPosZ, leashHolder.posZ, partialTicks)
+                - sinHolderYaw * 0.7D + cosHolderYaw * 0.5D * cosHolderPitch;
+
+        double entityYawRad = Math.toRadians(Interpolations.lerp(entity.prevRenderYawOffset, entity.renderYawOffset, partialTicks)) + (Math.PI / 2D);
+
+        double neckOffsetX = Math.cos(entityYawRad) * entity.width * 0.4D;
+        double neckOffsetZ = Math.sin(entityYawRad) * entity.width * 0.4D;
+        double entityNeckX = Interpolations.lerp(entity.prevPosX, entity.posX, partialTicks) + neckOffsetX;
+        double entityNeckY = Interpolations.lerp(entity.prevPosY, entity.posY, partialTicks);
+        double entityNeckZ = Interpolations.lerp(entity.prevPosZ, entity.posZ, partialTicks) + neckOffsetZ;
+        x += neckOffsetX;
+        z += neckOffsetZ;
+        double diffX = holderX - entityNeckX;
+        double diffY = holderY - entityNeckY;
+        double diffZ = holderZ - entityNeckZ;
+
+        GlStateManager.disableTexture2D();
+        GlStateManager.disableLighting();
+        GlStateManager.disableCull();
+
+        // 拴绳的一个面
+        buffer.begin(GL11.GL_TRIANGLE_STRIP, DefaultVertexFormats.POSITION_COLOR);
+        for (int segment = 0; segment <= 24; ++segment) {
+            // 初始颜色
+            float r = 0.5F;
+            float g = 0.4F;
+            float b = 0.3F;
+
+            // 偶数段颜色减深
+            if (segment % 2 == 0) {
+                r *= 0.7F;
+                g *= 0.7F;
+                b *= 0.7F;
+            }
+
+            float progress = segment / 24.0F;
+            double hangOffset = progress * progress + progress;
+            double yOffset = (24.0F - segment) / 18.0F + 0.125F;
+
+            buffer.pos(x + diffX * progress + 0.0D, y + diffY * hangOffset * 0.5D + yOffset, z + diffZ * progress).color(r, g, b, 1.0F).endVertex();
+            buffer.pos(x + diffX * progress + 0.025D, y + diffY * hangOffset * 0.5D + yOffset + 0.025D, z + diffZ * progress).color(r, g, b, 1.0F).endVertex();
+        }
+        tess.draw();
+
+        // 拴绳的另一个面
+        buffer.begin(GL11.GL_TRIANGLE_STRIP, DefaultVertexFormats.POSITION_COLOR);
+        for (int segment = 0; segment <= 24; ++segment) {
+            // 初始颜色
+            float r = 0.5F;
+            float g = 0.4F;
+            float b = 0.3F;
+
+            // 偶数段颜色减深
+            if (segment % 2 == 0) {
+                r *= 0.7F;
+                g *= 0.7F;
+                b *= 0.7F;
+            }
+
+            float progress = segment / 24.0F;
+            double hangOffset = progress * progress + progress;
+            double yOffset = (24.0F - segment) / 18.0F + 0.125F;
+
+            buffer.pos(x + diffX * progress + 0.0D, y + diffY * hangOffset * 0.5D + yOffset + 0.025D, z + diffZ * progress).color(r, g, b, 1.0F).endVertex();
+            buffer.pos(x + diffX * progress + 0.025D, y + diffY * hangOffset * 0.5D + yOffset, z + diffZ * progress + 0.025D).color(r, g, b, 1.0F).endVertex();
+        }
+        tess.draw();
+
+        GlStateManager.enableCull();
+        GlStateManager.enableLighting();
+        GlStateManager.enableTexture2D();
     }
 }

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.swarfare;
 
+/*
 import com.atsuishio.superbwarfare.api.event.RenderPlayerArmEvent;
 import com.atsuishio.superbwarfare.client.renderer.CustomGunRenderer;
 import com.elfmcys.ysm.YesSteveModel;
@@ -79,3 +80,4 @@ public class ReplacePlayerArmRender {
 //        }
 //    }
 }
+*/

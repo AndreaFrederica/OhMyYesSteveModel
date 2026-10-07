@@ -1,19 +1,23 @@
 package com.elfmcys.ysm.init;
 
 import com.elfmcys.ysm.YesSteveModel;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.SoundEvent;
+import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
+@Mod.EventBusSubscriber(modid = YesSteveModel.MOD_ID)
 public class ModSounds {
-    public static final DeferredRegister<SoundEvent> SOUNDS = DeferredRegister.create(ForgeRegistries.SOUND_EVENTS, YesSteveModel.MOD_ID);
+    public static final SoundEvent CUSTOM;
 
-    public static final SoundEvent CUSTOM = registerSound("custom");
+    static {
+        var location = new ResourceLocation(YesSteveModel.MOD_ID, "custom");
+        CUSTOM = new SoundEvent(location).setRegistryName(location);
+    }
 
-    private static SoundEvent registerSound(String name) {
-        var ev = SoundEvent.createFixedRangeEvent(new ResourceLocation(YesSteveModel.MOD_ID, name), 16.0F);
-        SOUNDS.register(name, () -> ev);
-        return ev;
+    @SubscribeEvent
+    public static void registerSounds(RegistryEvent.Register<SoundEvent> event) {
+        event.getRegistry().register(CUSTOM);
     }
 }

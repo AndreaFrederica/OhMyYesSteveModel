@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.bettercombat;
 
+/*
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 import com.elfmcys.ysm.client.compat.bettercombat.event.PlayerAttackEvent;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
@@ -58,3 +59,4 @@ public class BetterCombatCompatInner {
         return strName;
     }
 }
+*/

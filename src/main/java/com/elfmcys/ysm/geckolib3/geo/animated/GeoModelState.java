@@ -6,12 +6,16 @@ import com.elfmcys.ysm.geckolib3.model.AnimatedGeoModel;
 import com.elfmcys.ysm.natives.render.NativeModelState;
 import com.elfmcys.ysm.util.Closeable;
 import com.elfmcys.ysm.util.ExposedShortArrayList;
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.elfmcys.ysm.geckolib3.util.PoseStack;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import net.minecraft.client.renderer.GlStateManager;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.function.Consumer;
 
 
@@ -78,52 +82,44 @@ public final class GeoModelState implements Closeable {
         return nativeState;
     }
 
-    public void visitLocatorGroupOrDefault(GeoLocator locator, PoseStack poseStack,
-                                           Consumer<PoseStack> visitor, Consumer<PoseStack> applyDefaultPose) {
+    private static final FloatBuffer LOCATOR_MAT_SCRATCH = ByteBuffer.allocateDirect(16 * Float.BYTES)
+            .order(ByteOrder.nativeOrder()).asFloatBuffer();
+
+    public void visitLocatorGroupOrDefault(GeoLocator locator, Runnable visitor,
+                                           Runnable applyDefaultPose) {
         if (locatorGroupSize(locator) > 0) {
-            visitLocatorGroup(locator, poseStack, visitor);
+            visitLocatorGroup(locator, visitor);
         } else {
-            poseStack.pushPose();
+            GlStateManager.pushMatrix();
             try {
-                applyDefaultPose.accept(poseStack);
-                visitor.accept(poseStack);
+                applyDefaultPose.run();
+                visitor.run();
             } finally {
-                poseStack.popPose();
+                GlStateManager.popMatrix();
             }
         }
     }
 
-    public void visitLocatorGroup(GeoLocator locator, PoseStack poseStack,
-                                  Consumer<PoseStack> visitor) {
+    public void visitLocatorGroup(GeoLocator locator, Runnable visitor) {
         if (model.locatorType() != locator.type()) {
             throw new IllegalArgumentException("locator type mismatch");
         }
 
-        var backupPose = new Matrix4f(poseStack.last().pose());
-        var backupNormal = new Matrix3f(poseStack.last().normal());
         var bonePose = new Matrix4f();
-        var boneNormal = new Matrix3f();
         var bonePoseView = nativeState.getBonePoses();
-        var last = poseStack.last();
-
-        try {
-            for (var boneIndexShort : activeLocatorMap.get(Byte.toUnsignedInt(locator.seq()) - 1)) {
-                var boneIndex = Short.toUnsignedInt(boneIndexShort);
-                var bone = model.sortedBones().get(boneIndex);
-
-                bonePoseView.getPose(boneIndex, bonePose);
-                bonePoseView.getNormal(boneIndex, boneNormal);
-                backupPose.mulAffine(bonePose, last.pose());
-                backupNormal.mul(boneNormal, last.normal());
-
-                var pivot = bone.pivot();
-                poseStack.translate(pivot.x / 16, pivot.y / 16, pivot.z / 16);
-
-                visitor.accept(poseStack);
+        for (var boneIndexShort : activeLocatorMap.get(Byte.toUnsignedInt(locator.seq()) - 1)) {
+            var boneIndex = Short.toUnsignedInt(boneIndexShort);
+            var bone = model.sortedBones().get(boneIndex);
+            bonePoseView.getPose(boneIndex, bonePose);
+            var pivot = bone.pivot();
+            GlStateManager.pushMatrix();
+            try {
+                GlStateManager.multMatrix(bonePose.get(0, LOCATOR_MAT_SCRATCH));
+                GlStateManager.translate(pivot.x / 16, pivot.y / 16, pivot.z / 16);
+                visitor.run();
+            } finally {
+                GlStateManager.popMatrix();
             }
-        } finally {
-            last.pose().set(backupPose);
-            last.normal().set(backupNormal);
         }
     }
 
@@ -131,7 +127,7 @@ public final class GeoModelState implements Closeable {
         if (model.locatorType() != locator.type()) {
             throw new IllegalArgumentException("locator type mismatch");
         }
-        return activeLocatorMap.get(Byte.toUnsignedInt(locator.seq())).size();
+        return activeLocatorMap.get(Byte.toUnsignedInt(locator.seq()) - 1).size();
     }
 
     private void invalidate() {

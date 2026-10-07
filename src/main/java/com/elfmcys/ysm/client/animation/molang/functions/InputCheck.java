@@ -8,6 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
+// TODO
 public class InputCheck {
     public static class Keyboard implements Function {
         @Override

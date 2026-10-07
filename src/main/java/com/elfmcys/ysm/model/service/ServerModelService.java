@@ -20,16 +20,17 @@ import com.elfmcys.ysm.network.forge.SessionProtocolHandler;
 import com.elfmcys.ysm.proto.network.MetadataPrefixRequest;
 import com.elfmcys.ysm.proto.network.ModelChunkRequest;
 import com.elfmcys.ysm.proto.network.PresentationPageRequest;
+import com.elfmcys.ysm.util.ThreadTools;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-import net.minecraft.Util;
-import net.minecraft.network.Connection;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.NetworkManager;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
 
 /** Side-local owner of the server catalog, connections, and global distribution worker. */
 public final class ServerModelService implements AutoCloseable {
@@ -51,7 +52,7 @@ public final class ServerModelService implements AutoCloseable {
         catalog = system.catalog();
         dispatch = new ResourceDispatchWorker(ServerModelService::dispatchSettings);
         dispatch.start();
-        exports = new ModelExportService.ServerRuntime(Util.backgroundExecutor());
+        exports = new ModelExportService.ServerRuntime(ThreadTools::submit);
         publicationSubscription = catalog.subscribe(transition ->
                 pendingPublication.set(transition.current()));
     }
@@ -101,51 +102,51 @@ public final class ServerModelService implements AutoCloseable {
         return Optional.of(new ServerCatalog(catalog.current()));
     }
 
-    public synchronized ServerModelSession offerSession(ServerPlayer player, boolean syncRoaming) {
+    public synchronized ServerModelSession offerSession(EntityPlayerMP player, boolean syncRoaming) {
         if (INSTANCE != this) {
             throw new IllegalStateException("Server model service is not running");
         }
-        var playerId = player.getUUID();
-        var current = connections.current(playerId, player.connection.connection).orElse(null);
+        var playerId = player.getUniqueID();
+        var current = connections.current(playerId, player.connection.getNetworkManager()).orElse(null);
         if (current != null) {
             return current.session;
         }
         var session = new ServerModelSession(catalog::current, syncRoaming);
         var transport = new ForgeTransportPort(player);
-        connections.replace(playerId, player.connection.connection,
+        connections.replace(playerId, player.connection.getNetworkManager(),
                 new ConnectionState(player, session, transport));
         return session;
     }
 
-    public synchronized Optional<ServerModelSession> session(ServerPlayer player) {
-        return session(player, player.connection.connection);
+    public synchronized Optional<ServerModelSession> session(EntityPlayerMP player) {
+        return session(player, player.connection.getNetworkManager());
     }
 
     public synchronized Optional<ServerModelSession> session(
-            ServerPlayer player, Connection connection) {
-        return connections.current(player.getUUID(), connection)
+            EntityPlayerMP player, NetworkManager connection) {
+        return connections.current(player.getUniqueID(), connection)
                 .map(state -> state.session);
     }
 
     public synchronized boolean runIfCurrent(
-            ServerPlayer player, ServerModelSession owner, Runnable action) {
-        return runIfCurrent(player, player.connection.connection, owner, action);
+            EntityPlayerMP player, ServerModelSession owner, Runnable action) {
+        return runIfCurrent(player, player.connection.getNetworkManager(), owner, action);
     }
 
     public synchronized boolean runIfCurrent(
-            ServerPlayer player, Connection connection,
+            EntityPlayerMP player, NetworkManager connection,
             ServerModelSession owner, Runnable action) {
         var state = connections.current(
-                player.getUUID(), connection).orElse(null);
+                player.getUniqueID(), connection).orElse(null);
         if (state == null || state.session != owner) {
             return false;
         }
-        return connections.runIfCurrent(player.getUUID(), connection,
+        return connections.runIfCurrent(player.getUniqueID(), connection,
                 state, action);
     }
 
-    public synchronized void closeSession(ServerPlayer player) {
-        connections.remove(player.getUUID(), player.connection.connection);
+    public synchronized void closeSession(EntityPlayerMP player) {
+        connections.remove(player.getUniqueID(), player.connection.getNetworkManager());
     }
 
     public ResourceDispatchWorker dispatch() {
@@ -153,9 +154,9 @@ public final class ServerModelService implements AutoCloseable {
     }
 
     public synchronized ForgeTransportPort transport(
-            ServerPlayer player, ServerModelSession owner) {
+            EntityPlayerMP player, ServerModelSession owner) {
         var state = connections.current(
-                player.getUUID(), player.connection.connection).orElse(null);
+                player.getUniqueID(), player.connection.getNetworkManager()).orElse(null);
         if (state == null || state.session != owner) {
             throw new IllegalStateException("Model session is not current");
         }
@@ -167,28 +168,28 @@ public final class ServerModelService implements AutoCloseable {
     }
 
     public synchronized void acceptMetadataPrefixRequest(
-            ServerPlayer player, Connection connection,
+            EntityPlayerMP player, NetworkManager connection,
             ServerModelSession owner,
             MetadataPrefixRequest request) {
         acceptResourceRequest(player, connection, owner, transfers -> transfers.accept(request));
     }
 
     public synchronized void acceptModelChunkRequest(
-            ServerPlayer player, Connection connection,
+            EntityPlayerMP player, NetworkManager connection,
             ServerModelSession owner,
             ModelChunkRequest request) {
         acceptResourceRequest(player, connection, owner, transfers -> transfers.accept(request));
     }
 
     public synchronized void acceptPresentationPageRequest(
-            ServerPlayer player, Connection connection,
+            EntityPlayerMP player, NetworkManager connection,
             ServerModelSession owner,
             PresentationPageRequest request) {
         acceptResourceRequest(player, connection, owner, transfers -> transfers.accept(request));
     }
 
     public synchronized void cancelResourceTransfer(
-            ServerPlayer player, Connection connection,
+            EntityPlayerMP player, NetworkManager connection,
             ServerModelSession owner, long transferId) {
         acceptResourceRequest(player, connection, owner,
                 transfers -> transfers.cancel(transferId));
@@ -235,15 +236,15 @@ public final class ServerModelService implements AutoCloseable {
     }
 
     private void acceptResourceRequest(
-            ServerPlayer player, Connection connection,
+            EntityPlayerMP player, NetworkManager connection,
             ServerModelSession owner, Predicate<ServerAssetTransfers> request) {
         var state = connections.current(
-                player.getUUID(), connection).orElse(null);
+                player.getUniqueID(), connection).orElse(null);
         if (state == null || state.session != owner) {
             return;
         }
         if (!request.test(state.assetTransfers)) {
-            connections.remove(player.getUUID(), connection);
+            connections.remove(player.getUniqueID(), connection);
         }
     }
 
@@ -261,11 +262,11 @@ public final class ServerModelService implements AutoCloseable {
     }
 
     private static ResourceDispatchWorker.Settings dispatchSettings() {
-        var megabits = ServerConfig.BANDWIDTH_LIMIT.get();
+        var megabits = ServerConfig.BANDWIDTH_LIMIT;
         var bytesPerSecond = megabits == 0 ? 0L : megabits * 1_000_000L / 8;
         return new ResourceDispatchWorker.Settings(
-                ServerConfig.DISPATCH_SOFT_LIMIT.get(),
-                ServerConfig.DISPATCH_HARD_LIMIT.get(), bytesPerSecond);
+                ServerConfig.DISPATCH_SOFT_LIMIT,
+                ServerConfig.DISPATCH_HARD_LIMIT, bytesPerSecond);
     }
 
     private final class ConnectionState implements AutoCloseable {
@@ -274,13 +275,13 @@ public final class ServerModelService implements AutoCloseable {
         private final ServerAssetTransfers assetTransfers;
         private boolean closed;
 
-        private ConnectionState(ServerPlayer player,
+        private ConnectionState(EntityPlayerMP player,
                                 ServerModelSession session,
                                 ForgeTransportPort transport) {
             this.session = session;
             this.transport = transport;
             assetTransfers = new ServerAssetTransfers(session, dispatch, transport,
-                    ServerConfig.RESTRICTED_AUTH::get,
+                    () -> ServerConfig.RESTRICTED_AUTH,
                     failure -> ServerModelService.this.runIfCurrent(player, session,
                             () -> NetworkHandler.sendToClientPlayer(failure, player)),
                     ModelRuntime.system().serverChunks(),

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.predicate;
 
+/*
 import com.elfmcys.ysm.client.animation.AnimationState;
 import com.elfmcys.ysm.client.animation.Priority;
 import com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate;
@@ -75,3 +76,4 @@ public class YsmMaidMainPredicate implements IAnimationPredicate<CustomYsmMaidEn
         return PlayState.STOP;
     }
 }
+*/

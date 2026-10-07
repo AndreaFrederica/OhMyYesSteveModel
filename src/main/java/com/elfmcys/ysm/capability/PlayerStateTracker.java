@@ -3,15 +3,15 @@ package com.elfmcys.ysm.capability;
 import com.elfmcys.ysm.client.entity.HumanoidStateTracker;
 import com.elfmcys.ysm.proto.network.EffectStateSet;
 import com.elfmcys.ysm.proto.network.GameplayState;
+import com.elfmcys.ysm.util.IdUtil;
 import it.unimi.dsi.fastutil.objects.Object2ByteOpenHashMap;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.potion.Potion;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
-public class PlayerStateTracker extends HumanoidStateTracker<Player> {
+public class PlayerStateTracker extends HumanoidStateTracker<EntityPlayer> {
     private final boolean localPlayer;
-    private final Object2ByteOpenHashMap<MobEffect> effects;
+    private final Object2ByteOpenHashMap<Potion> effects;
 
     private boolean remoteFlying;
     private int expLevel;
@@ -28,7 +28,7 @@ public class PlayerStateTracker extends HumanoidStateTracker<Player> {
     private static float YAW_SPEED;
     private static float LAST_YAW;
 
-    public PlayerStateTracker(Player player, boolean localPlayer) {
+    public PlayerStateTracker(EntityPlayer player, boolean localPlayer) {
         super(player);
         this.localPlayer = localPlayer;
         this.effects = new Object2ByteOpenHashMap<>(8);
@@ -71,8 +71,8 @@ public class PlayerStateTracker extends HumanoidStateTracker<Player> {
         if (effectState != null) {
             if (full) effects.clear();
             for (var value : effectState.effects()) {
-                var key = ResourceLocation.tryParse(value.effectId());
-                var effect = key == null ? null : BuiltInRegistries.MOB_EFFECT.get(key);
+                var key = IdUtil.tryParse(value.effectId());
+                var effect = key == null ? null : ForgeRegistries.POTIONS.getValue(key);
                 if (effect != null) {
                     if (value.level() == 0) effects.removeByte(effect);
                     else effects.put(effect, (byte) value.level());
@@ -83,7 +83,7 @@ public class PlayerStateTracker extends HumanoidStateTracker<Player> {
 
     public boolean isFlying() {
         if (localPlayer) {
-            return entity.getAbilities().flying;
+            return entity.capabilities.isFlying;
         }
         return remoteFlying;
     }
@@ -120,9 +120,9 @@ public class PlayerStateTracker extends HumanoidStateTracker<Player> {
         return inShieldBlockCooldown;
     }
 
-    public byte getEffectLevel(MobEffect effect) {
+    public byte getEffectLevel(Potion effect) {
         if (localPlayer) {
-            var instance = entity.getEffect(effect);
+            var instance = entity.getActivePotionEffect(effect);
             return instance != null ? (byte) (instance.getAmplifier() + 1) : 0;
         } else {
             return effects.getOrDefault(effect, (byte) 0);
@@ -137,8 +137,8 @@ public class PlayerStateTracker extends HumanoidStateTracker<Player> {
         super.updateEntityTickData(currentRenderTick, lastRenderTick);
     }
 
-    private static void updateLocalPlayerYawSpeed(Player entity, int currentRenderTick, int lastRenderTick) {
-        float yaw = entity.getYRot();   // local player 的 yRot 每帧都更新，不需要处理 partialTicks
+    private static void updateLocalPlayerYawSpeed(EntityPlayer entity, int currentRenderTick, int lastRenderTick) {
+        float yaw = entity.rotationYaw;   // local player 的 yRot 每帧都更新，不需要处理 partialTicks
         if (lastRenderTick > 0) {
             YAW_SPEED = (yaw - LAST_YAW) * 20 / (currentRenderTick - lastRenderTick);
         }

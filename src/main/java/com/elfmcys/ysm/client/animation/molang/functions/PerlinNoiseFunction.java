@@ -3,7 +3,7 @@ package com.elfmcys.ysm.client.animation.molang.functions;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
 import org.lwjgl.stb.STBPerlin;
 
 public class PerlinNoiseFunction extends EntityFunction {

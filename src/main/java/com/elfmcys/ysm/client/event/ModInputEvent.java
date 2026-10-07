@@ -2,48 +2,45 @@ package com.elfmcys.ysm.client.event;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.util.InputCheckUtil;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.InputEvent;
+import net.minecraftforge.fml.relauncher.Side;
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.input.KeyCodes;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
-@Mod.EventBusSubscriber(value = Dist.CLIENT, modid = YesSteveModel.MOD_ID)
+@Mod.EventBusSubscriber(value = Side.CLIENT, modid = YesSteveModel.MOD_ID)
 public class ModInputEvent {
     public static volatile boolean[] KEY_STATES = new boolean[GLFW.GLFW_KEY_LAST + 1];
     public static volatile boolean[] MOUSE_STATES = new boolean[GLFW.GLFW_MOUSE_BUTTON_LAST + 1];
 
     @SubscribeEvent
-    public static void onKeyInput(InputEvent.Key event) {
+    public static void onKeyInput(InputEvent.KeyInputEvent event) {
         if (!YesSteveModel.isAvailable()) {
             return;
         }
         if (!InputCheckUtil.isInGame()) {
             return;
         }
-        if (GLFW.GLFW_KEY_SPACE <= event.getKey() && event.getKey() <= GLFW.GLFW_KEY_LAST) {
-            if (event.getAction() == GLFW.GLFW_PRESS) {
-                KEY_STATES[event.getKey()] = true;
-            } else if (event.getAction() == GLFW.GLFW_RELEASE) {
-                KEY_STATES[event.getKey()] = false;
-            }
+        int key = KeyCodes.toGlfwKey(Keyboard.getEventKey());
+        if (GLFW.GLFW_KEY_SPACE <= key && key <= GLFW.GLFW_KEY_LAST) {
+            KEY_STATES[key] = Keyboard.getEventKeyState();
         }
     }
 
     @SubscribeEvent
-    public static void onMouseInput(InputEvent.MouseButton.Post event) {
+    public static void onMouseInput(InputEvent.MouseInputEvent event) {
         if (!YesSteveModel.isAvailable()) {
             return;
         }
         if (!InputCheckUtil.isInGame()) {
             return;
         }
-        if (GLFW.GLFW_MOUSE_BUTTON_1 <= event.getButton() && event.getButton() <= GLFW.GLFW_MOUSE_BUTTON_LAST) {
-            if (event.getAction() == GLFW.GLFW_PRESS) {
-                MOUSE_STATES[event.getButton()] = true;
-            } else if (event.getAction() == GLFW.GLFW_RELEASE) {
-                MOUSE_STATES[event.getButton()] = false;
-            }
+        int button = Mouse.getEventButton();
+        if (GLFW.GLFW_MOUSE_BUTTON_1 <= button && button <= GLFW.GLFW_MOUSE_BUTTON_LAST) {
+            MOUSE_STATES[button] = Mouse.getEventButtonState();
         }
     }
 }

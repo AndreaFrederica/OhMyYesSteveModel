@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.client.gui.button;
 
-import net.minecraft.ChatFormatting;
+import net.minecraft.util.text.TextFormatting;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -38,9 +38,9 @@ class CatalogModelTooltipFormatterTest {
                 " ",
                 "Stats: 12 bones, 34 cubes, 56 faces",
                 "Textures: 7"), text);
-        assertEquals(ChatFormatting.GOLD, lines.get(0).color());
-        assertEquals(ChatFormatting.RED, lines.get(6).color());
-        assertEquals(ChatFormatting.GOLD, lines.get(lines.size() - 1).color());
+        assertEquals(TextFormatting.GOLD, lines.get(0).color());
+        assertEquals(TextFormatting.RED, lines.get(6).color());
+        assertEquals(TextFormatting.GOLD, lines.get(lines.size() - 1).color());
         assertFalse(text.stream().anyMatch(value -> value.contains("catalog/path")));
     }
 
@@ -57,7 +57,7 @@ class CatalogModelTooltipFormatterTest {
         assertTrue(text.contains("Stats: 12 bones, 34 cubes, 56 faces"));
         assertTrue(text.contains("Textures: 7"));
         assertTrue(text.contains("Root cause: IOException: missing chunk"));
-        assertEquals(ChatFormatting.DARK_GRAY,
+        assertEquals(TextFormatting.DARK_GRAY,
                 lines.get(text.indexOf("Root cause: IOException: missing chunk")).color());
     }
 

@@ -5,9 +5,9 @@ import com.elfmcys.ysm.geckolib3.geo.render.built.GeoModel;
 import com.elfmcys.ysm.format.schema.model.views.ModelInfoView;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.util.CleanerUtil;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.elfmcys.ysm.util.RenderUtil;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 
 import java.lang.ref.Cleaner;
 import java.util.Collections;
@@ -113,16 +113,17 @@ public final class ModelRenderTarget implements AutoCloseable {
             if (!cleaned.compareAndSet(false, true)) {
                 return;
             }
-            var minecraft = Minecraft.getInstance();
-            if (minecraft != null && !minecraft.isSameThread()) {
-                minecraft.execute(this::destroy);
+            var minecraft = Minecraft.getMinecraft();
+            //noinspection ConstantValue
+            if (minecraft != null && !minecraft.isCallingFromMinecraftThread()) {
+                minecraft.addScheduledTask(this::destroy);
             } else {
                 destroy();
             }
         }
 
         private void destroy() {
-            RenderSystem.assertOnRenderThread();
+            RenderUtil.assertOnMinecraftThread();
             RuntimeException releaseFailure = null;
             var binding = textureBinding.getAndSet(null);
             if (binding != null) {

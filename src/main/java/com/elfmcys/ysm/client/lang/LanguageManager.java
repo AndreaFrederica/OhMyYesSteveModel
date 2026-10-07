@@ -17,7 +17,7 @@ public class LanguageManager {
         if (defaultValue == null) {
             defaultValue = "";
         }
-        String local = Minecraft.getInstance().getLanguageManager().getSelected();
+        String local = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode();
         Map<String, Map<String, String>> languages = info.lang();
         if (languages == null || languages.isEmpty()) {
             return defaultValue;
@@ -32,7 +32,7 @@ public class LanguageManager {
     }
 
     public static String getI18n(ModelRenderTarget data, String key, String defaultValue) {
-        String local = Minecraft.getInstance().getLanguageManager().getSelected();
+        String local = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode();
         return getI18n(data, local, key, defaultValue);
     }
 

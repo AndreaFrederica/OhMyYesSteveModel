@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.geckolib3.geo.render.built;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;

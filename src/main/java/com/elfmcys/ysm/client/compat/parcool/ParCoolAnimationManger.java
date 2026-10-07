@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.parcool;
 
+/*
 import com.alrex.parcool.client.animation.Animator;
 import com.alrex.parcool.client.animation.impl.*;
 import com.alrex.parcool.common.action.impl.*;
@@ -162,3 +163,4 @@ public class ParCoolAnimationManger {
         return sb.toString();
     }
 }
+*/

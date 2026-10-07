@@ -1,16 +1,17 @@
 package com.elfmcys.ysm.client.compat;
 
+/*
 import dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraftforge.fml.ModList;
+import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraftforge.fml.common.Loader;
 
 public class PlayerAnimatorCompat {
     private static final String MOD_ID = "playeranimator";
     private static boolean INSTALLED;
 
     public static void init() {
-        INSTALLED = ModList.get().isLoaded(MOD_ID);
+        INSTALLED = Loader.isModLoaded(MOD_ID);
     }
 
     public static boolean isInstalled() {
@@ -25,3 +26,4 @@ public class PlayerAnimatorCompat {
         return false;
     }
 }
+*/

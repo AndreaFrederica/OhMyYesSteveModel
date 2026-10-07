@@ -1,7 +1,7 @@
 package com.elfmcys.ysm.client.animation.molang.functions.physics;
 
 import com.elfmcys.ysm.geckolib3.core.util.MathUtil;
-import net.minecraft.util.Mth;
+import net.minecraft.util.math.MathHelper;
 
 /**
  * @author MicroCraft
@@ -19,16 +19,16 @@ public class SecondOrder implements IPhysics {
 
     public SecondOrder(float input, float frequency, float coefficient, float response) {
         this.arg0 = input;
-        this.arg1 = Mth.clamp(frequency, 0, 5);
-        this.arg2 = Mth.clamp(coefficient, 0, 1);
+        this.arg1 = MathHelper.clamp(frequency, 0, 5);
+        this.arg2 = MathHelper.clamp(coefficient, 0, 1);
         this.arg3 = response;
     }
 
     @Override
     public void update(float timeStep) {
         float input = arg0;
-        float frequency = Mth.clamp(arg1, 0, 5);
-        float coefficient = Mth.clamp(arg2, 0, 1);
+        float frequency = MathHelper.clamp(arg1, 0, 5);
+        float coefficient = MathHelper.clamp(arg2, 0, 1);
         float response = arg3;
 
         float k1 = coefficient / MathUtil.PI / frequency;

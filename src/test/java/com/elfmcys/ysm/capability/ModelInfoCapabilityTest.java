@@ -1,7 +1,7 @@
 package com.elfmcys.ysm.capability;
 
 import com.elfmcys.ysm.model.domain.Hash256;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NBTTagCompound;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -64,9 +64,9 @@ class ModelInfoCapabilityTest {
 
     @Test
     void invalidPersistedModelFailsClosedWithoutBypass() {
-        var tag = new CompoundTag();
-        tag.putString("model_hash", "invalid");
-        tag.putBoolean("ignore_grants", true);
+        var tag = new NBTTagCompound();
+        tag.setString("model_hash", "invalid");
+        tag.setBoolean("ignore_grants", true);
 
         var restored = new ModelInfoCapability();
         restored.deserializeNBT(tag);

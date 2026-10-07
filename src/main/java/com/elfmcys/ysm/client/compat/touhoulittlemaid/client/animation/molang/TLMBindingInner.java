@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.molang;
 
+/*
 import com.elfmcys.ysm.client.animation.molang.TLMBinding;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.variable.IValueEvaluator;
@@ -74,3 +75,4 @@ public class TLMBindingInner {
         return key.toString();
     }
 }
+*/

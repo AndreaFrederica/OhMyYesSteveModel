@@ -3,12 +3,10 @@ package com.elfmcys.ysm.natives.image;
 import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.natives.buffer.BufferArgument;
-import com.elfmcys.ysm.mixin.client.NativeImageAccessor;
-import com.elfmcys.ysm.util.ScopeGuard;
-import com.mojang.blaze3d.platform.NativeImage;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import it.unimi.dsi.fastutil.objects.ReferenceLists;
 
+import java.awt.image.BufferedImage;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.Reference;
 import java.util.Arrays;
@@ -27,26 +25,22 @@ public record Image(Format format, int width, int height, UniBuffer data) implem
         return new Image(format, width, height, data.acquire());
     }
 
-    @SuppressWarnings("DataFlowIssue")
-    public NativeImage decode() throws UnsupportedEncodingException {
-        var args = BufferArgument.packInput(data);
-        try (var dstScope = ScopeGuard.create(new NativeImage(NativeImage.Format.RGBA, width, height, false))) {
-            var dst = dstScope.get();
-            var dstAccessor = (NativeImageAccessor) (Object) dst;
-            final boolean result;
-            try {
-                result = Native.nDecode(args.obj(), args.flags(),
-                        format.id, width, height,
-                        dstAccessor.ysm$pixels(), dstAccessor.ysm$size());
-            } finally {
-                Reference.reachabilityFence(data);
-                Reference.reachabilityFence(dst);
+    // 1.12.2 没有 NativeImage，解码到原生 RGBA 缓冲后转成 TYPE_INT_ARGB 的 BufferedImage
+    public BufferedImage decode() throws UnsupportedEncodingException {
+        try (var pixels = decodeToBuffer()) {
+            var src = pixels.nio();
+            var argb = new int[width * height];
+            for (var i = 0; i < argb.length; ++i) {
+                var offset = i * 4;
+                argb[i] = (src.get(offset + 3) & 0xFF) << 24
+                        | (src.get(offset) & 0xFF) << 16
+                        | (src.get(offset + 1) & 0xFF) << 8
+                        | (src.get(offset + 2) & 0xFF);
             }
-            if (result) {
-                return dstScope.release();
-            }
+            var image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            image.setRGB(0, 0, width, height, argb, 0, width);
+            return image;
         }
-        throw new UnsupportedEncodingException("Failed to decode image");
     }
 
     public NativeBuffer decodeToBuffer() throws UnsupportedEncodingException {

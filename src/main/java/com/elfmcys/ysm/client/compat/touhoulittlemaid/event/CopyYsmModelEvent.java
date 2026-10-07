@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.event;
 
+/*
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.ModelInfoCapabilityProvider;
 import com.elfmcys.ysm.capability.ModelSelectionService;
@@ -91,3 +92,4 @@ public class CopyYsmModelEvent {
         });
     }
 }
+*/

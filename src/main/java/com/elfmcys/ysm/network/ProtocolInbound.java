@@ -4,7 +4,7 @@ import com.elfmcys.ysm.network.frame.FrameCodec;
 import com.elfmcys.ysm.network.protocol.MessageDirection;
 import com.elfmcys.ysm.network.protocol.ProtocolMessageSpec;
 import com.elfmcys.ysm.network.protocol.ProtocolMessages;
-import net.minecraftforge.network.NetworkEvent;
+import com.elfmcys.ysm.network.forge.NetworkEvent;
 import us.hebi.quickbuf.ProtoMessage;
 
 import java.util.function.Supplier;

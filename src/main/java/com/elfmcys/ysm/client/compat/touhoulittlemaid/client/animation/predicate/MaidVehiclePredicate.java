@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.predicate;
 
+/*
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.client.entity.IPreviewEntity;
 import com.elfmcys.ysm.geckolib3.core.PlayState;
@@ -43,3 +44,4 @@ public class MaidVehiclePredicate {
         return null;
     }
 }
+*/

@@ -4,11 +4,14 @@ import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.geckolib3.util.MolangUtils;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.ComponentUtils;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.registries.ForgeRegistries;
+import com.elfmcys.ysm.util.ComponentUtils;
+import net.minecraft.entity.Entity;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextComponentString;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
+import net.minecraftforge.oredict.OreDictionary;
 
 public class DumpRelativeBlock extends EntityFunction {
     @Override
@@ -25,11 +28,13 @@ public class DumpRelativeBlock extends EntityFunction {
         if (blockId == null) {
             return null;
         }
-        ctx.entity().debugPrint(Component.literal("Display ").append(ComponentUtils.copyOnClickText(block.getBlock().getName().getString(99))));
-        ctx.entity().debugPrint(Component.literal("Name ").append(ComponentUtils.copyOnClickText(blockId.toString())));
-        block.getTags().forEach(key -> {
-            ctx.entity().debugPrint(Component.literal("Tag ").append(ComponentUtils.copyOnClickText(key.location().toString())));
-        });
+        ctx.entity().debugPrint(new TextComponentString("Display ").appendSibling(ComponentUtils.suggestOnClickText(block.getBlock().getLocalizedName())));
+        ctx.entity().debugPrint(new TextComponentString("Name ").appendSibling(ComponentUtils.suggestOnClickText(blockId.toString())));
+        ItemStack stack = new ItemStack(Item.getItemFromBlock(block.getBlock()), 1, block.getBlock().damageDropped(block));
+        for (int oreId : OreDictionary.getOreIDs(stack)) {
+            ctx.entity().debugPrint(new TextComponentString("OreDict: name ").appendSibling(ComponentUtils.suggestOnClickText(OreDictionary.getOreName(oreId)))
+                    .appendText("  id ").appendSibling(ComponentUtils.suggestOnClickText(String.valueOf(oreId))));
+        }
 
         return null;
     }

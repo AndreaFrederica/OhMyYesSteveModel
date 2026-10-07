@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.event;
 
+/*
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.capability.YsmMaidCapabilityProvider;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -21,3 +22,4 @@ public final class SyncCapability {
         }
     }
 }
+*/

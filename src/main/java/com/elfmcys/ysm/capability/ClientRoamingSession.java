@@ -11,11 +11,11 @@ import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.entity.player.EntityPlayer;
 
 /** Owns client roaming-variable synchronization independently from animation/render compatibility. */
 final class ClientRoamingSession {
-    private final Player player;
+    private final EntityPlayer player;
     private final boolean localPlayer;
     private final Runnable reloadModel;
     private final Int2ReferenceOpenHashMap<RemoteStorage> storage =
@@ -24,7 +24,7 @@ final class ClientRoamingSession {
     private int currentHash;
     private Struct currentStruct;
 
-    ClientRoamingSession(Player player, boolean localPlayer, Runnable reloadModel) {
+    ClientRoamingSession(EntityPlayer player, boolean localPlayer, Runnable reloadModel) {
         this.player = player;
         this.localPlayer = localPlayer;
         this.reloadModel = reloadModel;
@@ -139,12 +139,12 @@ final class ClientRoamingSession {
     }
 
     private void updateVehicle(int roamingHash, Int2FloatMap variables) {
-        if (roamingHash != currentHash || player.getVehicle() == null
-                || player.getVehicle().getFirstPassenger() != player) {
+        if (roamingHash != currentHash || player.getRidingEntity() == null
+                || player.getRidingEntity().getControllingPassenger() != player) {
             return;
         }
-        player.getVehicle().getCapability(VehicleAnimatableCapabilityProvider.CAP)
-                .ifPresent(capability -> capability.updateRoamingVars(variables));
+        var capability = player.getRidingEntity().getCapability(VehicleAnimatableCapabilityProvider.CAP, null);
+        if (capability != null) capability.updateRoamingVars(variables);
     }
 
     private static final class RemoteStorage {

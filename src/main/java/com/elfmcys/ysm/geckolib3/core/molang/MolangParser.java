@@ -2,14 +2,14 @@ package com.elfmcys.ysm.geckolib3.core.molang;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.client.animation.debug.CustomDebugSource;
-import com.elfmcys.ysm.client.gui.overlay.DebugAnimationScreen;
+import com.elfmcys.ysm.client.event.RenderDebugAnimationScreenEvent;
 import com.elfmcys.ysm.geckolib3.core.molang.binding.PrimaryBinding;
 import com.elfmcys.ysm.geckolib3.core.molang.value.FloatValue;
 import com.elfmcys.ysm.geckolib3.core.molang.value.IValue;
 import com.elfmcys.ysm.geckolib3.core.molang.value.MolangValue;
 import com.elfmcys.ysm.molang.MolangEngine;
 import com.elfmcys.ysm.molang.parser.ParseException;
-import net.minecraft.network.chat.Component;
+import net.minecraft.util.text.TextComponentTranslation;
 
 import java.util.Map;
 
@@ -30,13 +30,13 @@ public class MolangParser {
         try {
             return parseExpressionUnsafe(molangExpression, isUserFunc);
         } catch (Exception e) {
-            if (DebugAnimationScreen.isEnabled()) {
+            if (RenderDebugAnimationScreenEvent.isEnabled()) {
                 YesSteveModel.LOGGER.error("Failed to parse molang expression: {}\n{}", e.getMessage(), molangExpression);
-                CustomDebugSource.INSTANCE.print(Component.translatable("error.yes_steve_model.parse_molang_exp")
-                                .append(e.getMessage())
-                                .append("\n----------------------\n")
-                                .append(molangExpression.replace("\r\n", "\n").replace("\r", "\n"))
-                                .append("\n----------------------"));
+                CustomDebugSource.INSTANCE.print(new TextComponentTranslation("error.yes_steve_model.parse_molang_exp")
+                                .appendText(e.getMessage())
+                                .appendText("\n----------------------\n")
+                                .appendText(molangExpression.replace("\r\n", "\n").replace("\r", "\n"))
+                                .appendText("\n----------------------"));
             } else {
                 YesSteveModel.LOGGER.debug("Failed to parse molang expression: {}\n{}", e.getMessage(), molangExpression);
             }

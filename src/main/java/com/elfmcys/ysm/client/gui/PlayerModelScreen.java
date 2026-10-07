@@ -4,8 +4,9 @@ import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.AuthModelsCapabilityProvider;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.capability.StarModelsCapabilityProvider;
-import com.elfmcys.ysm.client.event.DownloadScreenInterModEvent;
+import com.elfmcys.ysm.client.ClientProxy;
 import com.elfmcys.ysm.client.gui.button.CatalogModelButton;
+import com.elfmcys.ysm.client.gui.button.Checkbox;
 import com.elfmcys.ysm.client.gui.button.FailedCatalogModelButton;
 import com.elfmcys.ysm.client.gui.button.FlatColorButton;
 import com.elfmcys.ysm.client.gui.button.FlatIconButton;
@@ -13,6 +14,7 @@ import com.elfmcys.ysm.client.gui.button.PackButton;
 import com.elfmcys.ysm.client.gui.button.StarButton;
 import com.elfmcys.ysm.client.input.PlayerModelScreenKey;
 import com.elfmcys.ysm.config.ClientConfig;
+import com.elfmcys.ysm.config.Config;
 import com.elfmcys.ysm.config.ServerConfig;
 import com.elfmcys.ysm.model.catalog.client.ClientCatalogSnapshot;
 import com.elfmcys.ysm.model.catalog.client.ModelPackInfo;
@@ -25,32 +27,34 @@ import com.elfmcys.ysm.model.session.client.ClientModelSession;
 import com.elfmcys.ysm.network.NetworkHandler;
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
 import com.elfmcys.ysm.network.forge.ClientSessionRuntime;
+import com.elfmcys.ysm.util.GuiRenderUtil;
+import com.elfmcys.ysm.util.InputCheckUtil;
 import com.elfmcys.ysm.util.ModelIdUtil;
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.elfmcys.ysm.util.TextMeasureUtil;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.audio.PositionedSoundRecord;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.init.SoundEvents;
+import net.minecraft.util.text.TextFormatting;
+import net.minecraftforge.client.event.GuiScreenEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fml.common.Loader;
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.lwjgl.input.Keyboard;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Checkbox;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.util.FormattedCharSequence;
-import net.minecraftforge.fml.ModList;
-import org.apache.commons.lang3.StringUtils;
-import org.lwjgl.glfw.GLFW;
 
 public class PlayerModelScreen extends Screen {
     private static final CustomGuiPlayerEntity[] MODEL_PREVIEW_ENTITY = new CustomGuiPlayerEntity[10];
@@ -61,12 +65,14 @@ public class PlayerModelScreen extends Screen {
     private final List<CatalogModelButton> modelButtons = new ArrayList<>();
     private final List<FailedCatalogModelButton> failedButtons = new ArrayList<>();
     private final List<PackButton> packButtons = new ArrayList<>();
+    @Nullable
+    private CatalogModelButton focusedModelButton;
     private final Map<String, ModelPackDescriptor> packDescriptors = new LinkedHashMap<>();
-    private final CatalogDemandTracker demand = new CatalogDemandTracker(Util.getMillis());
+    private final CatalogDemandTracker demand = new CatalogDemandTracker(Minecraft.getSystemTime());
     private ClientAssetBatch pageAssets;
     private List<String> renderedPage = List.of();
     private boolean pageSubmitted;
-    private EditBox textField;
+    private GuiTextField textField;
     protected int x;
     protected int y;
 
@@ -77,10 +83,10 @@ public class PlayerModelScreen extends Screen {
     }
 
     public PlayerModelScreen() {
-        super(Component.literal("YSM Player Model GUI"));
+        super();
         ClientSessionRuntime.reopenCatalog();
         if (NetworkHandler.isRemoteChannelPresent()) {
-            clientNotDisplayModels.addAll(ServerConfig.CLIENT_NOT_DISPLAY_MODEL_PATHS.get());
+            clientNotDisplayModels.addAll(List.of(ServerConfig.CLIENT_NOT_DISPLAY_MODEL_PATHS));
         }
         rebuildCatalog(service.catalog());
     }
@@ -95,11 +101,12 @@ public class PlayerModelScreen extends Screen {
     }
 
     protected void selectModel(Hash256 hash, String path, String texture, ModelRenderTarget renderTarget) {
-        var player = Minecraft.getInstance().player;
+        var player = Minecraft.getMinecraft().player;
         if (player == null) {
             return;
         }
-        player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+        var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        if (capability != null) {
             var sessionState = ClientSessionRuntime.state()
                     .orElse(ClientModelSession.State.LOCAL);
             if (sessionState == ClientModelSession.State.ACTIVE) {
@@ -111,13 +118,12 @@ public class PlayerModelScreen extends Screen {
                     == ClientModelSession.State.LOCAL) {
                 capability.updateModelAndTexture(hash, texture);
             }
-        });
+        }
     }
 
     @Override
-    protected void init() {
+    public void initGui() {
         closePage();
-        clearWidgets();
         if (browser.catalog() != service.catalog()) {
             rebuildCatalog(service.catalog());
         }
@@ -126,112 +132,109 @@ public class PlayerModelScreen extends Screen {
 
         x = (width - 420) / 2;
         y = (height - 235) / 2;
-        var previousSearch = textField == null ? "" : textField.getValue();
+        var previousSearch = textField == null ? "" : textField.getText();
         var focused = textField != null && textField.isFocused();
-        textField = new EditBox(font, x + 144, y + 6, 140, 16, Component.literal("YSM Search Box"));
-        textField.setValue(previousSearch);
+        textField = new GuiTextField(0, fontRenderer, x + 144, y + 6, 140, 16);
+        textField.setText(previousSearch);
         textField.setTextColor(0xF3EFE0);
         textField.setFocused(focused);
-        textField.moveCursorToEnd();
-        addWidget(textField);
+        textField.setCursorPositionEnd();
 
         addHeaderButtons();
         addPageButtons();
         addCatalogButtons(pageAssets);
         renderedPage = pageSignature();
-        maybeSubmitPage(Util.getMillis());
+        maybeSubmitPage(Minecraft.getSystemTime());
     }
 
     private void addHeaderButtons() {
-        addRenderableWidget(new FlatIconButton(x + 5, y + 5, 20, 20, 80, 16, ignored -> {
-            var player = Minecraft.getInstance().player;
+        addButton(new FlatIconButton(x + 5, y + 5, 20, 20, 80, 16, ignored -> {
+            var player = Minecraft.getMinecraft().player;
             if (player != null) {
-                player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+                var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+                if (capability != null) {
                     var model = capability.getModelRenderTarget();
                     if (model != null && model.info().hasMetadata()) {
-                        Minecraft.getInstance().setScreen(getModelInfoScreen(this, model));
+                        Minecraft.getMinecraft().displayGuiScreen(getModelInfoScreen(this, model));
                     }
-                });
+                }
             }
         })).setTooltips("gui.yes_steve_model.model.info");
-        addRenderableWidget(new FlatIconButton(x + 28, y + 5, 79, 20, 32, 16, ignored -> {
-            var player = Minecraft.getInstance().player;
+        addButton(new FlatIconButton(x + 28, y + 5, 79, 20, 32, 16, ignored -> {
+            var player = Minecraft.getMinecraft().player;
             if (player != null) {
-                player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+                var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+                if (capability != null) {
                     var model = capability.getModelRenderTarget();
                     if (model != null && capability.getModelHash() != null) {
-                        Minecraft.getInstance().setScreen(getTextureScreen(this, capability.getModelHash(), model));
+                        Minecraft.getMinecraft().displayGuiScreen(getTextureScreen(this, capability.getModelHash(), model));
                     }
-                });
+                }
             }
         })).setTooltips("gui.yes_steve_model.model.texture");
-        addRenderableWidget(new StarButton(x + 110, y + 5));
+        addButton(new StarButton(x + 110, y + 5));
 
         if (StringUtils.isNotBlank(browser.currentPack())) {
-            addRenderableWidget(new FlatIconButton(x + 110, y + 27, 20, 20, 0, 32,
+            addButton(new FlatIconButton(x + 110, y + 27, 20, 20, 0, 32,
                     ignored -> backToParent()).setTooltips("gui.back"));
         }
 
-        addRenderableWidget(new Checkbox(x + 5, y - 22, 20, 20,
-                Component.translatable("gui.yes_steve_model.show_model_id_first"),
-                ClientConfig.SHOW_MODEL_ID_FIRST.get(), true) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                ClientConfig.SHOW_MODEL_ID_FIRST.set(selected());
-                ClientConfig.SHOW_MODEL_ID_FIRST.save();
-            }
-        });
+        addButton(new Checkbox(x + 5, y - 22,
+                I18n.format("gui.yes_steve_model.show_model_id_first"),
+                fontRenderer, ClientConfig.SHOW_MODEL_ID_FIRST, b -> {
+            ClientConfig.SHOW_MODEL_ID_FIRST = ((Checkbox) b).selected();
+            Config.save();
+        }));
 
         addCategoryButton(x + 328, 32, CatalogBrowserState.Category.ALL, "gui.yes_steve_model.all_models");
         addCategoryButton(x + 308, 48, CatalogBrowserState.Category.AUTH, "gui.yes_steve_model.auth_models");
         addCategoryButton(x + 288, 0, CatalogBrowserState.Category.STAR, "gui.yes_steve_model.star_models");
-        addRenderableWidget(new FlatIconButton(x + 397, y + 5, 18, 18, 16, 16,
-                ignored -> getMinecraft().setScreen(new ConfigScreen(this)))
+        addButton(new FlatIconButton(x + 397, y + 5, 18, 18, 16, 16,
+                ignored -> mc.displayGuiScreen(new ConfigScreen(this)))
                 .setTooltips("gui.yes_steve_model.config"));
-        addRenderableWidget(new FlatIconButton(x + 377, y + 5, 18, 18, 0, 16,
-                ignored -> DownloadScreenInterModEvent.openDownloadScreen(this))
+        addButton(new FlatIconButton(x + 377, y + 5, 18, 18, 0, 16,
+                ignored -> ClientProxy.openDownloadScreen(this))
                 .setTooltips("gui.yes_steve_model.download"));
-        addRenderableWidget(new FlatIconButton(x + 357, y + 5, 18, 18, 80, 0,
-                ignored -> getMinecraft().setScreen(new OpenModelFolderScreen(this)))
+        addButton(new FlatIconButton(x + 357, y + 5, 18, 18, 80, 0,
+                ignored -> mc.displayGuiScreen(new OpenModelFolderScreen(this)))
                 .setTooltips("gui.yes_steve_model.open_model_folder.open"));
     }
 
     private void addCategoryButton(int buttonX, int u, CatalogBrowserState.Category target, String tooltip) {
-        addRenderableWidget(new FlatIconButton(buttonX, y + 5, 18, 18, u, 0, ignored -> {
+        addButton(new FlatIconButton(buttonX, y + 5, 18, 18, u, 0, ignored -> {
             if (browser.category() != target) {
-                demand.switchPage(Util.getMillis());
+                demand.switchPage(Minecraft.getSystemTime());
                 browser.category(target);
-                init();
+                refreshGui();
             }
         }).setTooltips(tooltip));
     }
 
     private void addPageButtons() {
-        addRenderableWidget(new FlatColorButton(x + 198, y + 215, 52, 14,
-                Component.translatable("gui.yes_steve_model.pre_page"), ignored -> {
+        addButton(new FlatColorButton(x + 198, y + 215, 52, 14,
+                I18n.format("gui.yes_steve_model.pre_page"), ignored -> {
             if (browser.page() > 0) {
-                demand.switchPage(Util.getMillis());
+                demand.switchPage(Minecraft.getSystemTime());
                 browser.page(browser.page() - 1);
-                init();
+                refreshGui();
             }
         }));
-        addRenderableWidget(new FlatColorButton(x + 308, y + 215, 52, 14,
-                Component.translatable("gui.yes_steve_model.next_page"), ignored -> {
+        addButton(new FlatColorButton(x + 308, y + 215, 52, 14,
+                I18n.format("gui.yes_steve_model.next_page"), ignored -> {
             if (browser.page() < browser.maxPage()) {
-                demand.switchPage(Util.getMillis());
+                demand.switchPage(Minecraft.getSystemTime());
                 browser.page(browser.page() + 1);
-                init();
+                refreshGui();
             }
         }));
     }
 
     private void addCatalogButtons(ClientAssetBatch assets) {
-        var player = minecraft == null ? null : minecraft.player;
+        var player = mc == null ? null : mc.player;
         if (player == null) {
             return;
         }
-        var auth = player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP).resolve().orElse(null);
+        var auth = player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP, null);
         var sessionGrants = ClientSessionRuntime.authoritativeGrants();
         for (var slot = 0; slot < 10; slot++) {
             var index = slot + browser.page() * 10;
@@ -241,12 +244,12 @@ public class PlayerModelScreen extends Screen {
                 var pack = browser.packs().get(index);
                 var button = new PackButton(xStart, yStart, 52, 90, pack,
                         packDescriptors.get(pack.hierarchy()), assets, ignored -> {
-                    demand.switchPage(Util.getMillis());
+                    demand.switchPage(Minecraft.getSystemTime());
                     browser.enterPack(pack.hierarchy());
-                    init();
+                    refreshGui();
                 });
                 packButtons.add(button);
-                addRenderableWidget(button);
+                addButton(button);
                 continue;
             }
             index -= browser.packs().size();
@@ -257,10 +260,10 @@ public class PlayerModelScreen extends Screen {
                         .orElseGet(() -> auth == null || !auth.containModel(entry.modelHash()));
                 var button = new CatalogModelButton(xStart, yStart, entry, needAuth,
                         assets, MODEL_PREVIEW_ENTITY[slot], this::selectModel,
-                        (hash, path, renderTarget) -> Minecraft.getInstance().setScreen(
+                        (hash, path, renderTarget) -> Minecraft.getMinecraft().displayGuiScreen(
                                 getTextureScreen(this, hash, renderTarget)));
                 modelButtons.add(button);
-                addRenderableWidget(button);
+                addButton(button);
                 continue;
             }
             index -= browser.models().size();
@@ -268,19 +271,19 @@ public class PlayerModelScreen extends Screen {
                 var button = new FailedCatalogModelButton(
                         xStart, yStart, browser.failed().get(index));
                 failedButtons.add(button);
-                addRenderableWidget(button);
+                addButton(button);
             }
         }
     }
 
     private void calculateModelList() {
-        var player = minecraft == null ? null : minecraft.player;
+        var player = mc == null ? null : mc.player;
         var auth = player == null ? null
-                : player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP).resolve().orElse(null);
+                : player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP, null);
         var sessionGrants = ClientSessionRuntime.authoritativeGrants();
         var stars = player == null ? null
-                : player.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP).resolve().orElse(null);
-        browser.filter(textField == null ? "" : textField.getValue(), locale(), clientNotDisplayModels,
+                : player.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP, null);
+        browser.filter(textField == null ? "" : textField.getText(), locale(), clientNotDisplayModels,
                 hash -> sessionGrants.map(grants -> grants.contains(hash))
                         .orElseGet(() -> auth != null && auth.containModel(hash)),
                 hash -> stars != null && stars.containModel(hash));
@@ -301,8 +304,8 @@ public class PlayerModelScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        var nowMillis = Util.getMillis();
+    public void drawScreen(int mouseX, int mouseY, float partialTick) {
+        var nowMillis = Minecraft.getSystemTime();
         var hovered = modelButtons.stream()
                 .filter(button -> button.isMouseOver(mouseX, mouseY))
                 .map(CatalogModelButton::modelHash)
@@ -311,181 +314,182 @@ public class PlayerModelScreen extends Screen {
         var hoverGeneration = demand.hoverGeneration();
         modelButtons.forEach(button -> button.updateDemand(hoverGeneration,
                 demand.mayBake(button.modelHash(), nowMillis)));
-        renderBackground(graphics);
-        graphics.fillGradient(x, y, x + 135, y + 235, 0xFF222222, 0xFF222222);
-        graphics.fillGradient(x + 138, y, x + 420, y + 235, 0xFF222222, 0xFF222222);
-        graphics.fillGradient(x + 351, y + 7, x + 352, y + 21, 0xFFF3EFE0, 0xFFF3EFE0);
-        textField.render(graphics, mouseX, mouseY, partialTick);
-        renderReferenceEntity(graphics, mouseX, mouseY, minecraft.getFrameTime());
+        drawDefaultBackground();
+        this.drawGradientRect(x, y, x + 135, y + 235, 0xFF222222, 0xFF222222);
+        this.drawGradientRect(x + 138, y, x + 420, y + 235, 0xFF222222, 0xFF222222);
+        this.drawGradientRect(x + 351, y + 7, x + 352, y + 21, 0xFFF3EFE0, 0xFFF3EFE0);
+        textField.drawTextBox();
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        renderReferenceEntity(mouseX, mouseY, partialTick);
 
-        if (textField.getValue().isEmpty() && !textField.isFocused()) {
-            graphics.drawString(font, Component.translatable("gui.yes_steve_model.search")
-                    .withStyle(ChatFormatting.ITALIC), x + 148, y + 10, 0x777777);
+        if (textField.getText().isEmpty() && !textField.isFocused()) {
+            this.drawString(fontRenderer, TextFormatting.ITALIC + I18n.format("gui.yes_steve_model.search"),
+                    x + 148, y + 10, 0x777777);
         }
         var page = "%d/%d".formatted(browser.page() + 1, browser.maxPage() + 1);
-        graphics.drawString(font, page, x + 138 + (282 - font.width(page)) / 2,
-                y + 223 - font.lineHeight / 2, 0xF3EFE0);
-        var version = ModList.get().getModFileById(YesSteveModel.MOD_ID).versionString();
-        graphics.drawString(font, version, x + 2, y + 226, ChatFormatting.DARK_GRAY.getColor());
+        this.drawString(fontRenderer, page, x + 138 + (282 - fontRenderer.getStringWidth(page)) / 2,
+                y + 223 - fontRenderer.FONT_HEIGHT / 2, 0xF3EFE0);
+        var version = Loader.instance().getIndexedModList().get(YesSteveModel.MOD_ID).getVersion();
+        this.drawString(fontRenderer, TextFormatting.DARK_GRAY + version, x + 2, y + 226, 0xffffffff);
         if (!browser.currentPack().isBlank()) {
-            graphics.drawString(font, Component.literal("\uD83D\uDCC2 " + browser.currentPack())
-                    .withStyle(ChatFormatting.GRAY), x + 142, y - 12, 0xF3EFE0);
+            this.drawString(fontRenderer,TextFormatting.GRAY + "\uD83D\uDCC2 " + browser.currentPack(),
+                    x + 142, y - 12, 0xF3EFE0);
         }
         if (service.loadingCount() > 0) {
-            var loading = Component.literal(Integer.toString(service.loadingCount()));
-            graphics.drawString(font, loading, x + 414 - font.width(loading), y + 218,
-                    ChatFormatting.DARK_GRAY.getColor());
+            var loading = Integer.toString(service.loadingCount());
+            this.drawString(fontRenderer, TextFormatting.DARK_GRAY + loading, x + 414 - fontRenderer.getStringWidth(loading), y + 218, 0xffffffff);
         }
 
-        super.render(graphics, mouseX, mouseY, partialTick);
-        renderables.stream().filter(FlatIconButton.class::isInstance).map(FlatIconButton.class::cast)
-                .forEach(button -> button.renderToolTip(graphics, this, mouseX, mouseY));
-        modelButtons.forEach(button -> button.renderTooltip(graphics, this, mouseX, mouseY));
-        failedButtons.forEach(button -> button.renderTooltip(graphics, this, mouseX, mouseY));
-        renderables.stream().filter(PackButton.class::isInstance).map(PackButton.class::cast)
-                .forEach(button -> button.renderComponentTooltip(graphics, this, mouseX, mouseY));
+        super.drawScreen(mouseX, mouseY, partialTick);
+        buttonList.stream().filter(FlatIconButton.class::isInstance).map(FlatIconButton.class::cast)
+                .forEach(button -> button.renderToolTip(this, mouseX, mouseY));
+        modelButtons.forEach(button -> button.renderTooltip(this, mouseX, mouseY));
+        failedButtons.forEach(button -> button.renderTooltip(this, mouseX, mouseY));
+        buttonList.stream().filter(PackButton.class::isInstance).map(PackButton.class::cast)
+                .forEach(button -> button.renderComponentTooltip(this, mouseX, mouseY));
     }
 
-    protected void renderReferenceEntity(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        LocalPlayer player = Minecraft.getInstance().player;
+    protected void renderReferenceEntity(int mouseX, int mouseY, float partialTick) {
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
         if (player == null) {
             return;
         }
-        Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
-        RenderSystem.enableScissor((int) ((x + 5) * scale),
-                (int) (window.getHeight() - ((y + 200) * scale)),
-                (int) (125 * scale), (int) (171 * scale));
-        InventoryScreen.renderEntityInInventoryFollowsMouse(graphics, x + 67, y + 190, 70,
+        GuiRenderUtil.enableScissor(x + 5, y + 29, 125, 171);
+        GuiInventory.drawEntityOnScreen(x + 67, y + 190, 70,
                 x + 67 - mouseX, y + 85 - mouseY, player);
-        RenderSystem.disableScissor();
+        GuiRenderUtil.disableScissor();
 
-        player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+        var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        if (capability != null) {
             var renderTarget = capability.getModelRenderTarget();
             var fallback = capability.getModelHash() == null ? "default" : service.displayPath(capability.getModelHash());
             var name = renderTarget == null ? ModelIdUtil.getFileNameFromPath(fallback)
                     : renderTarget.getDisplayName(ModelIdUtil.getFileNameFromPath(fallback));
-            var lines = font.split(FormattedText.of(name), 125);
+            var lines = TextMeasureUtil.split(fontRenderer, name, 125);
             var lineY = y + 205;
-            for (FormattedCharSequence line : lines) {
-                graphics.drawString(font, line, x + (135 - font.width(line)) / 2, lineY, 0xF3EFE0);
+            for (String line : lines) {
+                this.drawString(fontRenderer, line, x + (135 - fontRenderer.getStringWidth(line)) / 2, lineY, 0xF3EFE0);
                 lineY += 10;
             }
-        });
+        }
     }
 
     @Override
-    public void tick() {
-        textField.tick();
+    public void updateScreen() {
+        textField.updateCursorCounter();
         if (browser.catalog() != service.catalog()) {
             var previousPage = renderedPage;
             rebuildCatalog(service.catalog());
             calculateModelList();
             if (!previousPage.equals(pageSignature())) {
-                demand.switchPage(Util.getMillis());
-                init();
+                demand.switchPage(Minecraft.getSystemTime());
+                refreshGui();
             }
         }
-        maybeSubmitPage(Util.getMillis());
+        maybeSubmitPage(Minecraft.getSystemTime());
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (textField.mouseClicked(mouseX, mouseY, button)) {
-            setFocused(textField);
-            return true;
+    public void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
+        textField.mouseClicked(mouseX, mouseY, button);
+        if (isMouseWithin(mouseX, mouseY, textField.x, textField.y, textField.width, textField.height) && button == LEFT_MOUSE_BUTTON) {
+            return;
         }
-        if (textField.isFocused()) {
-            textField.setFocused(false);
+
+        // FIXME：清理事件分发，别特判了
+        // 保持行为和 1.12.2 一致，不提前返回
+        boolean handled = false;
+        for (var guiButton : this.buttonList) {
+            if (guiButton instanceof CatalogModelButton modelButton &&
+                    modelButton.mouseClicked(this.mc, mouseX, mouseY, button)) {
+                if (button == 0) {
+                    if (this.focusedModelButton != null && this.focusedModelButton != modelButton) {
+                        this.focusedModelButton.setFocused(false);
+                    }
+                    this.focusedModelButton = modelButton;
+                    modelButton.setFocused(true);
+                }
+                var event = new GuiScreenEvent.ActionPerformedEvent.Pre(this, guiButton, this.buttonList);
+                if (MinecraftForge.EVENT_BUS.post(event)) break;
+                guiButton = event.getButton();
+                this.selectedButton = guiButton;
+                guiButton.playPressSound(this.mc.getSoundHandler());
+                this.actionPerformed(guiButton);
+                if (this.equals(this.mc.currentScreen)) MinecraftForge.EVENT_BUS.post(new GuiScreenEvent.ActionPerformedEvent.Post(this, guiButton, this.buttonList));
+                handled = true;
+            }
         }
-        var handled = super.mouseClicked(mouseX, mouseY, button);
-        if (!handled && button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !browser.currentPack().isBlank()) {
-            getMinecraft().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1));
+
+        var preSelected = this.selectedButton;
+        this.selectedButton = null;
+        super.mouseClicked(mouseX, mouseY, button);
+        if (this.selectedButton != null) handled = true;
+        this.selectedButton = preSelected;
+
+        if (!handled && button == RIGHT_MOUSE_BUTTON && !browser.currentPack().isBlank()) {
+            mc.getSoundHandler().playSound(PositionedSoundRecord.getMasterRecord(SoundEvents.UI_BUTTON_CLICK, 1));
             backToParent();
-            return true;
         }
-        return handled;
     }
 
     @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        var previous = textField.getValue();
-        if (textField.charTyped(codePoint, modifiers)) {
-            if (!Objects.equals(previous, textField.getValue())) {
-                demand.switchPage(Util.getMillis());
+    public void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (InputCheckUtil.matches(PlayerModelScreenKey.PLAYER_MODEL_KEY, keyCode) && !textField.isFocused()) {
+            mc.displayGuiScreen(null);
+            return;
+        }
+        var previous = textField.getText();
+        if (textField.textboxKeyTyped(typedChar, keyCode)) {
+            if (!Objects.equals(previous, textField.getText())) {
+                demand.switchPage(Minecraft.getSystemTime());
                 browser.resetPage();
-                init();
+                refreshGui();
             }
-            return true;
+            return;
         }
-        return false;
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (PlayerModelScreenKey.PLAYER_MODEL_KEY.matches(keyCode, scanCode) && !textField.isFocused()) {
-            onClose();
-            return true;
-        }
-        var previous = textField.getValue();
-        if (textField.keyPressed(keyCode, scanCode, modifiers)) {
-            if (!Objects.equals(previous, textField.getValue())) {
-                demand.switchPage(Util.getMillis());
-                browser.resetPage();
-                init();
-            }
-            return true;
-        }
-        return textField.isFocused() && textField.isVisible() && keyCode != 256
-                || super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    @Override
-    protected void insertText(String text, boolean overwrite) {
-        if (overwrite) {
-            textField.setValue(text);
-        } else {
-            textField.insertText(text);
+        if (!(textField.isFocused() && textField.getVisible() && keyCode != Keyboard.KEY_ESCAPE)) {
+            super.keyTyped(typedChar, keyCode);
         }
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public void mouseScrolled(int mouseX, int mouseY, int delta) {
         if (delta != 0 && mouseX > x + 143 && mouseX < x + 430 && mouseY > y + 25 && mouseY < y + 235) {
             if (delta > 0 && browser.page() > 0) {
-                demand.switchPage(Util.getMillis());
+                demand.switchPage(Minecraft.getSystemTime());
                 browser.page(browser.page() - 1);
-                init();
+                refreshGui();
             } else if (delta < 0 && browser.page() < browser.maxPage()) {
-                demand.switchPage(Util.getMillis());
+                demand.switchPage(Minecraft.getSystemTime());
                 browser.page(browser.page() + 1);
-                init();
+                refreshGui();
             }
-            return true;
+            return;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override
-    public void resize(Minecraft minecraft, int width, int height) {
-        var search = textField == null ? "" : textField.getValue();
-        super.resize(minecraft, width, height);
-        textField.setValue(search);
+    public void onResize(@NotNull Minecraft minecraft, int width, int height) {
+        var search = textField == null ? "" : textField.getText();
+        super.onResize(minecraft, width, height);
+        textField.setText(search);
     }
 
     @Override
-    public void removed() {
+    public void onGuiClosed() {
         demand.close();
         closePage();
-        super.removed();
+        super.onGuiClosed();
     }
 
     @Override
-    public boolean isPauseScreen() {
+    public boolean doesGuiPauseGame() {
         return false;
     }
 
     private void closeModelButtons() {
+        focusedModelButton = null;
         modelButtons.forEach(CatalogModelButton::close);
         modelButtons.clear();
         failedButtons.clear();
@@ -503,9 +507,9 @@ public class PlayerModelScreen extends Screen {
     }
 
     private void backToParent() {
-        demand.switchPage(Util.getMillis());
+        demand.switchPage(Minecraft.getSystemTime());
         browser.backToParent();
-        init();
+        refreshGui();
     }
 
     private void maybeSubmitPage(long nowMillis) {
@@ -553,7 +557,7 @@ public class PlayerModelScreen extends Screen {
     }
 
     private String locale() {
-        return Minecraft.getInstance().getLanguageManager().getSelected();
+        return Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode();
     }
 
 }

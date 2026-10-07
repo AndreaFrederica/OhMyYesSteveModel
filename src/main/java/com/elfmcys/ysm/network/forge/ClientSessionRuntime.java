@@ -31,8 +31,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.Connection;
-import net.minecraft.network.chat.Component;
+import net.minecraft.network.NetworkManager;
+import net.minecraft.util.text.TextComponentTranslation;
 
 /** Connection-scoped owner of the one current client model session. */
 public final class ClientSessionRuntime {
@@ -41,7 +41,7 @@ public final class ClientSessionRuntime {
     private ClientSessionRuntime() {
     }
 
-    public static synchronized ClientModelSession beginConnection(Connection connection) {
+    public static synchronized ClientModelSession beginConnection(NetworkManager connection) {
         Objects.requireNonNull(connection, "connection");
         closeCurrent();
 
@@ -49,7 +49,7 @@ public final class ClientSessionRuntime {
         var sessionOwner = models.beginConnection();
         final ClientModelSession session;
         try {
-            var requestedMode = ClientConfig.NETWORK_SESSION_MODE.get();
+            var requestedMode = ClientConfig.NETWORK_SESSION_MODE;
             session = new ClientModelSession(requestedMode,
                     NetworkHandler.isChannelPresent(connection), models.catalog().catalog());
         } catch (Throwable failure) {
@@ -72,7 +72,7 @@ public final class ClientSessionRuntime {
                 throw new IllegalStateException("Failed to open remote model store", failure);
             }
         }
-        if (!Minecraft.getInstance().isLocalServer()) {
+        if (!Minecraft.getMinecraft().isSingleplayer()) {
             owner.startMissingServerNotice();
         }
         return session;
@@ -104,7 +104,7 @@ public final class ClientSessionRuntime {
                 .orElseGet(Set::of));
     }
 
-    public static synchronized boolean runIfCurrent(Connection connection, Runnable action) {
+    public static synchronized boolean runIfCurrent(NetworkManager connection, Runnable action) {
         Objects.requireNonNull(action, "action");
         if (current == null || current.connection != connection || current.closed) {
             return false;
@@ -114,7 +114,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized Optional<ClientModelSession.Response> onServerHello(
-            Connection connection, String transportVersion, boolean syncRoaming) {
+            NetworkManager connection, String transportVersion, boolean syncRoaming) {
         var owner = owner(connection);
         if (owner == null) {
             return Optional.empty();
@@ -128,7 +128,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void commitAcceptedSession(
-            Connection connection, boolean syncRoaming) {
+            NetworkManager connection, boolean syncRoaming) {
         var owner = owner(connection);
         if (owner == null || owner.businessSession != null) {
             return;
@@ -138,7 +138,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptSessionFullFragment(
-            Connection connection, SessionFullFragment message) {
+            NetworkManager connection, SessionFullFragment message) {
         var owner = owner(connection);
         if (owner == null || owner.collectionPublication == null) {
             return;
@@ -149,7 +149,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptSessionDeltaFragment(
-            Connection connection, SessionDeltaFragment message) {
+            NetworkManager connection, SessionDeltaFragment message) {
         var owner = owner(connection);
         if (owner == null || owner.collectionPublication == null) {
             return;
@@ -160,7 +160,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptMetadataPrefixFragment(
-            Connection connection, MetadataPrefixFragment message) {
+            NetworkManager connection, MetadataPrefixFragment message) {
         var owner = owner(connection);
         if (owner != null && owner.assetTransfer != null) {
             owner.assetTransfer.acceptMetadata(message);
@@ -168,7 +168,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptChunkFragment(
-            Connection connection, ChunkFragment message,
+            NetworkManager connection, ChunkFragment message,
             UniBuffer data) {
         var owner = owner(connection);
         if (owner != null && owner.assetTransfer != null) {
@@ -177,7 +177,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptPreviewFragment(
-            Connection connection, PreviewFragment message,
+            NetworkManager connection, PreviewFragment message,
             UniBuffer data) {
         var owner = owner(connection);
         if (owner != null && owner.assetTransfer != null) {
@@ -186,7 +186,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptIconFragment(
-            Connection connection, IconFragment message,
+            NetworkManager connection, IconFragment message,
             UniBuffer data) {
         var owner = owner(connection);
         if (owner != null && owner.assetTransfer != null) {
@@ -195,7 +195,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void acceptPackCoverFragment(
-            Connection connection, PackCoverFragment message,
+            NetworkManager connection, PackCoverFragment message,
             UniBuffer data) {
         var owner = owner(connection);
         if (owner != null && owner.assetTransfer != null) {
@@ -248,7 +248,7 @@ public final class ClientSessionRuntime {
     }
 
     static synchronized void notifyCatalogDeltaFailure(
-            Connection connection, SessionCollectionPublication.Status status) {
+            NetworkManager connection, SessionCollectionPublication.Status status) {
         Objects.requireNonNull(status, "status");
         var owner = owner(connection);
         if (owner == null || owner.catalogDeltaFailureNotified
@@ -273,14 +273,14 @@ public final class ClientSessionRuntime {
     }
 
     private static void sendCatalogDeltaFailureNotice(String translationKey) {
-        var player = Minecraft.getInstance().player;
+        var player = Minecraft.getMinecraft().player;
         if (player != null) {
-            player.sendSystemMessage(Component.translatable(translationKey));
+            player.sendMessage(new TextComponentTranslation(translationKey));
         }
     }
 
     static synchronized void acceptResourceTransferFailure(
-            Connection connection, ResourceTransferFailure failure) {
+            NetworkManager connection, ResourceTransferFailure failure) {
         var owner = owner(connection);
         if (owner != null && owner.assetTransfer != null) {
             owner.assetTransfer.fail(failure);
@@ -293,7 +293,7 @@ public final class ClientSessionRuntime {
         ClientModelService.instance().publishSessionActivation(snapshot);
         var expectedEntries = snapshot.publication().entries();
         activation.activate(snapshot).whenComplete((result, failure) ->
-                Minecraft.getInstance().execute(() ->
+                Minecraft.getMinecraft().addScheduledTask(() ->
                         completeActivation(connection, activation,
                                 expectedEntries, result, failure)));
     }
@@ -363,27 +363,27 @@ public final class ClientSessionRuntime {
         return current.assetTransfer.fetch(members, receiver);
     }
 
-    public static synchronized void failProtocolSession(Connection connection) {
+    public static synchronized void failProtocolSession(NetworkManager connection) {
         var owner = owner(connection);
         if (owner != null) {
             failProtocolSession(owner);
         }
     }
 
-    static synchronized void failCatalogSession(Connection connection) {
+    static synchronized void failCatalogSession(NetworkManager connection) {
         var owner = owner(connection);
         if (owner != null) {
             failCatalogSession(owner);
         }
     }
 
-    public static synchronized void disconnect(Connection connection) {
+    public static synchronized void disconnect(NetworkManager connection) {
         if (current != null && current.connection == connection) {
             closeCurrent();
         }
     }
 
-    private static ConnectionState owner(Connection connection) {
+    private static ConnectionState owner(NetworkManager connection) {
         return current != null && current.connection == connection && !current.closed
                 ? current : null;
     }
@@ -421,7 +421,7 @@ public final class ClientSessionRuntime {
     }
 
     private static final class ConnectionState implements AutoCloseable {
-        private final Connection connection;
+        private final NetworkManager connection;
         private final ClientModelSession session;
         private final Consumer<String> catalogDeltaFailureNotice;
         private final Object sessionOwner;
@@ -433,7 +433,7 @@ public final class ClientSessionRuntime {
         private boolean catalogDeltaFailureNotified;
         private volatile boolean closed;
 
-        private ConnectionState(Connection connection, ClientModelSession session,
+        private ConnectionState(NetworkManager connection, ClientModelSession session,
                                 Consumer<String> catalogDeltaFailureNotice,
                                 Object sessionOwner) {
             this.connection = connection;
@@ -453,12 +453,12 @@ public final class ClientSessionRuntime {
                 if (closed) {
                     return;
                 }
-                Minecraft.getInstance().execute(() -> runIfCurrent(connection, () -> {
-                    var player = Minecraft.getInstance().player;
-                    if (player != null && player.connection.isAcceptingMessages()
+                Minecraft.getMinecraft().addScheduledTask(() -> runIfCurrent(connection, () -> {
+                    var player = Minecraft.getMinecraft().player;
+                    if (player != null && player.connection.getNetworkManager().isChannelOpen()
                             && session.state() == ClientModelSession.State.LOCAL
                             && !NetworkHandler.isChannelPresent(connection)) {
-                        player.sendSystemMessage(Component.translatable(
+                        player.sendMessage(new TextComponentTranslation(
                                 "message.yes_steve_model.client.server_not_found"));
                     }
                 }));
@@ -524,7 +524,7 @@ public final class ClientSessionRuntime {
         }
     }
 
-    record BusinessSession(Connection connection, NegotiatedSessionPolicy policy) {
+    record BusinessSession(NetworkManager connection, NegotiatedSessionPolicy policy) {
         BusinessSession {
             Objects.requireNonNull(connection, "connection");
             Objects.requireNonNull(policy, "policy");

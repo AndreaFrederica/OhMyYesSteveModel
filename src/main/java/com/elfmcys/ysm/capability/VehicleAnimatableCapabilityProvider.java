@@ -1,21 +1,19 @@
 package com.elfmcys.ysm.capability;
 
-import net.minecraft.core.Direction;
-import net.minecraft.world.entity.Entity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
-import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public class VehicleAnimatableCapabilityProvider implements ICapabilityProvider {
-    public static Capability<VehicleAnimatableCapability> CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
+    @CapabilityInject(VehicleAnimatableCapability.class)
+    public static Capability<VehicleAnimatableCapability> CAP = null;
     private VehicleAnimatableCapability instance;
     private Entity entity;
 
@@ -32,7 +30,13 @@ public class VehicleAnimatableCapabilityProvider implements ICapabilityProvider 
     }
 
     @Override
-    public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return CAP.orEmpty(cap, instance == null ? LazyOptional.empty() : LazyOptional.of(() -> instance));
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == CAP && instance != null;
+    }
+
+    @Nullable
+    @Override
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        return hasCapability(cap, side) ? CAP.cast(instance) : null;
     }
 }

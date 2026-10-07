@@ -4,6 +4,7 @@ import com.elfmcys.ysm.AssetPaths;
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.client.sound.stream.AudioStreamProvider;
 import com.elfmcys.ysm.client.texture.CustomTexture;
+import com.elfmcys.ysm.accessor.MinecraftManagedBlock;
 import com.elfmcys.ysm.model.ModelRuntime;
 import com.elfmcys.ysm.model.catalog.client.ClientCatalogManager;
 import com.elfmcys.ysm.model.catalog.client.ClientCatalogSnapshot;
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 
 public final class ClientModelService implements AutoCloseable {
     private static volatile ClientModelService INSTANCE;
@@ -109,7 +110,7 @@ public final class ClientModelService implements AutoCloseable {
             var storage = system.storage();
             var gameCacheRoot = storage.gameCacheRoot();
             var shared = storage.cache();
-            var gameDirectory = Minecraft.getInstance().gameDirectory.toPath();
+            var gameDirectory = Minecraft.getMinecraft().gameDir.toPath();
             var bakedRoot = AssetPaths.bakedRoot(gameDirectory);
             var bakedShared = new AtomicSharedCache(bakedRoot);
             var builtins = system.builtins();
@@ -193,22 +194,22 @@ public final class ClientModelService implements AutoCloseable {
     }
 
     private static void completeRequired(BootstrapCandidate candidate) {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft.isSameThread()) {
-            minecraft.managedBlock(candidate.required::isDone);
+        var minecraft = Minecraft.getMinecraft();
+        if (minecraft.isCallingFromMinecraftThread()) {
+            ((MinecraftManagedBlock) minecraft).ysm$managedBlock(candidate.required::isDone);
         }
         candidate.required.join();
     }
 
     private static void executeOnRenderThread(Runnable task) {
-        var minecraft = Minecraft.getInstance();
-        if (minecraft.isSameThread()) {
+        var minecraft = Minecraft.getMinecraft();
+        if (minecraft.isCallingFromMinecraftThread()) {
             task.run();
             return;
         }
-        // BlockableEventLoop.execute may run inline during startup; tell keeps GPU publication
-        // on the render owner while managedBlock drains the same task queue.
-        minecraft.tell(task);
+        // 1.12.2 的 addScheduledTask 在非客户端线程即入队（等价 1.20.1 的 tell）；
+        // 本线程分支已被上面 isCallingFromMinecraftThread() 吃掉，不会内联执行。
+        minecraft.addScheduledTask(task);
     }
 
     static <T extends AutoCloseable> T publishRequired(

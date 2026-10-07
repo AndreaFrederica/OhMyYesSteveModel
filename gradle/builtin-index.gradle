@@ -24,7 +24,7 @@ def builtinIndexFile = layout.buildDirectory.file(
 def builtinVerificationReceipt = layout.buildDirectory.file(
         'verification/builtinIndex/full-materialization.json')
 def builtinToolLauncher = javaToolchains.launcherFor {
-    languageVersion = JavaLanguageVersion.of(17)
+    languageVersion = JavaLanguageVersion.of(25)
 }
 
 def configureBuiltinToolTask = { BuiltinModelToolTask task, String command ->

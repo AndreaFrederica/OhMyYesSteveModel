@@ -2,8 +2,8 @@ package com.elfmcys.ysm.mixin.client;
 
 import com.elfmcys.ysm.accessor.VertexBufferAccessor;
 import com.elfmcys.ysm.buffer.NativeBuffer;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.vertex.VertexFormat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -13,16 +13,17 @@ import java.nio.ByteBuffer;
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin implements VertexBufferAccessor {
     @Shadow
-    private ByteBuffer buffer;
+    private ByteBuffer byteBuffer;
     @Shadow
-    private int nextElementByte;
+    private int vertexCount;
     @Shadow
-    private int vertices;
-    @Shadow
-    private VertexFormat format;
+    private VertexFormat vertexFormat;
 
     @Shadow
-    protected abstract void ensureCapacity(int increaseAmount);
+    protected abstract void growBuffer(int increaseAmount);
+
+    @Shadow
+    protected abstract void nextVertexFormatIndex();
 
     @Unique
     @Override
@@ -33,19 +34,30 @@ public abstract class BufferBuilderMixin implements VertexBufferAccessor {
     @Unique
     @Override
     public VertexFormat ysm$vertexFormat() {
-        return format;
+        return vertexFormat;
     }
 
     @Unique
     @Override
     public NativeBuffer ysm$reserve(int vertexCount) {
-        ensureCapacity(vertexCount);
-        return NativeBuffer.borrow(this.buffer.slice(this.nextElementByte, vertexCount * this.format.getVertexSize()));
+        int stride = this.vertexFormat.getSize();
+        int size = vertexCount * stride;
+        growBuffer(size);
+        return NativeBuffer.borrow(this.byteBuffer.slice(this.vertexCount * stride, size));
+    }
+
+    @Unique
+    @Override
+    public void ysm$overlay(int overlayU, int overlayV) {
+        int offset = this.vertexCount * this.vertexFormat.getSize()
+                + this.vertexFormat.getUvOffsetById(2);
+        this.byteBuffer.putShort(offset, (short) overlayU);
+        this.byteBuffer.putShort(offset + 2, (short) overlayV);
+        this.nextVertexFormatIndex();
     }
 
     @Override
     public void ysm$advance(int vertexCount) {
-        this.vertices += vertexCount;
-        this.nextElementByte += vertexCount * this.format.getVertexSize();
+        this.vertexCount += vertexCount;
     }
 }

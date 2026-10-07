@@ -4,19 +4,20 @@ import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.geckolib3.core.controller.HybridAnimationController;
 import com.elfmcys.ysm.geckolib3.core.controller.IAnimationController;
-import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.fml.ModList;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraftforge.fml.common.Loader;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Optional;
 import java.util.function.BiFunction;
 
+// TODO：重新移植 Carry On 以允许搬运玩家
 public class CarryOnCompat {
     private static final String CARRY_ON_ID = "carryon";
     private static boolean INSTALLED = false;
 
     public static void init() {
-        INSTALLED = ModList.get().isLoaded(CARRY_ON_ID);
+        INSTALLED = Loader.isModLoaded(CARRY_ON_ID);
     }
 
     public static boolean isInstalled() {
@@ -31,7 +32,7 @@ public class CarryOnCompat {
         }
     }
 
-    public static boolean isCarryOnPrincess(Player player) {
+    public static boolean isCarryOnPrincess(EntityPlayer player) {
         if (INSTALLED) {
             return CarryOnInnerCompat.isCarryOnPrincess(player);
         }

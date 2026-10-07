@@ -1,13 +1,10 @@
 package com.elfmcys.ysm.geckolib3.core.util;
 
-import net.minecraft.util.Mth;
 import org.joml.Math;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public class MathUtil {
-    private static final float DEGREES_TO_RADIANS = Mth.DEG_TO_RAD;
-    private static final float RADIANS_TO_DEGREES = Mth.RAD_TO_DEG;
     public static final float PI = (float) Math.PI;
 
     public static final float ROUND = (float) Math.toRadians(360f);
@@ -77,11 +74,11 @@ public class MathUtil {
     }
 
     public static float degreesToRadians(float degrees) {
-        return degrees * DEGREES_TO_RADIANS;
+        return Math.toRadians(degrees);
     }
 
-    public static float radiansToDegrees(float degrees) {
-        return degrees * RADIANS_TO_DEGREES;
+    public static float radiansToDegrees(float radians) {
+        return Math.toDegrees(radians);
     }
 
     public static void wrapRotation(Vector3f value, Vector3f dst) {

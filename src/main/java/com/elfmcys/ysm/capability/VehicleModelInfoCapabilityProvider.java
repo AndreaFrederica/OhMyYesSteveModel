@@ -1,40 +1,40 @@
 package com.elfmcys.ysm.capability;
 
-import net.minecraft.core.Direction;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
-import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class VehicleModelInfoCapabilityProvider implements ICapabilitySerializable<CompoundTag> {
-    public static Capability<VehicleModelInfoCapability> CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
-    private VehicleModelInfoCapability instance = null;
+public class VehicleModelInfoCapabilityProvider implements ICapabilitySerializable<NBTTagCompound> {
+    @CapabilityInject(VehicleModelInfoCapability.class)
+    public static Capability<VehicleModelInfoCapability> CAP = null;
+    private final VehicleModelInfoCapability instance;
 
-    @Override
-    public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return CAP.orEmpty(cap, LazyOptional.of(this::createCapability));
-    }
-
-    @NotNull
-    private VehicleModelInfoCapability createCapability() {
-        if (instance == null) {
-            this.instance = new VehicleModelInfoCapability();
-        }
-        return instance;
+    public VehicleModelInfoCapabilityProvider() {
+        this.instance = CAP.getDefaultInstance();
     }
 
     @Override
-    public CompoundTag serializeNBT() {
-        return createCapability().serializeNBT();
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == CAP;
+    }
+
+    @Nullable
+    @Override
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        return hasCapability(cap, side) ? CAP.cast(instance) : null;
     }
 
     @Override
-    public void deserializeNBT(CompoundTag nbt) {
-        createCapability().deserializeNBT(nbt);
+    public NBTTagCompound serializeNBT() {
+        return instance.serializeNBT();
+    }
+
+    @Override
+    public void deserializeNBT(NBTTagCompound nbt) {
+        instance.deserializeNBT(nbt);
     }
 }

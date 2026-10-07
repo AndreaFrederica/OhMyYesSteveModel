@@ -7,10 +7,10 @@ import com.elfmcys.ysm.format.schema.baked.model.BakedModelWriter;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocatorType;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoModel;
 import com.elfmcys.ysm.model.domain.Hash256;
+import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.model.storage.AtomicSharedCache;
 import com.elfmcys.ysm.model.storage.ModelHashing;
 import com.elfmcys.ysm.natives.render.NativeBakedModel;
-import com.mojang.blaze3d.platform.NativeImage;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -88,7 +88,8 @@ public final class BakedModelCache {
         var texture = textureSource.get();
         final NativeBakedModel.BakeResult baked;
         try {
-            baked = NativeBakedModel.bake(source, texture, originVersion,
+            baked = NativeBakedModel.bake(source, texture.pixels(), texture.width(),
+                    texture.height(), originVersion,
                     forceCulling, forceTranslucent, hasPbr);
         } catch (RuntimeException error) {
             throw AssetLoadException.content("Failed to bake resident model", error);
@@ -111,7 +112,8 @@ public final class BakedModelCache {
         var texture = textureSource.get();
         final NativeBakedModel.BakeResult baked;
         try {
-            baked = NativeBakedModel.bake(source, texture, originVersion,
+            baked = NativeBakedModel.bake(source, texture.pixels(), texture.width(),
+                    texture.height(), originVersion,
                     forceCulling, forceTranslucent, hasPbr);
         } catch (RuntimeException error) {
             throw AssetLoadException.content("Failed to bake model", error);
@@ -204,6 +206,9 @@ public final class BakedModelCache {
     @FunctionalInterface
     public interface TexturePixelsSupplier {
         /** Returns borrowed pixels; the caller that created the supplier retains ownership. */
-        NativeImage get() throws IOException;
+        TexturePixels get() throws IOException;
+    }
+
+    public record TexturePixels(NativeBuffer pixels, int width, int height) {
     }
 }

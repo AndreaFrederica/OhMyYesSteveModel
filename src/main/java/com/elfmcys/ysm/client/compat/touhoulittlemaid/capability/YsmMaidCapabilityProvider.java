@@ -1,22 +1,22 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.capability;
 
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.CustomYsmMaidEntity;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import net.minecraft.core.Direction;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
-import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public class YsmMaidCapabilityProvider implements ICapabilityProvider {
-    public static final Capability<CustomYsmMaidEntity> CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
+    @CapabilityInject(CustomYsmMaidEntity.class)
+    public static Capability<CustomYsmMaidEntity> CAP = null;
 
     private CustomYsmMaidEntity instance;
     private final EntityMaid maid;
@@ -26,21 +26,20 @@ public class YsmMaidCapabilityProvider implements ICapabilityProvider {
     }
 
     @Override
-    @NotNull
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> capability, @Nullable Direction direction) {
-        return this.getCapability(capability);
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == CAP;
     }
 
-    @NotNull
+    @Nullable
     @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap) {
-        return CAP.orEmpty(cap, LazyOptional.of(this::createCapability));
-    }
-
-    private CustomYsmMaidEntity createCapability() {
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        if (cap != CAP) {
+            return null;
+        }
         if (instance == null) {
             instance = new CustomYsmMaidEntity(this.maid, true);
         }
-        return instance;
+        return CAP.cast(instance);
     }
 }
+*/

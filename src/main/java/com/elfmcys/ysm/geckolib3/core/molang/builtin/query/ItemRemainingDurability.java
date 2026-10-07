@@ -5,17 +5,17 @@ import com.elfmcys.ysm.geckolib3.core.molang.function.entity.LivingEntityFunctio
 import com.elfmcys.ysm.geckolib3.util.MolangUtils;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
 import com.elfmcys.ysm.util.EquipmentUtil;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.inventory.EntityEquipmentSlot;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.item.ItemStack;
 
 public class ItemRemainingDurability extends LivingEntityFunction {
     @Override
-    protected Object eval(ExecutionContext<IContext<LivingEntity>> context, ArgumentCollection arguments) {
-        EquipmentSlot equipmentSlot = MolangUtils.parseSlotType(context.entity(), arguments.getAsString(context, 0));
-        LivingEntity entity = context.entity().entity();
+    protected Object eval(ExecutionContext<IContext<EntityLivingBase>> context, ArgumentCollection arguments) {
+        EntityEquipmentSlot equipmentSlot = MolangUtils.parseSlotType(context.entity(), arguments.getAsString(context, 0));
+        EntityLivingBase entity = context.entity().entity();
         ItemStack itemBySlot = EquipmentUtil.getEquippedItem(entity, equipmentSlot);
-        return itemBySlot.getMaxDamage() - itemBySlot.getDamageValue();
+        return itemBySlot.getMaxDamage() - itemBySlot.getItemDamage();
     }
 
     @Override

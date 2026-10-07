@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.tacz;
 
+/*
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.TlmClientCompat;
@@ -46,3 +47,4 @@ public class TacEvent {
         TlmClientCompat.markTacGunAnimationNeedReload(shooter);
     }
 }
+*/

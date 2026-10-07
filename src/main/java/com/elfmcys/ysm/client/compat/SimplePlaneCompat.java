@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat;
 
+/*
 import com.elfmcys.ysm.client.entity.CustomVehicleEntity;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
 import com.elfmcys.ysm.geckolib3.core.util.MathUtil;
@@ -48,3 +49,4 @@ public class SimplePlaneCompat {
         return Optional.empty();
     }
 }
+*/

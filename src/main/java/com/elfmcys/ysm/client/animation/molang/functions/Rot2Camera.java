@@ -3,8 +3,9 @@ package com.elfmcys.ysm.client.animation.molang.functions;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.ContextFunction;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.client.Camera;
+import com.elfmcys.ysm.util.PersonView;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.RenderManager;
 
 public class Rot2Camera extends ContextFunction<Object> {
     @Override
@@ -13,11 +14,13 @@ public class Rot2Camera extends ContextFunction<Object> {
         if (axis < 0 || axis > 1) {
             return null;
         }
-        Camera mainCamera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        Minecraft mc = Minecraft.getMinecraft();
+        RenderManager renderManager = mc.getRenderManager();
         if (axis == 0) {
-            return -mainCamera.getXRot();
+            float xRot = mc.gameSettings.thirdPersonView == PersonView.THIRD_PERSON_FRONT ? -renderManager.playerViewX : renderManager.playerViewX;
+            return -xRot;
         } else {
-            return 180 + mainCamera.getYRot();
+            return 180 + renderManager.playerViewY;
         }
     }
 

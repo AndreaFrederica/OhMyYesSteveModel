@@ -11,7 +11,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
+import net.minecraft.util.text.TextComponentTranslation;
 
 /** Delays and aggregates only failures confirmed by an active entity binding. */
 public final class ModelFailureNotificationAggregator implements AutoCloseable {
@@ -62,10 +62,10 @@ public final class ModelFailureNotificationAggregator implements AutoCloseable {
         }
         var worst = batch.values().stream()
                 .max(Comparator.comparingInt(Enum::ordinal)).orElseThrow();
-        Minecraft.getInstance().execute(() -> {
-            var player = Minecraft.getInstance().player;
+        Minecraft.getMinecraft().addScheduledTask(() -> {
+            var player = Minecraft.getMinecraft().player;
             if (player != null) {
-                player.sendSystemMessage(Component.translatable(worst.translationKey(), batch.size()));
+                player.sendMessage(new TextComponentTranslation(worst.translationKey(), batch.size()));
             }
         });
     }

@@ -1,9 +1,9 @@
 package com.elfmcys.ysm.geckolib3.model;
 
+import com.elfmcys.ysm.mclib.utils.Interpolations;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 
 public class EntityStateTracker<T extends Entity> {
@@ -12,8 +12,8 @@ public class EntityStateTracker<T extends Entity> {
     private final IntOpenHashSet entityTickStates;
     private int lastEntityTickCount;
 
-    private Vec3 lastPosition;
-    private Vec3 positionDelta = Vec3.ZERO;
+    private Vec3d lastPosition;
+    private Vec3d positionDelta = Vec3d.ZERO;
     private String mainAnimationCache;
     protected float lastRenderTick;
     protected float renderTickDelta;
@@ -27,7 +27,7 @@ public class EntityStateTracker<T extends Entity> {
         entityTickStates.clear();
         lastEntityTickCount = 0;
         lastPosition = null;
-        positionDelta = Vec3.ZERO;
+        positionDelta = Vec3d.ZERO;
         mainAnimationCache = null;
         lastRenderTick = 0;
         renderTickDelta = 0;
@@ -65,9 +65,9 @@ public class EntityStateTracker<T extends Entity> {
     }
 
     private void updatePositionDelta(float partialTicks) {
-        var cur = new Vec3(Mth.lerp(partialTicks, entity.xo, entity.getX()),
-                Mth.lerp(partialTicks, entity.yo, entity.getY()),
-                Mth.lerp(partialTicks, entity.zo, entity.getZ()));
+        var cur = new Vec3d(Interpolations.lerp(entity.prevPosX, entity.posX, partialTicks),
+                Interpolations.lerp(entity.prevPosY, entity.posY, partialTicks),
+                Interpolations.lerp(entity.prevPosZ, entity.posZ, partialTicks));
         if (lastPosition != null) {
             positionDelta = cur.subtract(lastPosition);
         }
@@ -89,7 +89,7 @@ public class EntityStateTracker<T extends Entity> {
     /**
      * 获取两帧之间实体的坐标变化
      */
-    public Vec3 getPositionDelta() {
+    public Vec3d getPositionDelta() {
         return positionDelta;
     }
 

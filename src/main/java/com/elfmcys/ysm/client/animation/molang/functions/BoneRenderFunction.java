@@ -5,8 +5,8 @@ import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.geckolib3.core.molang.util.StringPool;
 import com.elfmcys.ysm.geckolib3.model.AnimatedGeoBone;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.math.MathHelper;
 
 public abstract class BoneRenderFunction extends EntityFunction {
     private final int argumentCount;
@@ -46,7 +46,7 @@ public abstract class BoneRenderFunction extends EntityFunction {
                                   AnimatedGeoBone bone);
 
     static int roundedClamp(float value, int minimum, int maximum) {
-        return Mth.clamp(Math.round(value), minimum, maximum);
+        return MathHelper.clamp(Math.round(value), minimum, maximum);
     }
 
     public static final class Color extends BoneRenderFunction {

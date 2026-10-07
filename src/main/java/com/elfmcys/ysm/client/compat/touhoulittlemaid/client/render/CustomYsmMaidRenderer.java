@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.render;
 
+/*
 import com.elfmcys.ysm.capability.VehicleAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.capability.YsmMaidCapabilityProvider;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.CustomYsmMaidEntity;
@@ -25,9 +26,11 @@ import java.util.List;
 import java.util.Set;
 
 public class CustomYsmMaidRenderer extends GeoReplacedEntityRenderer<EntityMaid, CustomYsmMaidEntity> implements IGeoEntityRenderer<EntityMaid> {
+*/
     /**
      * 屎山代码 +1，因为船和矿车有特殊偏移，需要修正
      */
+/*
     private static final Set<EntityType> OFFSET_FIX_ENTITIES = Set.of(EntityType.MINECART, EntityType.BOAT, InitEntities.BROOM.get());
     protected final List<GeoLayerRenderer<EntityMaid, CustomYsmMaidRenderer>> maidLayers = new ObjectArrayList<>();
 
@@ -100,3 +103,4 @@ public class CustomYsmMaidRenderer extends GeoReplacedEntityRenderer<EntityMaid,
         }
     }
 }
+*/

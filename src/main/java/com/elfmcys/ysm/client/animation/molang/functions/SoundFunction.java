@@ -5,8 +5,8 @@ import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
 import com.elfmcys.ysm.molang.runtime.Function;
 import com.elfmcys.ysm.molang.runtime.binding.ValueConversions;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.math.MathHelper;
 import org.apache.commons.lang3.StringUtils;
 
 public class SoundFunction {
@@ -109,11 +109,11 @@ public class SoundFunction {
                 // 设置音量和音调
                 if (arguments.size() >= 4) {
                     float volume = arguments.getAsFloat(ctx, 3);
-                    instance.setConfiguredVolume(Mth.clamp(volume, 0.001f, 1000f));
+                    instance.setConfiguredVolume(MathHelper.clamp(volume, 0.001f, 1000f));
                 }
                 if (arguments.size() >= 5) {
                     float pitch = arguments.getAsFloat(ctx, 4);
-                    instance.setPitch(Mth.clamp(pitch, 0.001f, 1000f));
+                    instance.setPitch(MathHelper.clamp(pitch, 0.001f, 1000f));
                 }
 
                 // 如果是 GUI 内，设置为 UI 音效

@@ -5,37 +5,20 @@ import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.geckolib3.core.PlayState;
 import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.ModList;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fml.common.Loader;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.maven.artifact.versioning.ArtifactVersion;
-import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
-import org.apache.maven.artifact.versioning.VersionRange;
 import org.jetbrains.annotations.Nullable;
 
 import static com.elfmcys.ysm.client.compat.slashblade.SlashBladeAnimation.isSlashBlade;
 
 public class SlashBladeCompat {
-    private static final String SLASH_BLADE_ID = "slashblade";
+    private static final String SLASH_BLADE_ID = "flammpfeil.slashblade";
     private static boolean IS_LOADED = false;
-    private static boolean IS_RESHARPED = false;
 
     public static void init() {
-        ModList.get().getModContainerById(SLASH_BLADE_ID).ifPresent(modContainer -> {
-            IS_LOADED = true;
-            try {
-                ArtifactVersion modVersion = modContainer.getModInfo().getVersion();
-                // 旧版拔刀剑最后是 0.1.2 版本
-                VersionRange versionRange = VersionRange.createFromVersionSpec("(,0.1.2]");
-                IS_RESHARPED = !versionRange.containsVersion(modVersion);
-            } catch (InvalidVersionSpecificationException e) {
-                e.fillInStackTrace();
-            }
-            if (!IS_RESHARPED) {
-                SlashBladeUnsafe.initFiledOffset();
-            }
-        });
+        IS_LOADED = Loader.isModLoaded(SLASH_BLADE_ID);
     }
 
     public static boolean isSlashBladeLoaded() {
@@ -54,8 +37,8 @@ public class SlashBladeCompat {
     }
 
     @Nullable
-    public static PlayState playMainAnimation(LivingEntity livingEntity, AnimationEvent<? extends CustomHumanoidEntity<?>> event, String animationName, LoopType loopType) {
-        if (isSlashBladeLoaded() && isSlashBladeItem(livingEntity.getMainHandItem())) {
+    public static PlayState playMainAnimation(EntityLivingBase livingEntity, AnimationEvent<? extends CustomHumanoidEntity<?>> event, String animationName, LoopType loopType) {
+        if (isSlashBladeLoaded() && isSlashBladeItem(livingEntity.getHeldItemMainhand())) {
             return SlashBladeAnimation.playMainAnimation(event, animationName, loopType);
         }
         return null;
@@ -67,10 +50,6 @@ public class SlashBladeCompat {
         } else {
             addEmptyBinding(binding);
         }
-    }
-
-    public static boolean isResharped() {
-        return IS_RESHARPED;
     }
 
     /**

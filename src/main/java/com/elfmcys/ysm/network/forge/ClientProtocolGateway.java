@@ -23,9 +23,9 @@ import it.unimi.dsi.fastutil.objects.Object2FloatMap;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.EnumHand;
 import us.hebi.quickbuf.ProtoMessage;
 
 public final class ClientProtocolGateway {
@@ -67,7 +67,7 @@ public final class ClientProtocolGateway {
     private ClientProtocolGateway() {
     }
 
-    public static void tick(LocalPlayer player, PlayerAnimatableCapability capability) {
+    public static void tick(EntityPlayerSP player, PlayerAnimatableCapability capability) {
         MODEL_DEMAND.tick();
         STATE_REPORTER.tick(player, capability);
     }
@@ -144,7 +144,7 @@ public final class ClientProtocolGateway {
     public static void submitRouletteExpression(Entity entity, String expression) {
         send(ProtocolMessages.SUBMIT_ROULETTE_EXPRESSION_REQUEST_ID,
                 SubmitRouletteExpressionRequest.newBuilder()
-                        .setTarget(EntityRefEncoder.encode(entity.getId()))
+                        .setTarget(EntityRefEncoder.encode(entity.getEntityId()))
                         .setExpression(expression).build());
     }
 
@@ -154,9 +154,9 @@ public final class ClientProtocolGateway {
         send(ProtocolMessages.EMIT_MOLANG_SYNC_ID, message.build());
     }
 
-    public static void swingHand(InteractionHand hand) {
+    public static void swingHand(EnumHand hand) {
         send(ProtocolMessages.SWING_HAND_REQUEST_ID, SwingHandRequest.newBuilder()
-                .setHand(hand == InteractionHand.MAIN_HAND ? Hand.HAND_MAIN : Hand.HAND_OFF)
+                .setHand(hand == EnumHand.MAIN_HAND ? Hand.HAND_MAIN : Hand.HAND_OFF)
                 .build());
     }
 

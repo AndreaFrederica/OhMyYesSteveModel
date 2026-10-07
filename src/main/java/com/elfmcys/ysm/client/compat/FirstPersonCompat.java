@@ -2,17 +2,17 @@ package com.elfmcys.ysm.client.compat;
 
 import dev.tr7zw.firstperson.api.FirstPersonAPI;
 import dev.tr7zw.firstperson.api.PlayerOffsetHandler;
-import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.fml.loading.LoadingModList;
+import net.minecraft.util.math.Vec3d;
+import net.minecraftforge.fml.common.Loader;
 
+// FIXME：疑似未修好，但 API 调用已一致，应该是另一侧的问题？
 public class FirstPersonCompat {
-    private static final String LEGACY_MOD_ID = "firstpersonmod";
     private static final String MOD_ID = "firstperson";
     private static volatile float HEAD_POS;
     private static boolean INSTALLED;
 
     public static void init() {
-        INSTALLED = LoadingModList.get().getModFileById(MOD_ID) != null || LoadingModList.get().getModFileById(LEGACY_MOD_ID) != null;
+        INSTALLED = Loader.isModLoaded(MOD_ID);
         if (INSTALLED) {
             registerOffset();
             setHeadPos(24);
@@ -25,7 +25,7 @@ public class FirstPersonCompat {
 
     private static void registerOffset() {
         FirstPersonAPI.registerPlayerHandler((PlayerOffsetHandler)(entity, delta, original, current) ->
-                new Vec3(current.x(), 1.5f - HEAD_POS, current.z()));
+                new Vec3d(current.x, 1.5f - HEAD_POS, current.z));
     }
 
     public static boolean isRenderingPlayer() {

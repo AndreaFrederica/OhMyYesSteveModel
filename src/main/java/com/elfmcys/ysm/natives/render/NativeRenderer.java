@@ -4,92 +4,111 @@ import com.elfmcys.ysm.accessor.VertexBufferAccessor;
 import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.annotation.Aligned;
 import com.elfmcys.ysm.buffer.annotation.Borrowed;
-import com.elfmcys.ysm.client.compat.IrisCompat;
 import com.elfmcys.ysm.config.ClientConfig;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.elfmcys.ysm.geckolib3.geo.GeoVertexFormat;
+import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.GlStateManager;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.opengl.GL11;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 
 import java.lang.ref.Reference;
 
 public class NativeRenderer {
-    public static void render(VertexConsumer vertexConsumer, PoseStack.Pose pose,
-                              NativeModelState modelState, int vertexCount,
-                              int light, int overlay, int color, RenderContextType contextType) {
-        var vb = probeVertexConsumer(vertexConsumer, vertexCount);
-        var isUnknownType = vb.type == VertexFormatType.FALLBACK;
-
-        var matBuffer = getMatBuffer(pose);
-        var lightAndOverlay = packLightAndOverlay(light, overlay);
-        var flags = packFlags(vb.type, contextType);
-
-        Object bufferObj;
-        int bufferFlags;
-        if (!isUnknownType && vb.region != null) {
-            bufferObj = vb.region.nio();
-            bufferFlags = vb.region.size();
-        } else {
-            bufferObj = FallbackVertexWriter.getVertexData(vertexCount);
-            bufferFlags = 0;
+    // TODO：是否该废弃 light overlay 管线？
+    public static void render(BufferBuilder buffer, NativeModelState modelState,
+                              int vertexCount, int packedLight, int packedOverlay,
+                              int argbColor, RenderContextType contextType) {
+        if (vertexCount < 0) {
+            throw new IllegalArgumentException("Negative vertex count");
+        }
+        if (vertexCount == 0) {
+            return;
         }
 
-        final boolean result;
+        var vertexBuffer = probeVertexConsumer(buffer, vertexCount);
+        var fallback = vertexBuffer.region == null;
+        Object bufferObject = fallback
+                ? FallbackVertexWriter.getVertexData(vertexCount)
+                : vertexBuffer.region.nio();
+        int bufferFlags = fallback ? 0 : vertexBuffer.region.size();
+
+        var matBuffer = getMatBuffer();
+        var lightAndOverlay = packLightAndOverlay(packedLight, packedOverlay);
+        var flags = packFlags(vertexBuffer.type, contextType);
+
+        final boolean rendered;
         try {
-            result = nRender(bufferObj, bufferFlags, matBuffer.ptr(), modelState.get(),
-                    lightAndOverlay, packColor(color), flags, IrisCompat.getEntityId());
+            rendered = nRender(bufferObject, bufferFlags, matBuffer.ptr(),
+                    modelState.get(), lightAndOverlay, packColor(argbColor), flags, 0);
         } finally {
-            Reference.reachabilityFence(vertexConsumer);
-            Reference.reachabilityFence(bufferObj);
-            Reference.reachabilityFence(vb.region);
+            Reference.reachabilityFence(buffer);
+            Reference.reachabilityFence(bufferObject);
+            Reference.reachabilityFence(vertexBuffer.region);
             Reference.reachabilityFence(matBuffer);
             Reference.reachabilityFence(modelState);
         }
+        if (!rendered) {
+            return;
+        }
 
-        if (result) {
-            if (isUnknownType || vb.region == null) {
-                FallbackVertexWriter.write(vertexConsumer, vertexCount, overlay);
-            } else if (vb.accessor != null) {
-                vb.accessor.ysm$advance(vertexCount);
+        if (fallback) {
+            FallbackVertexWriter.write(buffer, vertexCount, packedLight,
+                    packedOverlay);
+        } else {
+            var accessor = vertexBuffer.accessor;
+            if (accessor == null) {
+                throw new IllegalStateException("Missing direct buffer accessor");
             }
+            accessor.ysm$advance(vertexCount);
         }
     }
 
-    @SuppressWarnings("resource")
-    private static VertexBuffer probeVertexConsumer(VertexConsumer vertexConsumer, int vertexCount) {
-        if (vertexConsumer instanceof VertexBufferAccessor accessor && accessor.ysm$ok()) {
-            if (!ClientConfig.USE_COMPATIBILITY_RENDERER.get()) {
-                var format = accessor.ysm$vertexFormat();
-                if (format == DefaultVertexFormat.NEW_ENTITY) {
-                    return new VertexBuffer(accessor, VertexFormatType.VANILLA, accessor.ysm$reserve(vertexCount));
-                } else {
-                    var irisType = IrisCompat.determineVertexFormatType(format);
-                    if (irisType.isPresent()) {
-                        return new VertexBuffer(accessor, irisType.get(), accessor.ysm$reserve(vertexCount));
-                    }
-                }
-            }
-            accessor.ysm$reserve(vertexCount);  // 有必要吗？
+    private static VertexBuffer probeVertexConsumer(BufferBuilder buffer,
+                                                    int vertexCount) {
+        Object bufferObject = buffer;
+        if (bufferObject instanceof VertexBufferAccessor accessor
+                && accessor.ysm$ok()
+                && !ClientConfig.USE_COMPATIBILITY_RENDERER
+                && buffer.getVertexFormat() == GeoVertexFormat.NEW_ENTITY) {
+            return new VertexBuffer(accessor, VertexFormatType.VANILLA,
+                    accessor.ysm$reserve(vertexCount));
         }
         return new VertexBuffer(null, VertexFormatType.FALLBACK, null);
     }
 
     @Borrowed
     @Aligned(64)
-    public static NativeBuffer getMatBuffer(PoseStack.Pose pose) {
+    public static NativeBuffer getMatBuffer() {
         var buffer = MatBufferHolder.BUFFER;
-        var buf = buffer.nio();
+        var matrices = buffer.nio().order(ByteOrder.nativeOrder()).asFloatBuffer();
+        for (var index = 0; index < matrices.capacity(); index++) {
+            matrices.put(index, 0.0F);
+        }
 
-        var view = RenderSystem.getModelViewMatrix();
-        var proj = RenderSystem.getProjectionMatrix();
-
-        pose.pose().get(buf);
-        view.get(64, buf);
-        proj.get(128, buf);
-        pose.normal().get(192, buf);
-
+        matrices.put(0, 1.0F);
+        matrices.put(5, 1.0F);
+        matrices.put(10, 1.0F);
+        matrices.put(15, 1.0F);
+        copyGlMatrix(GL11.GL_MODELVIEW_MATRIX, matrices, 16);
+        copyGlMatrix(GL11.GL_PROJECTION_MATRIX, matrices, 32);
+        matrices.put(48, 1.0F);
+        matrices.put(52, 1.0F);
+        matrices.put(56, 1.0F);
         return buffer;
+    }
+
+    private static void copyGlMatrix(int matrixName, FloatBuffer destination,
+                                     int destinationOffset) {
+        var scratch = MatBufferHolder.SCRATCH.get();
+        scratch.clear();
+        GlStateManager.getFloat(matrixName, scratch);
+        for (var index = 0; index < 16; index++) {
+            destination.put(destinationOffset + index, scratch.get(index));
+        }
     }
 
     private static long packFlags(VertexFormatType v, RenderContextType c) {
@@ -112,6 +131,9 @@ public class NativeRenderer {
 
     private static final class MatBufferHolder {
         private static final NativeBuffer BUFFER = NativeBuffer.allocate(256, 64);
+        private static final ThreadLocal<FloatBuffer> SCRATCH = ThreadLocal.withInitial(
+                () -> ByteBuffer.allocateDirect(16 * Float.BYTES)
+                        .order(ByteOrder.nativeOrder()).asFloatBuffer());
     }
 
     private record VertexBuffer(@Nullable VertexBufferAccessor accessor, VertexFormatType type, @Nullable NativeBuffer region){}

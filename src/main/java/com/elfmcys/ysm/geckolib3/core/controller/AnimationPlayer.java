@@ -24,7 +24,7 @@ import com.elfmcys.ysm.geckolib3.core.snapshot.BoneTopLevelSnapshot;
 import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
 import com.elfmcys.ysm.geckolib3.util.OrderedSegmentSearcher;
 import com.elfmcys.ysm.molang.runtime.ExpressionEvaluator;
-import com.mojang.datafixers.util.Pair;
+import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import org.jetbrains.annotations.Nullable;
@@ -127,19 +127,19 @@ public class AnimationPlayer {
             return;
         }
 
-        if (lastSetAnim != null && lastSetAnim.getSecond().equals(animationName) && lastSetAnim.getFirst() == loopTypeOverride) {
+        if (lastSetAnim != null && lastSetAnim.right().equals(animationName) && lastSetAnim.left() == loopTypeOverride) {
             return;
         }
 
         resetToIdle();
-        this.lastSetAnim = new Pair<>(loopTypeOverride, animationName);
+        this.lastSetAnim = Pair.of(loopTypeOverride, animationName);
 
         var animation = animatableEntity.getAnimation(animationName);
         if (animation == null) {
             return;
         }
 
-        this.nextAnim = new Pair<>(loopTypeOverride != null ? loopTypeOverride : animation.loop, animation);
+        this.nextAnim = Pair.of(loopTypeOverride != null ? loopTypeOverride : animation.loop, animation);
     }
 
     /**
@@ -423,8 +423,8 @@ public class AnimationPlayer {
         }
         this.nextAnim = null;
 
-        this.currentAnim = next.getSecond();
-        this.currentLoopType = next.getFirst();
+        this.currentAnim = next.right();
+        this.currentLoopType = next.left();
         this.currentAnimFinished = false;
 
         for (BoneAnimation animation : currentAnim.boneAnimations) {

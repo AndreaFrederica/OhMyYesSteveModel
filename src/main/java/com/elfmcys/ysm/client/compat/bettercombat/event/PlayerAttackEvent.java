@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.bettercombat.event;
 
+/*
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
 import net.bettercombat.api.AttackHand;
 import net.bettercombat.api.client.BetterCombatClientEvents;
@@ -15,3 +16,4 @@ public class PlayerAttackEvent implements BetterCombatClientEvents.PlayerAttackS
         ClientProtocolGateway.swingHand(player.swingingArm);
     }
 }
+*/

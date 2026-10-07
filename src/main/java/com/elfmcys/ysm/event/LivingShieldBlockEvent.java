@@ -1,36 +1,33 @@
 package com.elfmcys.ysm.event;
 
 import com.elfmcys.ysm.YesSteveModel;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraftforge.event.entity.living.LivingEvent;
-import net.minecraftforge.event.entity.living.ShieldBlockEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 @Mod.EventBusSubscriber(modid = YesSteveModel.MOD_ID)
 public class LivingShieldBlockEvent {
     public static final String COOLDOWN = "ysm$shield_block_cooldown";
 
-    @SubscribeEvent
-    public static void onShieldBlockEvent(ShieldBlockEvent event) {
-        LivingEntity entity = event.getEntity();
-        entity.getPersistentData().putInt(COOLDOWN, 5);
+    public static void onShieldBlock(EntityLivingBase entity) {
+        entity.getEntityData().setInteger(COOLDOWN, 5);
     }
 
     @SubscribeEvent
-    public static void onLivingTick(LivingEvent.LivingTickEvent event) {
-        LivingEntity entity = event.getEntity();
-        if (entity.getPersistentData().contains(COOLDOWN)) {
-            int cooldown = entity.getPersistentData().getInt(COOLDOWN);
+    public static void onLivingTick(LivingEvent.LivingUpdateEvent event) {
+        EntityLivingBase entity = event.getEntityLiving();
+        if (entity.getEntityData().hasKey(COOLDOWN)) {
+            int cooldown = entity.getEntityData().getInteger(COOLDOWN);
             if (cooldown > 0) {
-                entity.getPersistentData().putInt(COOLDOWN, cooldown - 1);
+                entity.getEntityData().setInteger(COOLDOWN, cooldown - 1);
             } else {
-                entity.getPersistentData().remove(COOLDOWN);
+                entity.getEntityData().removeTag(COOLDOWN);
             }
         }
     }
 
-    public static boolean inShieldBlockCooldown(LivingEntity entity) {
-        return entity.getPersistentData().contains(COOLDOWN);
+    public static boolean inShieldBlockCooldown(EntityLivingBase entity) {
+        return entity.getEntityData().hasKey(COOLDOWN);
     }
 }

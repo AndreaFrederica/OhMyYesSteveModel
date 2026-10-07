@@ -63,7 +63,7 @@ ext.ysmNativeLibraryPath = nativeLibraryPath
 def nativeLibraryFile = layout.file(nativeLibraryPath.map { path -> new File(path) })
 ext.ysmNativeLibraryFile = nativeLibraryFile
 
-legacyForge.runs.configureEach {
+mcpForge.runs.configureEach {
     environment.put(ysmNativeEnvironment, nativeLibraryPath)
 }
 

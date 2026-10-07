@@ -2,7 +2,7 @@ package com.elfmcys.ysm.geckolib3.geo;
 
 import com.elfmcys.ysm.geckolib3.geo.animated.GeoModelState;
 import com.elfmcys.ysm.geckolib3.model.provider.data.EntityModelData;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 
 public class GeoRenderData {
     public final GeoModelState modelState = new GeoModelState();
@@ -14,5 +14,6 @@ public class GeoRenderData {
     public RenderContext ctx;
 
     public float partialTicks;
+    public int packedLight;
     public EntityModelData animationData;
 }

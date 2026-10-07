@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.ironsspellbooks;
 
+/*
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 import com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate;
@@ -56,3 +57,4 @@ public class IronsSpellBooksCompatInner {
         return null;
     }
 }
+*/

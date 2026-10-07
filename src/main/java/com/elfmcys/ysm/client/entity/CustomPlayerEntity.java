@@ -9,16 +9,16 @@ import com.elfmcys.ysm.molang.runtime.Struct;
 import com.elfmcys.ysm.model.resource.client.ModelRenderTarget;
 import com.elfmcys.ysm.network.NetworkHandler;
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
+import com.elfmcys.ysm.util.PersonView;
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
-import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.entity.player.EntityPlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> implements IRoamingEntity {
+public abstract class CustomPlayerEntity extends CustomHumanoidEntity<EntityPlayer> implements IRoamingEntity {
     protected final boolean localPlayer;
 
     protected boolean isPlayingExtraAnimation = false;
@@ -27,10 +27,10 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
 
     private List<IValue> syncHandler = null;
 
-    public CustomPlayerEntity(Player player, boolean localPlayer, boolean asyncUpdate) {
+    public CustomPlayerEntity(EntityPlayer player, boolean localPlayer, boolean asyncUpdate) {
         super(player, asyncUpdate);
         this.localPlayer = localPlayer;
-        if (player instanceof LocalPlayer) {
+        if (player instanceof EntityPlayerSP) {
             setInitialized();
         }
     }
@@ -47,7 +47,7 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
         }
         // 例外：local player 渲染 iris 阴影时应恒为第三人称，不能视为 immutable
         return !context.irisShadow() || !localPlayer
-                || Minecraft.getInstance().options.getCameraType() != CameraType.FIRST_PERSON;
+                || Minecraft.getMinecraft().gameSettings.thirdPersonView != PersonView.FIRST_PERSON;
     }
 
     @Nullable

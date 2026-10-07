@@ -1,12 +1,14 @@
 package com.elfmcys.ysm.util;
 
 import com.elfmcys.ysm.YesSteveModel;
+import com.elfmcys.ysm.client.match.EntityMatchKind;
+import com.elfmcys.ysm.client.match.EntityMatchRegistry;
+import com.elfmcys.ysm.client.match.MatchConstants;
 import com.google.common.collect.Sets;
 import it.unimi.dsi.fastutil.Pair;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.util.ResourceLocation;
 
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.Set;
 
 public final class ModelIdUtil {
@@ -56,33 +58,29 @@ public final class ModelIdUtil {
         return idx >= 0 ? trimmed.substring(idx + 1) : trimmed;
     }
 
-    @SuppressWarnings("removal")
     public static ResourceLocation getModelPackIconId(String hierarchy) {
         return new ResourceLocation(YesSteveModel.MOD_ID, "model_pack_icon/" + hierarchy.hashCode());
     }
 
-    @SuppressWarnings({"DataFlowIssue", "deprecation"})
-    public static Set<ResourceLocation> getEntityIdMatch(String[] matches) {
-        var set = new HashSet<ResourceLocation>();
-        for (var match : matches) {
-            if (match.startsWith("#")) {
-                var tagId = ResourceLocation.tryParse(match.substring(1));
-                if (tagId == null) {
+    public static boolean entityIdMatchesAny(ResourceLocation entityType, Collection<String> matches) {
+        String typeId = entityType.toString();
+        var rules = EntityMatchRegistry.RULES.get(EntityMatchKind.TAG);
+        for (String match : matches) {
+            if (match.startsWith(MatchConstants.TAG_PRE)) {
+                if (rules == null) {
                     continue;
                 }
-                var tags = ForgeRegistries.ENTITY_TYPES.tags();
-                var tagKey = tags.createTagKey(tagId);
-                tags.getTag(tagKey).forEach(type -> {
-                    set.add(type.builtInRegistryHolder().key().location());
-                });
+                for (var rule : rules) {
+                    if (rule.name().equalsIgnoreCase(EntityMatchKind.TAG.normalize(match))) {
+                        return true;
+                    }
+                }
             } else {
-                var entityId = ResourceLocation.tryParse(match);
-                if (entityId == null) {
-                    continue;
+                if (typeId.equals(IdUtil.normalize(match))) {
+                    return true;
                 }
-                set.add(entityId);
             }
         }
-        return set;
+        return false;
     }
 }

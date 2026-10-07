@@ -2,24 +2,22 @@ package com.elfmcys.ysm.client.animation.molang.variable;
 
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.variable.IValueEvaluator;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.block.BlockHorizontal;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.math.BlockPos;
 
-import java.util.Optional;
-
-public class LadderFacingVariable implements IValueEvaluator<Integer, IContext<LivingEntity>> {
+public class LadderFacingVariable implements IValueEvaluator<Integer, IContext<EntityLivingBase>> {
     @Override
-    public Integer eval(IContext<LivingEntity> ctx) {
-        Optional<BlockPos> climbablePos = ctx.entity().getLastClimbablePos();
-        if (climbablePos.isPresent()) {
-            BlockState blockState = ctx.entity().level().getBlockState(climbablePos.get());
-            Optional<Direction> optionalValue = blockState.getOptionalValue(HorizontalDirectionalBlock.FACING);
-            if (optionalValue.isPresent()) {
+    public Integer eval(IContext<EntityLivingBase> ctx) {
+        EntityLivingBase entity = ctx.entity();
+        /// {@link net.minecraft.util.CombatTracker#calculateFallSuffix)}
+        if (entity.isOnLadder()) {
+            var blockState = entity.world.getBlockState(new BlockPos(
+                    entity.posX, entity.getEntityBoundingBox().minY, entity.posZ
+            ));
+            if (blockState.getPropertyKeys().contains(BlockHorizontal.FACING)) {
                 // 输出数字 0-3，分别对应：南-西-北-东
-                return optionalValue.get().get2DDataValue();
+                return blockState.getValue(BlockHorizontal.FACING).getHorizontalIndex();
             }
         }
         return 0;

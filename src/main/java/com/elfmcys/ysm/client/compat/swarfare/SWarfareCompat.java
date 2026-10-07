@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.swarfare;
 
+/*
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.geckolib3.core.PlayState;
 import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
@@ -94,3 +95,4 @@ public class SWarfareCompat {
         return INSTALLED;
     }
 }
+*/

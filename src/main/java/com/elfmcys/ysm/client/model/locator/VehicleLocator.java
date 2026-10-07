@@ -5,14 +5,13 @@ import com.elfmcys.ysm.api.model.v0.ModelKind;
 import com.elfmcys.ysm.api.model.v0.event.RegisterModelLocatorEvent;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocator;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocatorType;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 
 public class VehicleLocator extends GeoLocatorType {
     private static VehicleLocator INSTANCE;
 
     public final GeoLocator passenger = register("PassengerLocator");
 
-    @SuppressWarnings("removal")
     private VehicleLocator() {
         super(new ResourceLocation(YesSteveModel.MOD_ID, "vehicle"));
     }

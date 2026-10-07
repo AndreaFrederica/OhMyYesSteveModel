@@ -4,12 +4,11 @@ import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.api.model.v0.ModelKind;
 import com.elfmcys.ysm.api.model.v0.event.RegisterModelLocatorEvent;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocatorType;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 
 public class ProjectileLocator extends GeoLocatorType {
     private static ProjectileLocator INSTANCE;
 
-    @SuppressWarnings("removal")
     private ProjectileLocator() {
         super(new ResourceLocation(YesSteveModel.MOD_ID, "projectile"));
     }

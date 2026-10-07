@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.simplehat;
 
+/*
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fml.ModList;
@@ -21,3 +22,4 @@ public class SimpleHatsCompat {
         return null;
     }
 }
+*/

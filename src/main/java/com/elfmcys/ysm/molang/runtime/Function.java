@@ -26,7 +26,8 @@ package com.elfmcys.ysm.molang.runtime;
 
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.molang.parser.ast.StringExpression;
-import net.minecraft.resources.ResourceLocation;
+import com.elfmcys.ysm.util.IdUtil;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import com.elfmcys.ysm.molang.parser.ast.Expression;
@@ -110,14 +111,14 @@ public interface Function {
                 if (exp.getCachedValue() != null) {
                     return exp.getCachedValue();
                 }
-                var resourceLocation = ResourceLocation.tryParse(exp.value());
+                var resourceLocation = IdUtil.tryParse(exp.value());
                 if (resourceLocation != null) {
                     exp.setCachedValue(resourceLocation);
                     return resourceLocation;
                 }
                 res = exp.value();
             } else if (value instanceof String str) {
-                var resourceLocation = ResourceLocation.tryParse(str);
+                var resourceLocation = IdUtil.tryParse(str);
                 if (resourceLocation != null) {
                     return resourceLocation;
                 }

@@ -7,8 +7,12 @@ import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.EnumFacing;
+import net.minecraftforge.common.capabilities.Capability;
+import org.jetbrains.annotations.Nullable;
 
 /** Persistent player model selection and synchronization state. */
 public final class ModelInfoCapability {
@@ -95,11 +99,11 @@ public final class ModelInfoCapability {
         }
     }
 
-    public void playAnimation(ServerPlayer player, String animation) {
+    public void playAnimation(EntityPlayerMP player, String animation) {
         propertiesTracker.setExtraAnimation(player, !dirty, animation);
     }
 
-    public void stopAnimation(ServerPlayer player) {
+    public void stopAnimation(EntityPlayerMP player) {
         propertiesTracker.setExtraAnimation(player, !dirty, "");
     }
 
@@ -112,7 +116,7 @@ public final class ModelInfoCapability {
         return roamingVariables.get(modelId);
     }
 
-    public void updateRoamingVars(ServerPlayer player, int modelKey,
+    public void updateRoamingVars(EntityPlayerMP player, int modelKey,
                                   Object2FloatMap<String> variables) {
         roamingVariables.update(modelKey, variables);
         propertiesTracker.updateMolangVars(player, !dirty,
@@ -171,18 +175,18 @@ public final class ModelInfoCapability {
         return mandatory;
     }
 
-    public CompoundTag serializeNBT() {
-        var tag = new CompoundTag();
-        tag.putString("model_hash", modelId == null ? "" : modelId.toString());
-        tag.putString("select_texture", selectTexture);
-        tag.putBoolean("mandatory", mandatory);
-        tag.putBoolean("ignore_grants", ignoreGrants);
-        tag.putBoolean("disabled", disabled);
-        tag.put("molang_storage", roamingVariables.serialize());
+    public NBTTagCompound serializeNBT() {
+        var tag = new NBTTagCompound();
+        tag.setString("model_hash", modelId == null ? "" : modelId.toString());
+        tag.setString("select_texture", selectTexture);
+        tag.setBoolean("mandatory", mandatory);
+        tag.setBoolean("ignore_grants", ignoreGrants);
+        tag.setBoolean("disabled", disabled);
+        tag.setTag("molang_storage", roamingVariables.serialize());
         return tag;
     }
 
-    public void deserializeNBT(CompoundTag tag) {
+    public void deserializeNBT(NBTTagCompound tag) {
         var storedHash = tag.getString("model_hash");
         try {
             modelId = storedHash.isEmpty() ? null : Hash256.parse(storedHash);
@@ -196,6 +200,19 @@ public final class ModelInfoCapability {
         mandatory = tag.getBoolean("mandatory");
         ignoreGrants = modelId != null && tag.getBoolean("ignore_grants");
         disabled = tag.getBoolean("disabled");
-        roamingVariables.deserialize(tag.getCompound("molang_storage"));
+        roamingVariables.deserialize(tag.getCompoundTag("molang_storage"));
+    }
+
+    public static class Storage implements Capability.IStorage<ModelInfoCapability> {
+        @Nullable
+        @Override
+        public NBTBase writeNBT(Capability<ModelInfoCapability> capability, ModelInfoCapability instance, EnumFacing side) {
+            return instance.serializeNBT();
+        }
+
+        @Override
+        public void readNBT(Capability<ModelInfoCapability> capability, ModelInfoCapability instance, EnumFacing side, NBTBase nbt) {
+            instance.deserializeNBT((NBTTagCompound) nbt);
+        }
     }
 }

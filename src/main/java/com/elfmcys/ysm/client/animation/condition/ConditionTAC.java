@@ -1,10 +1,12 @@
 package com.elfmcys.ysm.client.animation.condition;
 
+/*
 import com.elfmcys.ysm.client.compat.swarfare.SWarfareCompat;
 import com.elfmcys.ysm.client.compat.tacz.TACZCompat;
+import com.elfmcys.ysm.util.IdUtil;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
 import org.apache.commons.lang3.StringUtils;
 
 public class ConditionTAC {
@@ -21,7 +23,7 @@ public class ConditionTAC {
             return;
         }
         String itemId = split[1];
-        if (ResourceLocation.isValidResourceLocation(itemId)) {
+        if (IdUtil.isValidResourceLocation(itemId)) {
             nameTest.add(name);
             idTest.add(new ResourceLocation(itemId));
         }
@@ -47,3 +49,4 @@ public class ConditionTAC {
         return EMPTY;
     }
 }
+*/

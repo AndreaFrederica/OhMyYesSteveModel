@@ -20,14 +20,14 @@ public class ProjectileControllerCollection {
     private static final String CATEGORY = "projectile";
     private static final AnimationControllerCollection<CustomProjectileEntity, ProjectileModelResources> COLLECTION = new AnimationControllerCollection<>();
 
-    @SuppressWarnings("rawtypes,unchecked,deprecation")
+    @SuppressWarnings("deprecation")
     private static void init() {
-        single("pre_main", null, true, (name, entity) -> new HybridAnimationController(entity, name, 0, new EmptyPredicate()));
-        single("main", ProjectileMainPredicate.ANIM_LIST, true, (name, entity) -> new HybridAnimationController(entity, name, 0.1f, new ProjectileMainPredicate()));
-        single("post_main", null, true, (name, entity) -> new HybridAnimationController(entity, name, 0, new EmptyPredicate()));
+        single("pre_main", null, true, (name, entity) -> new HybridAnimationController<>(entity, name, 0, EmptyPredicate.instance()));
+        single("main", ProjectileMainPredicate.ANIM_LIST, true, (name, entity) -> new HybridAnimationController<>(entity, name, 0.1f, new ProjectileMainPredicate()));
+        single("post_main", null, true, (name, entity) -> new HybridAnimationController<>(entity, name, 0, EmptyPredicate.instance()));
 
         parallel("parallel", (name, entity, anim) ->
-                new HybridAnimationController(entity, name, 0, anim != null ? new ParallelPredicate(anim) : EmptyPredicate.INSTANCE, true));
+            new HybridAnimationController<>(entity, name, 0, anim != null ? new ParallelPredicate<>(anim) : EmptyPredicate.instance(), true));
     }
 
     public static Consumer<CustomProjectileEntity> build(ProjectileModelResources model, CommonAsset assets) {

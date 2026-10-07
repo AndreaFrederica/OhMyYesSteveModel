@@ -12,12 +12,12 @@ import com.elfmcys.ysm.geckolib3.core.PlayState;
 import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
 import com.elfmcys.ysm.molang.runtime.ExpressionEvaluator;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Saddleable;
-import net.minecraft.world.entity.animal.Pig;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.vehicle.Boat;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.item.EntityBoat;
+import net.minecraft.entity.passive.AbstractHorse;
+import net.minecraft.entity.passive.EntityPig;
+import net.minecraft.entity.player.EntityPlayer;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,12 +34,12 @@ public class VehiclePredicate implements IAnimationPredicate<CustomHumanoidEntit
 
     @Nullable
     public PlayState getVehicleAnimation(AnimationEvent<CustomHumanoidEntity<?>> event) {
-        LivingEntity entity = event.getAnimatableEntity().getEntity();
+        EntityLivingBase entity = event.getAnimatableEntity().getEntity();
         if (entity == null || event.getAnimatableEntity() instanceof IPreviewEntity) {
             return null;
         }
-        Entity vehicle = entity.getVehicle();
-        if (vehicle == null || !vehicle.isAlive()) {
+        Entity vehicle = entity.getRidingEntity();
+        if (vehicle == null || !vehicle.isEntityAlive()) {
             return null;
         }
 
@@ -70,19 +70,19 @@ public class VehiclePredicate implements IAnimationPredicate<CustomHumanoidEntit
         }
 
         // 兼容旧版本的几个动画
-        if (vehicle instanceof Pig) {
+        if (vehicle instanceof EntityPig) {
             return playAnimation(event, "ride_pig", LoopType.LOOP);
         }
-        if (vehicle instanceof Saddleable) {
+        if (vehicle instanceof AbstractHorse) {
             return playAnimation(event, "ride", LoopType.LOOP);
         }
-        if (vehicle instanceof Boat) {
+        if (vehicle instanceof EntityBoat) {
             return playAnimation(event, "boat", LoopType.LOOP);
         }
 
         // carry on 兼容
-        boolean playerIsOnPrincess = entity instanceof Player player && CarryOnCompat.isCarryOnPrincess(player);
-        boolean maidIsOnPrincess = TlmClientCompat.isMaid(entity) && entity.getVehicle() instanceof Player;
+        boolean playerIsOnPrincess = entity instanceof EntityPlayer player && CarryOnCompat.isCarryOnPrincess(player);
+        boolean maidIsOnPrincess = TlmClientCompat.isMaid(entity) && entity.getRidingEntity() instanceof EntityPlayer;
         if (playerIsOnPrincess || maidIsOnPrincess) {
             return playAnimation(event, "carryon:princess", LoopType.LOOP);
         }

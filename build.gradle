@@ -13,7 +13,7 @@ plugins {
     id 'java-library'
     id 'idea'
     id 'maven-publish'
-    id 'net.neoforged.moddev.legacyforge' version '2.+'
+    id 'net.neoforged.moddev.mcpforge' version '2.0.185-legacy'
     id 'com.google.protobuf' version '0.9.4'
     id 'com.gradleup.shadow' version '9.4.1'
 }
@@ -32,10 +32,10 @@ apply from: 'gradle/builtin-index.gradle'
 
 version = mod_version
 group = 'com.elfmcys.ysm'
-archivesBaseName = 'ysm'
+base.archivesName = 'ysm'
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
     withJavadocJar()
 }
 
@@ -63,16 +63,17 @@ sourceSets {
     }
 }
 
-legacyForge {
-    version = "1.20.1-47.4.3"
+neoFormRuntime {
+    version = '2.0.52-legacy'
+}
 
-    parchment {
-        mappingsVersion = '+'
-        minecraftVersion = '1.20.1'
+mcpForge {
+    enable {
+        cleanroomVersion = '0.6.13-alpha'
+        mcpMappings = 'de.oceanlabs.mcp:mcp_stable:39-1.12@zip'
     }
 
-    // validateAccessTransformers = true
-    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+    accessTransformers.from('src/main/resources/META-INF/ysm_at.cfg')
 
     mods {
         ysm {
@@ -85,7 +86,7 @@ legacyForge {
 
     runs {
         configureEach {
-            logLevel = org.slf4j.event.Level.DEBUG
+            //logLevel = org.slf4j.event.Level.DEBUG
             jvmArguments = [
                     "-XX:+IgnoreUnrecognizedVMOptions",
                     "-XX:+AllowEnhancedClassRedefinition"
@@ -166,7 +167,7 @@ processResources {
     from("LICENSE")
     from("NOTICE.md")
 
-    filesMatching("META-INF/mods.toml") {
+    filesMatching("mcmod.info") {
         expand "mod_version": project.version
     }
 }
@@ -175,6 +176,20 @@ repositories {
     mavenCentral()
     flatDir {
         dir 'libs'
+    }
+    maven {
+        name = "Cleanroom Maven"
+        url = "https://repo.cleanroommc.com/releases"
+        content {
+            includeGroup "com.cleanroommc"
+        }
+    }
+    maven {
+        name = "Cleanroom Curse Maven"
+        url = "https://curse.cleanroommc.com"
+        content {
+            includeGroup "curse.maven"
+        }
     }
     maven {
         name = "Curse Maven"
@@ -191,23 +206,31 @@ repositories {
         }
     }
     maven {
-        // Add jitpack to repositories
-        url 'https://jitpack.io'
+        name = "Mod Maven"
+        url = "https://modmaven.dev"
+        content {
+            includeGroup "mcjty.theoneprobe"
+        }
     }
     maven {
-        name = "Curios"
-        url = uri("https://maven.theillusivec4.top/")
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com'
+        content {
+            includeGroup "tschipp.carryon"
+        }
     }
-}
-
-def mavenCentralHosts = ['repo.maven.apache.org', 'repo1.maven.org']
-repositories.withType(MavenArtifactRepository).configureEach { repo ->
-    if (!mavenCentralHosts.contains(repo.url.host)) {
-        repo.content {
+    maven {
+        // Add jitpack to repositories
+        url 'https://jitpack.io'
+        content {
             excludeGroup 'com.google.protobuf'
             excludeGroup 'us.hebi.quickbuf'
         }
     }
+//    maven {
+//        name = "Curios"
+//        url = uri("https://maven.theillusivec4.top/")
+//    }
 }
 
 configurations {
@@ -236,8 +259,8 @@ dependencies {
     processorAsm 'org.ow2.asm:asm-tree:9.7.1'
     compileOnly files(relocateProcessorAsmTask.flatMap { it.archiveFile })
 
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.3.6'
+    annotationProcessor 'com.cleanroommc:cleanmix:0.7.2'
+    annotationProcessor 'com.cleanroommc:mixinextras-common:0.5.5'
 
     compileOnly 'org.jetbrains:annotations:26.0.2'
 
@@ -257,11 +280,49 @@ dependencies {
     mockHostServerAdditionalRuntimeClasspath \
             'org.lwjgl:lwjgl:3.3.1:natives-windows'
 
+    collabImplementation "curse.maven:immersive-favella-1481736:8098436"
+    // Mixin 实现不佳，待修复
+    modCompileOnly "curse.maven:aqua-acrobatics-321792:5225456"
+    collabImplementation "curse.maven:hwyla-253449:2568751+2568752"
+    collabImplementation "mcjty.theoneprobe:TheOneProbe-1.12:1.12-1.4.28-17"
+    collabImplementation "tschipp.carryon:carryon-1.12.2:1.12.7.23"
+
+    collabImplementation "curse.maven:slashblade-241596:3039993"
+
+    // 三叉戟
+    collabImplementation "curse.maven:oceanic-expanse-840576:7009970"
+    // 和 OE 新版冲突
+    modCompileOnly "curse.maven:trident-mod-469262:4798618"
+    modCompileOnly "curse.maven:future-mc-310059:6162819"
+    //collabRuntimeOnly "curse.maven:forgelin-continuous-456403:7400891"
+
+    // jbredwards 弩
+    collabImplementation "curse.maven:crossbow-mod-1304265:7330910"
+    collabRuntimeOnly "curse.maven:assetmover-571482:4430763"
+    // 修复 ASM 在 J25 无法应用
+    collabRuntimeOnly "curse.maven:fugue-1005815:8878028"
+
+    // SmileycorpMC 弩
+    collabImplementation "curse.maven:crossbows-backport-973881:5749402"
+    // 本地移除了无效的 AT 声明
+    collabRuntimeOnly "libs:Atlas-Lib:1.12.2-1.1.11"
+
+    // 望远镜
+    // 这个模组的 Mixin 是直接以 SRG 声明的，不支持开发环境
+    modCompileOnly "curse.maven:depths-update-1472501:8570330"
+    collabImplementation "curse.maven:deeper-depths-1101129:7512773"
+
+    // 刷
+    modCompileOnly "curse.maven:cherry-on-1-12-2-1122982:7760834"
+
+    collabImplementation 'libs:firstperson:2.7.3'
+
     processorTestImplementation files(relocateProcessorAsmTask.flatMap { it.archiveFile })
     processorTestImplementation platform('org.junit:junit-bom:5.11.4')
     processorTestImplementation 'org.junit.jupiter:junit-jupiter'
     processorTestImplementation 'com.google.code.gson:gson:2.10.1'
 
+    /*
     modCompileOnly 'libs:firstperson-forge:2.2.3-mc1.20'
     modCompileOnly 'libs:notenoughanimations-forge:1.6.4-mc1.20'
     modCompileOnly 'libs:oculus_legacy:mc1.20.1-1.6.13'
@@ -348,6 +409,7 @@ dependencies {
     collabRuntimeOnly "maven.modrinth:mantle:1.11.28"
     collabRuntimeOnly "maven.modrinth:tinkers-construct:3.9.0.6"
     collabImplementation "curse.maven:shoulder-surfing-reloaded-243190:6543482"
+    */
 }
 
 tasks.withType(Test).configureEach {
@@ -871,7 +933,9 @@ jar {
     manifest.attributes([
             "Implementation-Title"  : project.name,
             "Implementation-Version": "${version}",
-            "MixinConfigs"          : "ysm.mixins.json"
+            "MixinConfigs"          : "ysm.mixins.json",
+            "FMLAT"                 : "ysm_at.cfg",
+            "ModType"               : "CRL"
     ])
     archiveClassifier = "raw"
     destinationDirectory = layout.buildDirectory.dir('devlibs')

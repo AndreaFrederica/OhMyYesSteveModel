@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.swarfare;
 
+/*
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.event.ClientEventHandler;
@@ -90,11 +91,13 @@ public class SWarfareCompatInner {
         }
     }
 
+*/
     /**
      * tac:idle
      * tac:run
      * tac:walk
      */
+/*
     static PlayState playGunMainAnimation(AnimationEvent<? extends CustomHumanoidEntity<? extends LivingEntity>> event, String animationName, LoopType loopType) {
         String tacName = "tac:" + animationName;
         var playerAnimation = event.getAnimatableEntity().getAnimation(tacName);
@@ -109,6 +112,7 @@ public class SWarfareCompatInner {
         return getGunTypeAnimation(event, gun, prefix, LoopType.LOOP);
     }
 
+*/
     /**
      * tac:hold:pistol
      * tac:aim:pistol
@@ -117,6 +121,7 @@ public class SWarfareCompatInner {
      * tac:hold_shoot:pistol
      * tac:run:pistol
      */
+/*
     static PlayState playGunHoldAnimation(AnimationEvent<? extends CustomHumanoidEntity<? extends LivingEntity>> event, ItemStack heldItem) {
         // 先检查刺雷
         PlayState playState = playLungeMineAnimation(event);
@@ -152,9 +157,11 @@ public class SWarfareCompatInner {
         }
     }
 
+*/
     /**
      * 这些动画可能是带有后摇的动画，故需要单独分一个频道来播放，从而才能超过时长进行播放
      */
+/*
     static PlayState playGunOnceAnimation(AnimationEvent<? extends CustomHumanoidEntity<? extends LivingEntity>> event, ItemStack heldItem) {
         if (!(heldItem.getItem() instanceof GunItem gunItem)) {
             return PlayState.STOP;
@@ -228,3 +235,4 @@ public class SWarfareCompatInner {
         return PlayState.CONTINUE;
     }
 }
+*/

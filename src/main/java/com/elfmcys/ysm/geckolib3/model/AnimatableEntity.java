@@ -20,15 +20,16 @@ import com.elfmcys.ysm.geckolib3.geo.GeoRenderData;
 import com.elfmcys.ysm.geckolib3.geo.RenderContext;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoModel;
 import com.elfmcys.ysm.geckolib3.model.provider.data.EntityModelData;
+import com.elfmcys.ysm.mclib.utils.Interpolations;
 import com.elfmcys.ysm.natives.NativeProfiler;
 import com.elfmcys.ysm.util.RenderUtil;
 import com.google.common.collect.Maps;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceMap;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -199,16 +200,15 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
     }
 
     public int getFrameRateLimit() {
-        var localPlayer = Minecraft.getInstance().player;
+        var localPlayer = Minecraft.getMinecraft().player;
         if (localPlayer != null && localPlayer != entity) {
-            var localPos = localPlayer.position();
-            if (localPos.x != 0 || localPos.y != 0 || localPos.z != 0) {
+            if (localPlayer.posX != 0 || localPlayer.posY != 0 || localPlayer.posZ != 0) {
                 // 未渲染：屏幕外、太远、被 EntityCulling 剔除
                 if (!lastFrameRendered) {
                     return 10;
                 }
 
-                var distance = localPlayer.distanceTo(entity);
+                var distance = localPlayer.getDistance(entity);
                 // 超远距离：原版超过这个距离会跳过渲染
                 if (distance > 64) {
                     return 30;
@@ -279,18 +279,18 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
 
     private AnimationEvent<AnimatableEntity<TEntity>> createAnimationEvent(float partialTicks, RenderContext context) {
         final Entity entity = this.entity;
-        final LivingEntity livingEntity = entity instanceof LivingEntity ? (LivingEntity) entity : null;
-        int entityTickCount = this instanceof IPreviewEntity ? ClientTickEvent.getTickCount() : entity.tickCount;
-        float realPartialTicks = partialTicks != 1f ? partialTicks : Minecraft.getInstance().getFrameTime();
+        final EntityLivingBase livingEntity = entity instanceof EntityLivingBase ? (EntityLivingBase) entity : null;
+        int entityTickCount = this instanceof IPreviewEntity ? ClientTickEvent.getTickCount() : entity.ticksExisted;
+        float realPartialTicks = partialTicks != 1f ? partialTicks : Minecraft.getMinecraft().getRenderPartialTicks();
 
-        boolean shouldSit = entity.isPassenger() && (entity.getVehicle() != null && entity.getVehicle().shouldRiderSit());
+        boolean shouldSit = entity.isRiding() && (entity.getRidingEntity() != null && entity.getRidingEntity().shouldRiderSit());
         float limbSwingAmount = 0;
         float limbSwing = 0;
 
-        if (!shouldSit && entity.isAlive() && livingEntity != null) {
-            limbSwingAmount = livingEntity.walkAnimation.speed(partialTicks);
-            limbSwing = livingEntity.walkAnimation.position(partialTicks);
-            if (livingEntity.isBaby()) {
+        if (!shouldSit && entity.isEntityAlive() && livingEntity != null) {
+            limbSwingAmount = Interpolations.lerp(livingEntity.prevLimbSwingAmount, livingEntity.limbSwingAmount, partialTicks);
+            limbSwing = livingEntity.limbSwing - livingEntity.limbSwingAmount * (1.0F - partialTicks);
+            if (livingEntity.isChild()) {
                 limbSwing *= 3.0F;
             }
         }
@@ -303,17 +303,16 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
         float netHeadYaw = 0;
 
         if (livingEntity != null) {
-            entityModelData.isChild = livingEntity.isBaby();
-            lerpBodyRot = Mth.rotLerp(partialTicks, livingEntity.yBodyRotO, livingEntity.yBodyRot);
-            lerpHeadRot = Mth.rotLerp(partialTicks, livingEntity.yHeadRotO, livingEntity.yHeadRot);
+            entityModelData.isChild = livingEntity.isChild();
+            lerpBodyRot = Interpolations.lerpYaw(livingEntity.prevRenderYawOffset, livingEntity.renderYawOffset, partialTicks);
+            lerpHeadRot = Interpolations.lerpYaw(livingEntity.prevRotationYawHead, livingEntity.rotationYawHead, partialTicks);
             netHeadYaw = lerpHeadRot - lerpBodyRot;
         }
 
-        if (shouldSit && entity.getVehicle() instanceof LivingEntity) {
-            LivingEntity vehicle = (LivingEntity) entity.getVehicle();
-            lerpBodyRot = Mth.rotLerp(partialTicks, vehicle.yBodyRotO, vehicle.yBodyRot);
+        if (shouldSit && entity.getRidingEntity() instanceof EntityLivingBase vehicle) {
+            lerpBodyRot = Interpolations.lerpYaw(vehicle.prevRenderYawOffset, vehicle.renderYawOffset, partialTicks);
             netHeadYaw = lerpHeadRot - lerpBodyRot;
-            float clampedHeadYaw = Mth.clamp(Mth.wrapDegrees(netHeadYaw), -85, 85);
+            float clampedHeadYaw = MathHelper.clamp(MathHelper.wrapDegrees(netHeadYaw), -85, 85);
             lerpBodyRot = lerpHeadRot - clampedHeadYaw;
             if (clampedHeadYaw * clampedHeadYaw > 2500f) {
                 lerpBodyRot += clampedHeadYaw * 0.2f;
@@ -321,10 +320,10 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
             netHeadYaw = lerpHeadRot - lerpBodyRot;
         }
 
-        entityModelData.rawHeadPitch = Mth.lerp(partialTicks, entity.xRotO, entity.getXRot());
+        entityModelData.rawHeadPitch = Interpolations.lerp(entity.prevRotationPitch, entity.rotationPitch, partialTicks);
         entityModelData.headPitch = -entityModelData.rawHeadPitch;
         entityModelData.rawNetHeadYaw = netHeadYaw;
-        entityModelData.netHeadYaw = -Mth.clamp(Mth.wrapDegrees(netHeadYaw), -85, 85);
+        entityModelData.netHeadYaw = -MathHelper.clamp(MathHelper.wrapDegrees(netHeadYaw), -85, 85);
         entityModelData.lerpBodyRot = lerpBodyRot;
         entityModelData.lerpedAge = entityTickCount + partialTicks;
         entityModelData.limbSwing = limbSwing;
@@ -485,9 +484,8 @@ public abstract class AnimatableEntity<TEntity extends Entity> {
         return null;
     }
 
-    @SuppressWarnings("resource")
     public boolean isActive() {
-        return Minecraft.getInstance().level == entity.level() && !entity.isRemoved();
+        return Minecraft.getMinecraft().world == entity.world && !entity.isDead;
     }
 
     public void setCodedAnimationStates(String controllerName, AnimationState state) {

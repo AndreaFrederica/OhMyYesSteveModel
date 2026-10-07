@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.tacz;
 
+/*
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.tacz.guns.api.TimelessAPI;
@@ -53,3 +54,4 @@ public class TacCtrlBinding {
         return gun.getGunId(mainHandItem).toString();
     }
 }
+*/

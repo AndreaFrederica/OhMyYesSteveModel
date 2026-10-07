@@ -162,7 +162,7 @@ final class CatalogModelCardState implements AutoCloseable {
 
     private void requestPresentation() {
         requestGuiAssets();
-        assets.preview(entry.modelHash()).whenComplete((data, error) -> Minecraft.getInstance().execute(() -> {
+        assets.preview(entry.modelHash()).whenComplete((data, error) -> Minecraft.getMinecraft().addScheduledTask(() -> {
             if (closed) {
                 return;
             }
@@ -186,7 +186,7 @@ final class CatalogModelCardState implements AutoCloseable {
     private void startCacheProbe() {
         cacheProbe = service.getOrStartCached(targetState.request());
         var current = cacheProbe;
-        current.whenComplete((acquired, error) -> Minecraft.getInstance().execute(() -> {
+        current.whenComplete((acquired, error) -> Minecraft.getMinecraft().addScheduledTask(() -> {
             if (cacheProbe == current) {
                 cacheProbe = null;
             }
@@ -202,7 +202,7 @@ final class CatalogModelCardState implements AutoCloseable {
     private void startOfflineLoad(long generation) {
         hoverLoad = service.getOrStartOffline(targetState.request());
         var current = hoverLoad;
-        current.whenComplete((acquired, error) -> Minecraft.getInstance().execute(() -> {
+        current.whenComplete((acquired, error) -> Minecraft.getMinecraft().addScheduledTask(() -> {
             if (hoverLoad == current) {
                 hoverLoad = null;
             }
@@ -247,7 +247,7 @@ final class CatalogModelCardState implements AutoCloseable {
 
     private void requestGuiAsset(ModelAssetSelector.PresentationAsset asset, boolean foregroundAsset) {
         assets.presentation(entry.modelHash(), asset, 0)
-                .thenAccept(source -> Minecraft.getInstance().execute(() ->
+                .thenAccept(source -> Minecraft.getMinecraft().addScheduledTask(() ->
                         applyPresentationImage(source, foregroundAsset)))
                 .exceptionally(error -> {
                     if (!isCancellation(error)) {

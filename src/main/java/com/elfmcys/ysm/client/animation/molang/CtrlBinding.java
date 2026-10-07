@@ -3,7 +3,9 @@ package com.elfmcys.ysm.client.animation.molang;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapability;
 import com.elfmcys.ysm.client.animation.Priority;
 import com.elfmcys.ysm.client.animation.molang.functions.*;
+import com.elfmcys.ysm.client.compat.aquaacrobatics.AACompat;
 import com.elfmcys.ysm.client.compat.backpack.sophisticated.SophisticatedCompat;
+import com.elfmcys.ysm.client.compat.backport.BackportCompat;
 import com.elfmcys.ysm.client.compat.bettercombat.BetterCombatCompat;
 import com.elfmcys.ysm.client.compat.carryon.CarryOnCompat;
 import com.elfmcys.ysm.client.compat.create.CreateCompat;
@@ -19,13 +21,13 @@ import com.elfmcys.ysm.client.entity.IPreviewEntity;
 import com.elfmcys.ysm.geckolib3.core.AnimationState;
 import com.elfmcys.ysm.geckolib3.core.molang.binding.ContextBinding;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
+import com.elfmcys.ysm.mclib.utils.Interpolations;
 import com.elfmcys.ysm.util.LazyValue;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Pose;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 
 import java.util.function.Predicate;
 
@@ -46,28 +48,28 @@ public class CtrlBinding extends ContextBinding {
 
     private CtrlBinding() {
         // 主动画的
-        register("death", Priority.HIGHEST, LivingEntity::isDeadOrDying);
-        register("riptide", Priority.HIGHEST, LivingEntity::isAutoSpinAttack);
-        register("sleep", Priority.HIGHEST, entity -> entity.getPose() == Pose.SLEEPING);
-        register("swim", Priority.HIGHEST, Entity::isSwimming);
-        register("climb", Priority.HIGHEST, entity -> entity.getPose() == Pose.SWIMMING && isMoving(entity));
-        register("climbing", Priority.HIGHEST, entity -> entity.getPose() == Pose.SWIMMING);
+        register("death", Priority.HIGHEST, entity -> !entity.isEntityAlive());
+        register("riptide", Priority.HIGHEST, BackportCompat::isAutoSpinAttack);
+        register("sleep", Priority.HIGHEST, EntityLivingBase::isPlayerSleeping);
+        register("swim", Priority.HIGHEST, AACompat::isSwimming);
+        register("climb", Priority.HIGHEST, entity -> AACompat.isSwimmingPose(entity) && isMoving(entity));
+        register("climbing", Priority.HIGHEST, AACompat::isSwimmingPose);
 
-        register("ladder_up", Priority.HIGHEST, entity -> entity.onClimbable() && getVerticalSpeed(entity) > 0);
-        register("ladder_stillness", Priority.HIGHEST, entity -> entity.onClimbable() && getVerticalSpeed(entity) == 0);
-        register("ladder_down", Priority.HIGHEST, entity -> entity.onClimbable() && getVerticalSpeed(entity) < 0);
+        register("ladder_up", Priority.HIGHEST, entity -> entity.isOnLadder() && getVerticalSpeed(entity) > 0);
+        register("ladder_stillness", Priority.HIGHEST, entity -> entity.isOnLadder() && getVerticalSpeed(entity) == 0);
+        register("ladder_down", Priority.HIGHEST, entity -> entity.isOnLadder() && getVerticalSpeed(entity) < 0);
 
         register("fly", Priority.HIGH, CtrlBinding::isFlying);
-        register("elytra_fly", Priority.HIGH, entity -> entity.getPose() == Pose.FALL_FLYING && entity.isFallFlying());
+        register("elytra_fly", Priority.HIGH, entity -> AACompat.isFallFlyingPose(entity) && entity.isElytraFlying());
 
-        register("swim_stand", Priority.NORMAL, entity -> entity.isInWater() && !entity.onGround());
+        register("swim_stand", Priority.NORMAL, entity -> entity.isInWater() && !entity.onGround);
         register("attacked", Priority.NORMAL, entity -> entity.hurtTime > 0);
-        register("jump", Priority.NORMAL, entity -> !entity.onGround() && !entity.isInWater());
-        register("sneak", Priority.NORMAL, entity -> entity.onGround() && entity.getPose() == Pose.CROUCHING && isMoving(entity));
-        register("sneaking", Priority.NORMAL, entity -> entity.onGround() && entity.getPose() == Pose.CROUCHING);
+        register("jump", Priority.NORMAL, entity -> !entity.onGround && !entity.isInWater());
+        register("sneak", Priority.NORMAL, entity -> entity.onGround && AACompat.isCrouchingPose(entity) && isMoving(entity));
+        register("sneaking", Priority.NORMAL, entity -> entity.onGround && AACompat.isCrouchingPose(entity));
 
-        register("run", Priority.LOW, entity -> entity.onGround() && entity.isSprinting());
-        register("walk", Priority.LOW, entity -> entity.onGround() && isMoving(entity));
+        register("run", Priority.LOW, entity -> entity.onGround && entity.isSprinting());
+        register("walk", Priority.LOW, entity -> entity.onGround && isMoving(entity));
 
         register("idle", Priority.LOWEST, entity -> true);
 
@@ -117,7 +119,7 @@ public class CtrlBinding extends ContextBinding {
     }
 
     @SuppressWarnings("unchecked")
-    private void register(String name, int priority, Predicate<IContext<LivingEntity>> predicate) {
+    private void register(String name, int priority, Predicate<IContext<EntityLivingBase>> predicate) {
         if (DATA == null) {
             DATA = new ReferenceArrayList[Priority.LOWEST + 1];
             for (int i = 0; i < DATA.length; i++) {
@@ -130,11 +132,11 @@ public class CtrlBinding extends ContextBinding {
     }
 
     private void register(String name, int priority, LivingEntityPredicate predicate) {
-        register(name, priority, (Predicate<IContext<LivingEntity>>) predicate);
+        register(name, priority, (Predicate<IContext<EntityLivingBase>>) predicate);
     }
 
-    private static boolean testCondition(String name, IContext<LivingEntity> context) {
-        LivingEntity entity = context.entity();
+    private static boolean testCondition(String name, IContext<EntityLivingBase> context) {
+        EntityLivingBase entity = context.entity();
 
         var stateTracker = context.animatableEntity().getStateTracker();
         if (stateTracker.getMainAnimationCache() != null) {
@@ -146,18 +148,20 @@ public class CtrlBinding extends ContextBinding {
             return false;
         }
 
+        /*
         // 跑酷
-        if (entity instanceof Player player) {
+        if (entity instanceof EntityPlayer player) {
             boolean parcool = ParCoolCompat.hasAnimation(player);
             if (parcool) {
                 stateTracker.setMainAnimationCache("");
                 return false;
             }
         }
+        */
 
         // 载具
-        Entity vehicle = entity.getVehicle();
-        if (vehicle != null && vehicle.isAlive()) {
+        Entity vehicle = entity.getRidingEntity();
+        if (vehicle != null && vehicle.isEntityAlive()) {
             stateTracker.setMainAnimationCache("");
             return false;
         }
@@ -174,32 +178,32 @@ public class CtrlBinding extends ContextBinding {
         return false;
     }
 
-    private static boolean isMoving(LivingEntity entity) {
-        float partialTick = Minecraft.getInstance().getPartialTick();
-        float limbSwingAmount = entity.walkAnimation.speed(partialTick);
+    private static boolean isMoving(EntityLivingBase entity) {
+        float partialTick = Minecraft.getMinecraft().getRenderPartialTicks();
+        float limbSwingAmount = Interpolations.lerp(entity.prevLimbSwingAmount, entity.limbSwingAmount, partialTick);
         return Math.abs(limbSwingAmount) > MIN_SPEED;
     }
 
-    private static float getVerticalSpeed(LivingEntity entity) {
-        return 20 * (float) (entity.position().y - entity.yo);
+    private static float getVerticalSpeed(EntityLivingBase entity) {
+        return 20 * (float) (entity.posY - entity.prevPosY);
     }
 
-    private static boolean isFlying(IContext<LivingEntity> ctx) {
+    private static boolean isFlying(IContext<EntityLivingBase> ctx) {
         if (ctx.animatableEntity() instanceof PlayerAnimatableCapability cap && !cap.isLocalPlayer()) {
             return cap.getStateTracker().isFlying();
-        } else if (ctx.entity() instanceof Player player) {
-            return player.getAbilities().flying;
+        } else if (ctx.entity() instanceof EntityPlayer player) {
+            return player.capabilities.isFlying;
         }
         return false;
     }
 
-    private record Condition(String name, int priority, Predicate<IContext<LivingEntity>> predicate) {
+    private record Condition(String name, int priority, Predicate<IContext<EntityLivingBase>> predicate) {
     }
 
-    private interface LivingEntityPredicate extends Predicate<IContext<LivingEntity>> {
-        boolean testLivingEntity(LivingEntity entity);
+    private interface LivingEntityPredicate extends Predicate<IContext<EntityLivingBase>> {
+        boolean testLivingEntity(EntityLivingBase entity);
 
-        default boolean test(IContext<LivingEntity> context) {
+        default boolean test(IContext<EntityLivingBase> context) {
             return testLivingEntity(context.entity());
         }
     }

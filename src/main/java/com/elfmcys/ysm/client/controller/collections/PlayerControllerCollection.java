@@ -3,7 +3,9 @@ package com.elfmcys.ysm.client.controller.collections;
 import com.elfmcys.ysm.client.animation.condition.ConditionArmor;
 import com.elfmcys.ysm.client.animation.predicate.*;
 import com.elfmcys.ysm.client.compat.carryon.CarryOnCompat;
+/*
 import com.elfmcys.ysm.client.compat.parcool.ParCoolCompat;
+*/
 import com.elfmcys.ysm.client.controller.*;
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.client.entity.IPreviewEntity;
@@ -15,7 +17,7 @@ import com.elfmcys.ysm.geckolib3.core.controller.CodedAnimationController;
 import com.elfmcys.ysm.geckolib3.core.controller.HybridAnimationController;
 import com.elfmcys.ysm.geckolib3.core.controller.IAnimationController;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceMap;
-import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.inventory.EntityEquipmentSlot;
 import org.apache.commons.lang3.function.TriFunction;
 
 import java.util.function.BiFunction;
@@ -31,8 +33,10 @@ public class PlayerControllerCollection {
         parallel("pre_parallel", (name, entity, anim) ->
                 new HybridAnimationController(entity, name, 0, anim != null ? new ParallelPredicate(anim) : EmptyPredicate.INSTANCE));
 
+        /*
         ParCoolCompat.animationPredicate().ifPresent(func ->
                 simple("parcool", func));
+        */
         simple("vehicle", (name, entity) -> new HybridAnimationController(entity, name, 0.1f, new VehiclePredicate()));
 
         multi("pre_main", (name, entity) -> new HybridAnimationController(entity, name, 0, new EmptyPredicate()));
@@ -44,9 +48,11 @@ public class PlayerControllerCollection {
         simple("hold_mainhand", (name, entity) -> new HybridAnimationController(entity, name, 0.1f, new MainhandPredicate()));
         multi("post_hold", (name, entity) -> new HybridAnimationController(entity, name, 0, new EmptyPredicate()));
 
+        /*
         if (GunFirePredicate.available()) {
             simple("fire", (name, entity) -> new HybridAnimationController(entity, name, 0f, new GunFirePredicate()));
         }
+        */
 
         multi("pre_swing", (name, entity) -> new HybridAnimationController(entity, name, 0, new EmptyPredicate()));
         simple("swing", (name, entity) -> new HybridAnimationController(entity, name, 0, new SwingPredicate()));
@@ -103,7 +109,7 @@ public class PlayerControllerCollection {
         COLLECTION.add(new ParallelControllerDiscovery<>(CATEGORY, name, true, Adapter.INSTANCE, controllerFunc));
     }
 
-    private static void armor(String name, TriFunction<String, CustomPlayerEntity, EquipmentSlot, IAnimationController<CustomPlayerEntity>> controllerFunc) {
+    private static void armor(String name, TriFunction<String, CustomPlayerEntity, EntityEquipmentSlot, IAnimationController<CustomPlayerEntity>> controllerFunc) {
         COLLECTION.add(new ArmorControllerDiscovery<>(CATEGORY, name, Adapter.INSTANCE, controllerFunc));
     }
 

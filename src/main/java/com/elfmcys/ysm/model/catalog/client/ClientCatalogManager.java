@@ -14,6 +14,8 @@ import com.elfmcys.ysm.model.session.client.state.ActivationSnapshot;
 import com.elfmcys.ysm.model.storage.ManagedContainer;
 import com.elfmcys.ysm.proto.mixel.manifest.asset.RenderTargetKind;
 import com.elfmcys.ysm.util.ModelIdUtil;
+import net.minecraft.util.ResourceLocation;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +23,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import net.minecraft.resources.ResourceLocation;
 
 /** Client-side presentation adapter over its main-thread Catalog owner. */
 public final class ClientCatalogManager implements AutoCloseable {
@@ -70,8 +71,7 @@ public final class ClientCatalogManager implements AutoCloseable {
         }
         for (var target : entry.displayRepresentation().view().getRenderTargets()) {
             if (target.kind() == kind && !target.getTextureNames().isEmpty() && ModelIdUtil
-                    .getEntityIdMatch(target.matches().toArray(String[]::new))
-                    .contains(entityType)) {
+                    .entityIdMatchesAny(entityType, target.matches())) {
                 return Optional.of(target.id());
             }
         }

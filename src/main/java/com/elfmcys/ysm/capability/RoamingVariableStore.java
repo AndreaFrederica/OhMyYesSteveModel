@@ -5,7 +5,7 @@ import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.objects.Object2FloatMap;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NBTTagCompound;
 
 import java.util.ArrayDeque;
 import java.util.Optional;
@@ -70,29 +70,29 @@ final class RoamingVariableStore {
         source.pending.clear();
     }
 
-    CompoundTag serialize() {
-        var storageTag = new CompoundTag();
+    NBTTagCompound serialize() {
+        var storageTag = new NBTTagCompound();
         variables.int2ReferenceEntrySet().fastForEach(storageEntry -> {
-            var valuesTag = new CompoundTag();
+            var valuesTag = new NBTTagCompound();
             storageEntry.getValue().object2FloatEntrySet().fastForEach(entry ->
-                    valuesTag.putFloat(entry.getKey(), entry.getFloatValue()));
-            storageTag.put(String.valueOf(storageEntry.getIntKey()), valuesTag);
+                    valuesTag.setFloat(entry.getKey(), entry.getFloatValue()));
+            storageTag.setTag(String.valueOf(storageEntry.getIntKey()), valuesTag);
         });
         return storageTag;
     }
 
-    void deserialize(CompoundTag storageTag) {
+    void deserialize(NBTTagCompound storageTag) {
         variables.clear();
-        for (var hashText : storageTag.getAllKeys()) {
+        for (var hashText : storageTag.getKeySet()) {
             final int roamingHash;
             try {
                 roamingHash = Integer.parseInt(hashText);
             } catch (NumberFormatException ignored) {
                 continue;
             }
-            var valuesTag = storageTag.getCompound(hashText);
-            var values = new Object2FloatOpenHashMap<String>(valuesTag.size());
-            for (var name : valuesTag.getAllKeys()) {
+            var valuesTag = storageTag.getCompoundTag(hashText);
+            var values = new Object2FloatOpenHashMap<String>(valuesTag.getSize());
+            for (var name : valuesTag.getKeySet()) {
                 values.put(name, valuesTag.getFloat(name));
             }
             variables.put(roamingHash, values);

@@ -3,40 +3,37 @@ package com.elfmcys.ysm.api.internal.event;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.elfmcys.ysm.api.annotation.YsmEventHandler;
-import java.lang.annotation.ElementType;
 import java.util.List;
 import java.util.Map;
-import net.minecraftforge.forgespi.language.ModFileScanData;
+
+import net.minecraftforge.fml.common.discovery.ASMDataTable;
 import org.junit.jupiter.api.Test;
-import org.objectweb.asm.Type;
 
 class YsmEventHandlerLoaderTest {
     @Test
-    void selectsTypeAnnotationsByNameThenDeduplicatesAndSortsHandlers() {
-        ModFileScanData first = new ModFileScanData();
-        first.getAnnotations().add(annotation(
-                ElementType.TYPE, "sample.ZHandler", YsmEventHandler.class));
-        first.getAnnotations().add(annotation(
-                ElementType.METHOD, "sample.Ignored#method", YsmEventHandler.class));
-        first.getAnnotations().add(annotation(
-                ElementType.TYPE, "sample.IgnoredAnnotation", Deprecated.class));
+    void selectsClassAnnotationsThenDeduplicatesAndSortsHandlers() {
+        ASMDataTable.ASMData first = annotation(
+                "sample.ZHandler", "sample.ZHandler", YsmEventHandler.class);
+        ASMDataTable.ASMData methodIgnored = annotation(
+                "sample.Ignored", "sample.Ignored#method()V", YsmEventHandler.class);
+        ASMDataTable.ASMData deprecatedIgnored = annotation(
+                "sample.IgnoredAnnotation", "sample.IgnoredAnnotation", Deprecated.class);
 
-        ModFileScanData second = new ModFileScanData();
-        second.getAnnotations().add(annotation(
-                ElementType.TYPE, "sample.A$Nested", YsmEventHandler.class));
-        second.getAnnotations().add(annotation(
-                ElementType.TYPE, "sample.ZHandler", YsmEventHandler.class));
+        ASMDataTable.ASMData tableFirst = annotation(
+                "sample.A$Nested", "sample.A$Nested", YsmEventHandler.class);
+        ASMDataTable.ASMData tableSecond = annotation(
+                "sample.ZHandler", "sample.ZHandler", YsmEventHandler.class);
 
         assertEquals(List.of("sample.A$Nested", "sample.ZHandler"),
-                YsmEventHandlerLoader.discoverHandlerNames(List.of(first, second)));
+                YsmEventHandlerLoader.discoverHandlerNames(List.of(first, methodIgnored, deprecatedIgnored, tableFirst, tableSecond)));
     }
 
-    private static ModFileScanData.AnnotationData annotation(
-            ElementType target,
-            String memberName,
+    private static ASMDataTable.ASMData annotation(
+            String className,
+            String objectName,
             Class<?> annotationType) {
-        return new ModFileScanData.AnnotationData(
-                Type.getType(annotationType), target, Type.getType(Object.class),
-                memberName, Map.of());
+        return new ASMDataTable.ASMData(
+                null, annotationType.getName(),
+                className, objectName, Map.of());
     }
 }

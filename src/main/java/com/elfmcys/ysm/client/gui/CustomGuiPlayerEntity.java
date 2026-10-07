@@ -12,8 +12,8 @@ import com.elfmcys.ysm.geckolib3.geo.GeoRenderData;
 import com.elfmcys.ysm.geckolib3.geo.RenderContext;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraft.entity.player.EntityPlayer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
@@ -88,7 +88,7 @@ public final class CustomGuiPlayerEntity extends CustomPlayerEntity implements I
         return super.update(partialTicks, context);
     }
 
-    public static boolean isFakePlayer(Player player) {
+    public static boolean isFakePlayer(EntityPlayer player) {
         return player instanceof FakePlayer;
     }
 
@@ -103,9 +103,8 @@ public final class CustomGuiPlayerEntity extends CustomPlayerEntity implements I
     }
 
     private static class FakePlayer extends AbstractClientPlayer {
-        @SuppressWarnings("DataFlowIssue")
         public FakePlayer() {
-            super(Minecraft.getInstance().level, createRandomGameProfile());
+            super(Minecraft.getMinecraft().world, createRandomGameProfile());
         }
 
         private static GameProfile createRandomGameProfile() {
@@ -124,9 +123,9 @@ public final class CustomGuiPlayerEntity extends CustomPlayerEntity implements I
         }
 
         public boolean updateClientLevel() {
-            var level = Minecraft.getInstance().level;
+            var level = Minecraft.getMinecraft().world;
             if (level != null) {
-                this.setLevel(level);
+                this.setWorld(level);
                 return true;
             } else {
                 return false;

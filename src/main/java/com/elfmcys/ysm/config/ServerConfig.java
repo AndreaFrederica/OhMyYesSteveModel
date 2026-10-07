@@ -1,65 +1,90 @@
 package com.elfmcys.ysm.config;
 
-import com.google.common.collect.Lists;
-import net.minecraftforge.common.ForgeConfigSpec;
-
-import java.util.List;
+import com.elfmcys.ysm.config.util.ConfigBuilder;
 
 public class ServerConfig {
-    public static ForgeConfigSpec.IntValue THREAD_COUNT;
-    public static ForgeConfigSpec.IntValue BANDWIDTH_LIMIT;
-    public static ForgeConfigSpec.IntValue DISPATCH_SOFT_LIMIT;
-    public static ForgeConfigSpec.IntValue DISPATCH_HARD_LIMIT;
-    public static ForgeConfigSpec.BooleanValue RESTRICTED_AUTH;
-    public static ForgeConfigSpec.BooleanValue LOW_BANDWIDTH_USAGE;
-    public static ForgeConfigSpec.BooleanValue CAN_SWITCH_MODEL;
-    public static ForgeConfigSpec.ConfigValue<String> DEFAULT_MODEL_PATH;
-    public static ForgeConfigSpec.ConfigValue<String> DEFAULT_MODEL_TEXTURE;
-
+    public static String DEFAULT_MODEL_PATH = "default";
+    public static String DEFAULT_MODEL_TEXTURE = "default";
+    public static boolean CAN_SWITCH_MODEL = true;
     // 禁止在玩家客户端 GUI 界面显示的模型相对路径
-    public static ForgeConfigSpec.ConfigValue<List<String>> CLIENT_NOT_DISPLAY_MODEL_PATHS;
+    public static String[] CLIENT_NOT_DISPLAY_MODEL_PATHS = {};
+    // server_scheduler
+    public static int THREAD_COUNT = 0;
+    public static int BANDWIDTH_LIMIT = 5;
+    public static int DISPATCH_SOFT_LIMIT = 24;
+    public static int DISPATCH_HARD_LIMIT = 48;
+    public static boolean RESTRICTED_AUTH = false;
+    public static boolean LOW_BANDWIDTH_USAGE = false;
 
-    public static ForgeConfigSpec init() {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
-        ServerConfig.init(builder);
-        return builder.build();
-    }
+    static void build(ConfigBuilder builder) {
+        DEFAULT_MODEL_PATH = builder.get(
+                "DefaultModelPath",
+                DEFAULT_MODEL_PATH,
+                "The relative path of the default model when a player first enters the game"
+        );
 
-    private static void init(ForgeConfigSpec.Builder builder) {
-        builder.comment("The relative path of the default model when a player first enters the game");
-        DEFAULT_MODEL_PATH = builder.define("DefaultModelPath", "default");
+        DEFAULT_MODEL_TEXTURE = builder.get(
+                "DefaultModelTexture",
+                DEFAULT_MODEL_TEXTURE,
+                "The default model texture when a player first enters the game"
+        );
 
-        builder.comment("The default model texture when a player first enters the game");
-        DEFAULT_MODEL_TEXTURE = builder.define("DefaultModelTexture", "default");
+        CAN_SWITCH_MODEL = builder.get(
+                "CanSwitchModel",
+                CAN_SWITCH_MODEL,
+                "Whether or not players are allowed to switch models"
+        );
 
-        builder.comment("Whether or not players are allowed to switch models");
-        CAN_SWITCH_MODEL = builder.define("CanSwitchModel", true);
+        CLIENT_NOT_DISPLAY_MODEL_PATHS = builder.get(
+                "ClientNotDisplayModelPaths",
+                CLIENT_NOT_DISPLAY_MODEL_PATHS,
+                """
+                        Relative model paths that are not displayed on the client model selection screen
+                        Example: ["model.mxc", "pack/private/legacy.ysm"]
+                        """
+        );
 
-        builder.comment("Relative model paths that are not displayed on the client model selection screen");
-        builder.comment("Example: [\"model.mxc\", \"pack/private/legacy.ysm\"]");
-        CLIENT_NOT_DISPLAY_MODEL_PATHS = builder.define("ClientNotDisplayModelPaths", Lists.newArrayList());
+        builder.pushCategory("server_scheduler");
 
-        builder.push("server_scheduler");
+        THREAD_COUNT = builder.getProp(
+                "ThreadCount",
+                THREAD_COUNT,
+                "Concurrent level for processing models. Value 0 means AUTO."
+        ).setMinValue(0).setMaxValue(Math.max(2, Runtime.getRuntime().availableProcessors() - 1)).getInt();
 
-        builder.comment("Concurrent level for processing models. Value 0 means AUTO.");
-        THREAD_COUNT = builder.defineInRange("ThreadCount", 0, 0, Math.max(2, Runtime.getRuntime().availableProcessors() - 1));
+        BANDWIDTH_LIMIT = builder.getProp(
+                "BandwidthLimit",
+                BANDWIDTH_LIMIT,
+                "Global model distribution limit in Mbps. 0 means unlimited."
+        ).setMinValue(0).setMaxValue(999).getInt();
 
-        builder.comment("Global model distribution limit in Mbps. 0 means unlimited.");
-        BANDWIDTH_LIMIT = builder.defineInRange("BandwidthLimit", 5, 0, 999);
+        DISPATCH_SOFT_LIMIT = builder.getProp(
+                "DispatchSoftLimit",
+                DISPATCH_SOFT_LIMIT,
+                "Per-player queue size that enables one-fragment round-robin visits."
+        ).setMinValue(1).setMaxValue(255).getInt();
 
-        builder.comment("Per-player queue size that enables one-fragment round-robin visits.");
-        DISPATCH_SOFT_LIMIT = builder.defineInRange("DispatchSoftLimit", 24, 1, 255);
+        DISPATCH_HARD_LIMIT = builder.getProp(
+                "DispatchHardLimit",
+                DISPATCH_HARD_LIMIT,
+                "Atomic per-player logical-packet admission cap."
+        ).setMinValue(2).setMaxValue(256).getInt();
 
-        builder.comment("Atomic per-player logical-packet admission cap.");
-        DISPATCH_HARD_LIMIT = builder.defineInRange("DispatchHardLimit", 48, 2, 256);
+        RESTRICTED_AUTH = builder.get(
+                "RestrictedAuth",
+                RESTRICTED_AUTH,
+                "Restrict unauthorized auth-model icon and chunk downloads."
+        );
 
-        builder.comment("Restrict unauthorized auth-model icon and chunk downloads.");
-        RESTRICTED_AUTH = builder.define("RestrictedAuth", false);
+        LOW_BANDWIDTH_USAGE = builder.get(
+                "LowBandwidthUsage",
+                LOW_BANDWIDTH_USAGE,
+                """
+                        Suppress network synchronization of partial features to reduce bandwidth usage
+                        Only effective when there are tons of players
+                        """
+        );
 
-        builder.comment("Suppress network synchronization of partial features to reduce bandwidth usage");
-        builder.comment("Only effective when there are tons of players");
-        LOW_BANDWIDTH_USAGE = builder.define("LowBandwidthUsage", false);
-
-        builder.pop();
+        builder.popCategory();
     }
 }

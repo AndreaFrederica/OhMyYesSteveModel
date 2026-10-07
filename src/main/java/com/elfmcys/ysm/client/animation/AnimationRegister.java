@@ -2,11 +2,12 @@ package com.elfmcys.ysm.client.animation;
 
 import com.elfmcys.ysm.capability.PlayerAnimatableCapability;
 import com.elfmcys.ysm.client.animation.predicate.PlayerMainPredicate;
+import com.elfmcys.ysm.client.compat.aquaacrobatics.AACompat;
+import com.elfmcys.ysm.client.compat.backport.BackportCompat;
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
-import net.minecraft.world.entity.Pose;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.entity.player.EntityPlayer;
 
 import java.util.function.BiPredicate;
 
@@ -20,46 +21,46 @@ public class AnimationRegister {
     private static final float MIN_SPEED = 0.05f;
 
     public static void registerAnimationState() {
-        register("death", LoopType.PLAY_ONCE, Priority.HIGHEST, (player, event) -> player.isDeadOrDying());
-        register("riptide", Priority.HIGHEST, (player, event) -> player.isAutoSpinAttack());
-        register("sleep", Priority.HIGHEST, (player, event) -> player.getPose() == Pose.SLEEPING);
-        register("swim", Priority.HIGHEST, (player, event) -> player.isSwimming());
-        register("climb", Priority.HIGHEST, (player, event) -> player.getPose() == Pose.SWIMMING && Math.abs(event.getLimbSwingAmount()) > MIN_SPEED);
-        register("climbing", Priority.HIGHEST, (player, event) -> player.getPose() == Pose.SWIMMING);
+        register("death", LoopType.PLAY_ONCE, Priority.HIGHEST, (player, event) -> !player.isEntityAlive());
+        register("riptide", Priority.HIGHEST, (player, event) -> BackportCompat.isAutoSpinAttack(player));
+        register("sleep", Priority.HIGHEST, (player, event) -> player.isPlayerSleeping());
+        register("swim", Priority.HIGHEST, (player, event) -> AACompat.isSwimming(player));
+        register("climb", Priority.HIGHEST, (player, event) -> AACompat.isSwimmingPose(player) && Math.abs(event.getLimbSwingAmount()) > MIN_SPEED);
+        register("climbing", Priority.HIGHEST, (player, event) -> AACompat.isSwimmingPose(player));
 
-        register("ladder_up", Priority.HIGHEST, (player, event) -> player.onClimbable() && getVerticalSpeed(player) > 0);
-        register("ladder_stillness", Priority.HIGHEST, (player, event) -> player.onClimbable() && getVerticalSpeed(player) == 0);
-        register("ladder_down", Priority.HIGHEST, (player, event) -> player.onClimbable() && getVerticalSpeed(player) < 0);
+        register("ladder_up", Priority.HIGHEST, (player, event) -> player.isOnLadder() && getVerticalSpeed(player) > 0);
+        register("ladder_stillness", Priority.HIGHEST, (player, event) -> player.isOnLadder() && getVerticalSpeed(player) == 0);
+        register("ladder_down", Priority.HIGHEST, (player, event) -> player.isOnLadder() && getVerticalSpeed(player) < 0);
 
         register("fly", Priority.HIGH, (player, event) -> {
             if (event.getAnimatableEntity() instanceof PlayerAnimatableCapability cap && !cap.isLocalPlayer()) {
                 return cap.getStateTracker().isFlying();
             }
-            return player.getAbilities().flying;
+            return player.capabilities.isFlying;
         });
-        register("elytra_fly", Priority.HIGH, (player, event) -> player.getPose() == Pose.FALL_FLYING && player.isFallFlying());
+        register("elytra_fly", Priority.HIGH, (player, event) -> AACompat.isFallFlyingPose(player) && player.isElytraFlying());
 
-        register("swim_stand", Priority.NORMAL, (player, event) -> player.isInWater() && !player.onGround());
+        register("swim_stand", Priority.NORMAL, (player, event) -> player.isInWater() && !player.onGround);
         register("attacked", LoopType.PLAY_ONCE, Priority.NORMAL, (player, event) -> player.hurtTime > 0);
-        register("jump", Priority.NORMAL, (player, event) -> !player.onGround() && !player.isInWater());
-        register("sneak", Priority.NORMAL, (player, event) -> player.onGround() && player.getPose() == Pose.CROUCHING && Math.abs(event.getLimbSwingAmount()) > MIN_SPEED);
-        register("sneaking", Priority.NORMAL, (player, event) -> player.onGround() && player.getPose() == Pose.CROUCHING);
+        register("jump", Priority.NORMAL, (player, event) -> !player.onGround && !player.isInWater());
+        register("sneak", Priority.NORMAL, (player, event) -> player.onGround && AACompat.isCrouchingPose(player) && Math.abs(event.getLimbSwingAmount()) > MIN_SPEED);
+        register("sneaking", Priority.NORMAL, (player, event) -> player.onGround && AACompat.isCrouchingPose(player));
 
-        register("run", Priority.LOW, (player, event) -> player.onGround() && player.isSprinting());
-        register("walk", Priority.LOW, (player, event) -> player.onGround() && event.getLimbSwingAmount() > MIN_SPEED);
+        register("run", Priority.LOW, (player, event) -> player.onGround && player.isSprinting());
+        register("walk", Priority.LOW, (player, event) -> player.onGround && event.getLimbSwingAmount() > MIN_SPEED);
 
         register(IDLE, Priority.LOWEST, (player, event) -> true);
     }
 
-    private static void register(String animationName, LoopType loopType, int priority, BiPredicate<Player, AnimationEvent<CustomPlayerEntity>> predicate) {
+    private static void register(String animationName, LoopType loopType, int priority, BiPredicate<EntityPlayer, AnimationEvent<CustomPlayerEntity>> predicate) {
         PlayerMainPredicate.register(new AnimationState<>(animationName, loopType, priority, predicate));
     }
 
-    private static void register(String animationName, int priority, BiPredicate<Player, AnimationEvent<CustomPlayerEntity>> predicate) {
+    private static void register(String animationName, int priority, BiPredicate<EntityPlayer, AnimationEvent<CustomPlayerEntity>> predicate) {
         register(animationName, LoopType.LOOP, priority, predicate);
     }
 
-    private static float getVerticalSpeed(Player player) {
-        return 20 * (float) (player.position().y - player.yo);
+    private static float getVerticalSpeed(EntityPlayer player) {
+        return 20 * (float) (player.posY - player.prevPosY);
     }
 }

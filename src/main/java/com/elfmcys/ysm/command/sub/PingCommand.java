@@ -2,27 +2,48 @@ package com.elfmcys.ysm.command.sub;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.network.forge.SessionProtocolHandler;
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
-import net.minecraftforge.fml.ModList;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.command.WrongUsageException;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraftforge.fml.common.Loader;
+import org.jetbrains.annotations.NotNull;
 
-public class PingCommand {
-    private static final String MOLANG_NAME = "ping";
-
-    public static LiteralArgumentBuilder<CommandSourceStack> get() {
-        LiteralArgumentBuilder<CommandSourceStack> ping = Commands.literal(MOLANG_NAME).executes(PingCommand::ping);
-        return ping;
+public class PingCommand extends CommandBase {
+    public PingCommand() {
     }
 
-    private static int ping(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        var player = ctx.getSource().getPlayerOrException();
-        player.sendSystemMessage(Component.translatable("message.yes_steve_model.client.ping_result", ModList.get().getModFileById(YesSteveModel.MOD_ID).versionString()));
+    @NotNull
+    @Override
+    public String getName() {
+        return "ping";
+    }
+
+    @NotNull
+    @Override
+    public String getUsage(@NotNull ICommandSender sender) {
+        return "commands.yes_steve_model.ysm.ping.usage";
+    }
+
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 0;
+    }
+
+    @Override
+    public void execute(@NotNull MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+        if (args.length == 0) {
+            ping(sender);
+            return;
+        }
+        throw new WrongUsageException(this.getUsage(sender));
+    }
+
+    private static void ping(ICommandSender sender) throws CommandException {
+        var player = getCommandSenderAsPlayer(sender);
+        player.sendMessage(new TextComponentTranslation("message.yes_steve_model.client.ping_result", Loader.instance().getIndexedModList().get(YesSteveModel.MOD_ID).getVersion()));
         SessionProtocolHandler.sendServerHello(player);
-        return Command.SINGLE_SUCCESS;
     }
 }

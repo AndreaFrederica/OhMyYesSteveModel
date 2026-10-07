@@ -9,13 +9,13 @@ import com.elfmcys.ysm.proto.network.MolangVariable;
 import com.elfmcys.ysm.proto.network.PlayerStateUpdate;
 import com.elfmcys.ysm.proto.network.RoamingState;
 import java.util.Optional;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 
 public final class ModelInfoSyncAssembler {
     private ModelInfoSyncAssembler() {
     }
 
-    public static Optional<PlayerStateUpdate> build(ServerPlayer player,
+    public static Optional<PlayerStateUpdate> build(EntityPlayerMP player,
                                                                   ModelInfoCapability capability,
                                                                   ServerCatalog snapshot) {
         return ModelSelectionService.resolve(capability, snapshot).map(model -> {

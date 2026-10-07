@@ -11,26 +11,26 @@ import com.elfmcys.ysm.geckolib3.model.AnimatedGeoModel;
 import com.elfmcys.ysm.molang.runtime.Struct;
 import it.unimi.dsi.fastutil.ints.Int2FloatMap;
 import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public final class PlayerAnimatableCapability extends CustomPlayerEntity {
     private final ClientRoamingSession roamingSession;
 
-    public PlayerAnimatableCapability(Player player) {
-        super(player, player instanceof LocalPlayer, true);
+    public PlayerAnimatableCapability(EntityPlayer player) {
+        super(player, player instanceof EntityPlayerSP, true);
         roamingSession = new ClientRoamingSession(
-                player, player instanceof LocalPlayer, this::reloadGeoModel);
+                player, player instanceof EntityPlayerSP, this::reloadGeoModel);
     }
 
     @Override
-    protected PlayerStateTracker createStateTracker(Player entity) {
-        return new PlayerStateTracker(entity, entity instanceof LocalPlayer);
+    protected PlayerStateTracker createStateTracker(EntityPlayer entity) {
+        return new PlayerStateTracker(entity, entity instanceof EntityPlayerSP);
     }
 
     public PlayerStateTracker getStateTracker() {
@@ -67,7 +67,7 @@ public final class PlayerAnimatableCapability extends CustomPlayerEntity {
     }
 
     @Override
-    protected void codeAnimation(AnimationEvent<? extends AnimatableEntity<Player>> animationEvent, boolean update) {
+    protected void codeAnimation(AnimationEvent<? extends AnimatableEntity<EntityPlayer>> animationEvent, boolean update) {
         super.codeAnimation(animationEvent, update);
 
         // 更新第一人称相机偏移与头部隐藏

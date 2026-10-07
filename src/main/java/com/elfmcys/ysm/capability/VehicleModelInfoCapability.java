@@ -2,7 +2,11 @@ package com.elfmcys.ysm.capability;
 
 import com.elfmcys.ysm.model.domain.Hash256;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.EnumFacing;
+import net.minecraftforge.common.capabilities.Capability;
+import org.jetbrains.annotations.Nullable;
 
 public class VehicleModelInfoCapability {
     private Hash256 modelHash;
@@ -33,21 +37,21 @@ public class VehicleModelInfoCapability {
         return molangVarsServerBound;
     }
 
-    public CompoundTag serializeNBT() {
-        CompoundTag tag = new CompoundTag();
-        tag.putString("owner_model_hash", modelHash == null ? "" : modelHash.toString());
-        tag.putBoolean("initialized", initialized);
+    public NBTTagCompound serializeNBT() {
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setString("owner_model_hash", modelHash == null ? "" : modelHash.toString());
+        tag.setBoolean("initialized", initialized);
 
-        CompoundTag varsTag = new CompoundTag();
+        NBTTagCompound varsTag = new NBTTagCompound();
         molangVarsServerBound.object2FloatEntrySet().fastForEach(varsEntry -> {
-            varsTag.putFloat(varsEntry.getKey(), varsEntry.getFloatValue());
+            varsTag.setFloat(varsEntry.getKey(), varsEntry.getFloatValue());
         });
-        tag.put("molang_vars_server_bound", varsTag);
+        tag.setTag("molang_vars_server_bound", varsTag);
 
         return tag;
     }
 
-    public void deserializeNBT(CompoundTag nbt) {
+    public void deserializeNBT(NBTTagCompound nbt) {
         var stored = nbt.getString("owner_model_hash");
         try {
             this.modelHash = stored.isEmpty() ? null : Hash256.parse(stored);
@@ -57,10 +61,23 @@ public class VehicleModelInfoCapability {
         this.initialized = nbt.getBoolean("initialized");
 
         this.molangVarsServerBound.clear();
-        var varsTag = nbt.getCompound("molang_vars_server_bound");
-        for (var name : varsTag.getAllKeys()) {
+        var varsTag = nbt.getCompoundTag("molang_vars_server_bound");
+        for (var name : varsTag.getKeySet()) {
             var value = varsTag.getFloat(name);
             this.molangVarsServerBound.put(name, value);
+        }
+    }
+
+    public static class Storage implements Capability.IStorage<VehicleModelInfoCapability> {
+        @Nullable
+        @Override
+        public NBTBase writeNBT(Capability<VehicleModelInfoCapability> capability, VehicleModelInfoCapability instance, EnumFacing side) {
+            return instance.serializeNBT();
+        }
+
+        @Override
+        public void readNBT(Capability<VehicleModelInfoCapability> capability, VehicleModelInfoCapability instance, EnumFacing side, NBTBase nbt) {
+            instance.deserializeNBT((NBTTagCompound) nbt);
         }
     }
 }

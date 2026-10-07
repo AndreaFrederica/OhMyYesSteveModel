@@ -4,7 +4,7 @@ import com.elfmcys.ysm.client.animation.AnimationParallelTicker;
 import com.elfmcys.ysm.client.animation.debug.CustomDebugSource;
 import com.elfmcys.ysm.client.animation.molang.MolangEventWrapper;
 import com.elfmcys.ysm.client.animation.molang.PhysicsManager;
-import com.elfmcys.ysm.client.gui.overlay.DebugAnimationScreen;
+import com.elfmcys.ysm.client.event.RenderDebugAnimationScreenEvent;
 import com.elfmcys.ysm.model.resource.client.AcquireResult;
 import com.elfmcys.ysm.model.resource.client.ModelRenderTarget;
 import com.elfmcys.ysm.model.service.ClientModelService;
@@ -22,10 +22,10 @@ import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.model.domain.RenderTargetIds;
 import com.elfmcys.ysm.util.Closeable;
+import com.elfmcys.ysm.util.RenderUtil;
 import com.elfmcys.ysm.util.ThreadTools;
 import com.elfmcys.ysm.util.UnsafeUtil;
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -102,9 +102,9 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
     }
 
     public void checkModelUpdate() {
-        if (lastCheckUpdateTime < entity.tickCount) {
+        if (lastCheckUpdateTime < entity.ticksExisted) {
             checkModelRenderTargetUpdate();
-            lastCheckUpdateTime = entity.tickCount;
+            lastCheckUpdateTime = entity.ticksExisted;
         }
     }
 
@@ -232,7 +232,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
 
     @Override
     public DebugSource getDebugSource() {
-        if (DebugAnimationScreen.isEnabled()) {
+        if (RenderDebugAnimationScreenEvent.isEnabled()) {
             return CustomDebugSource.INSTANCE;
         } else {
             return null;
@@ -254,7 +254,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
     @Override
     @Nullable
     protected GeoRenderData update(float partialTicks, RenderContext context) {
-        RenderSystem.assertOnRenderThread();
+        RenderUtil.assertOnMinecraftThread();
         var resolvedContext = resolveRenderContext(context);
         if (resolvedContext.immutable() && asyncTask != null) {
             var result = awaitAsyncUpdate();

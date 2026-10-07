@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.realcamera;
 
+/*
 import net.minecraftforge.fml.ModList;
 
 public class RealCameraCompat {
@@ -17,3 +18,4 @@ public class RealCameraCompat {
         return false;
     }
 }
+*/

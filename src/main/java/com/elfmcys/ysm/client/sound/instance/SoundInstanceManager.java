@@ -2,11 +2,11 @@ package com.elfmcys.ysm.client.sound.instance;
 
 import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
 import com.elfmcys.ysm.init.ModSounds;
+import com.elfmcys.ysm.util.IdUtil;
 import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.SoundEvent;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Consumer;
@@ -24,9 +24,9 @@ public class SoundInstanceManager {
         MinecraftSoundInstance instance;
         if (soundName.contains(":")) {
             // 如果声音名带冒号，那么大概率就是调用原版音频，因为 Windows 中冒号不是合法的文件名
-            var soundId = ResourceLocation.tryParse(soundName);
+            var soundId = IdUtil.tryParse(soundName);
             if (soundId != null) {
-                SoundEvent soundEvent = SoundEvent.createVariableRangeEvent(soundId);
+                SoundEvent soundEvent = new SoundEvent(soundId);
                 instance = new MinecraftSoundInstance(soundEvent, animatable.getEntity());
             } else {
                 instance = null;
@@ -65,10 +65,10 @@ public class SoundInstanceManager {
         } else {
             unnamedInstanceList.add(instance);
         }
-        Minecraft.getInstance().execute(() -> {
-            var sounds = Minecraft.getInstance().getSoundManager();
-            sounds.play(instance);
-            if (!sounds.isActive(instance)) {
+        Minecraft.getMinecraft().addScheduledTask(() -> {
+            var sounds = Minecraft.getMinecraft().getSoundHandler();
+            sounds.playSound(instance);
+            if (!sounds.isSoundPlaying(instance)) {
                 instance.setStopped();
             }
         });

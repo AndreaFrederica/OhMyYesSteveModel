@@ -2,9 +2,9 @@ package com.elfmcys.ysm.geckolib3.core.molang.builtin.query;
 
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
+import com.elfmcys.ysm.mclib.utils.Interpolations;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.util.Mth;
+import net.minecraft.entity.Entity;
 
 public class Position extends EntityFunction {
     @Override
@@ -13,9 +13,9 @@ public class Position extends EntityFunction {
         float partialTicks = context.entity().animationEvent().getPartialTick();
         Entity entity = context.entity().entity();
         switch (axis) {
-            case 0: return Mth.lerp(partialTicks, entity.xo, entity.getX());
-            case 1: return Mth.lerp(partialTicks, entity.yo, entity.getY());
-            case 2: return Mth.lerp(partialTicks, entity.zo, entity.getZ());
+            case 0: return Interpolations.lerp(entity.prevPosX, entity.posX, partialTicks);
+            case 1: return Interpolations.lerp(entity.prevPosY, entity.posY, partialTicks);
+            case 2: return Interpolations.lerp(entity.prevPosZ, entity.posZ, partialTicks);
             default: return null;
         }
     }

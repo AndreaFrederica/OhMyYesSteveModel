@@ -1,7 +1,21 @@
 package com.elfmcys.ysm.client.sound.stream;
 
-import net.minecraft.client.sounds.AudioStream;
+import org.jetbrains.annotations.NotNull;
 
-public interface CustomAudioStream extends AudioStream {
+import javax.sound.sampled.AudioFormat;
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
+public interface CustomAudioStream extends Closeable {
+    @NotNull
+    AudioFormat getFormat();
+
+    @NotNull
+    ByteBuffer read(int size) throws IOException;
+
+    @Override
+    void close() throws IOException;
+
     boolean isClosed();
 }

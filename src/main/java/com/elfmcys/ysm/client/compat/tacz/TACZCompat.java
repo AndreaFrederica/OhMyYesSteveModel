@@ -1,38 +1,31 @@
 package com.elfmcys.ysm.client.compat.tacz;
 
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
-import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
-import com.elfmcys.ysm.geckolib3.core.PlayState;
-import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
-import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
-import com.elfmcys.ysm.geckolib3.geo.GeoRenderData;
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.ModList;
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.Nullable;
 
 
 public class TACZCompat {
+    /*
     private static final String MOD_ID = "tacz";
     private static boolean INSTALLED = false;
 
     public static void init() {
-        INSTALLED = ModList.get().isLoaded(MOD_ID);
+        INSTALLED = Loader.isModLoaded(MOD_ID);
         if (INSTALLED) {
             TacCompatInner.registerEvent();
         }
     }
+    */
 
     public static void addBinding(CtrlBinding ctrlBinding) {
+        /*
         if (isInstalled()) {
             TacCtrlBinding.addInnerBinding(ctrlBinding);
         } else {
             addEmptyBinding(ctrlBinding);
         }
+        */
+        addEmptyBinding(ctrlBinding);
     }
 
     /**
@@ -50,6 +43,7 @@ public class TACZCompat {
         binding.livingEntityVar("tac_fire_mode", ctx -> StringUtils.EMPTY);
     }
 
+    /*
     public static void renderOffsetHand(ItemStack offhandItem, GeoRenderData data, LivingEntity livingEntity, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         if (isInstalled() && TacCompatInner.isGun(offhandItem)) {
             poseStack.pushPose();
@@ -105,4 +99,5 @@ public class TACZCompat {
     public static boolean isInstalled() {
         return INSTALLED;
     }
+    */
 }

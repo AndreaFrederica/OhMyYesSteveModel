@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.gui;
 
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.capability.YsmMaidCapabilityProvider;
 import com.elfmcys.ysm.client.event.RegisterEntityRenderersEvent;
 import com.elfmcys.ysm.client.gui.PlayerModelScreen;
@@ -48,3 +49,4 @@ public class MaidTextureScreen extends PlayerTextureScreen {
         RenderSystem.disableScissor();
     }
 }
+*/

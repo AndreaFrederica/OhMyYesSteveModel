@@ -2,9 +2,12 @@ package com.elfmcys.ysm.capability;
 
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.google.common.collect.Sets;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagString;
+import net.minecraft.util.EnumFacing;
+import net.minecraftforge.common.capabilities.Capability;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
 
@@ -39,22 +42,37 @@ public class StarModelsCapability {
         starModels.clear();
     }
 
-    public ListTag serializeNBT() {
-        ListTag listTag = new ListTag();
+    public NBTTagList serializeNBT() {
+        NBTTagList listTag = new NBTTagList();
         for (Hash256 modelHash : starModels) {
-            listTag.add(StringTag.valueOf(modelHash.toString()));
+            listTag.appendTag(new NBTTagString(modelHash.toString()));
         }
         return listTag;
     }
 
-    public void deserializeNBT(ListTag nbt) {
+    public void deserializeNBT(NBTTagList nbt) {
         this.starModels.clear();
-        for (Tag tag : nbt) {
-            try {
-                starModels.add(Hash256.parse(tag.getAsString()));
-            } catch (IllegalArgumentException ignored) {
-                // Old path-based favorites are intentionally not migrated.
+        for (NBTBase tag : nbt) {
+            if (tag instanceof NBTTagString string) {
+                try {
+                    starModels.add(Hash256.parse(string.getString()));
+                } catch (IllegalArgumentException ignored) {
+                    // Old path-based favorites are intentionally not migrated.
+                }
             }
+        }
+    }
+
+    public static class Storage implements Capability.IStorage<StarModelsCapability> {
+        @Nullable
+        @Override
+        public NBTBase writeNBT(Capability<StarModelsCapability> capability, StarModelsCapability instance, EnumFacing side) {
+            return instance.serializeNBT();
+        }
+
+        @Override
+        public void readNBT(Capability<StarModelsCapability> capability, StarModelsCapability instance, EnumFacing side, NBTBase nbt) {
+            instance.deserializeNBT((NBTTagList) nbt);
         }
     }
 }

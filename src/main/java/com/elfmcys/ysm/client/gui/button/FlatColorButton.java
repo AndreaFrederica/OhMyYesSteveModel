@@ -1,63 +1,51 @@
 package com.elfmcys.ysm.client.gui.button;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.resources.I18n;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class FlatColorButton extends Button {
-    private static final int TOOLTIP_Z = 4000;
-
     private boolean isSelect = false;
-    private List<Component> tooltips;
+    private List<String> tooltips;
 
-    public FlatColorButton(int pX, int pY, int pWidth, int pHeight, Component pMessage, OnPress pOnPress) {
-        super(pX, pY, pWidth, pHeight, pMessage, pOnPress, DEFAULT_NARRATION);
+    public FlatColorButton(int pX, int pY, int pWidth, int pHeight, String pMessage, Consumer<Button> pOnPress) {
+        super(pX, pY, pWidth, pHeight, pMessage, pOnPress);
     }
 
     public FlatColorButton setTooltips(String key) {
-        tooltips = Collections.singletonList(Component.translatable(key));
+        tooltips = Collections.singletonList(I18n.format(key));
         return this;
     }
 
-    public FlatColorButton setTooltips(List<Component> tooltips) {
+    public FlatColorButton setTooltips(List<String> tooltips) {
         this.tooltips = tooltips;
         return this;
     }
 
-    public void renderToolTip(GuiGraphics graphics, Screen screen, int pMouseX, int pMouseY) {
-        if (this.isHovered && tooltips != null) {
-            graphics.pose().pushPose();
-            try {
-                graphics.pose().translate(0, 0, TOOLTIP_Z);
-                graphics.renderComponentTooltip(screen.getMinecraft().font, tooltips, pMouseX, pMouseY);
-            } finally {
-                graphics.pose().popPose();
-            }
+    public void renderToolTip(GuiScreen screen, int pMouseX, int pMouseY) {
+        if (this.isMouseOver() && tooltips != null) {
+            screen.drawHoveringText(tooltips, pMouseX, pMouseY);
         }
     }
 
     @Override
-    public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float pPartialTick) {
-        Minecraft minecraft = Minecraft.getInstance();
-        Font font = minecraft.font;
+    public void renderWidget(Minecraft mc, int mouseX, int mouseY, float pPartialTick) {
         if (isSelect) {
-            graphics.fillGradient(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xff_1E90FF, 0xff_1E90FF);
+            this.drawGradientRect(this.x, this.y, this.x + this.width, this.y + this.height, 0xff_1E90FF, 0xff_1E90FF);
         } else {
-            graphics.fillGradient(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xff_434242, 0xff_434242);
+            this.drawGradientRect(this.x, this.y, this.x + this.width, this.y + this.height, 0xff_434242, 0xff_434242);
         }
-        if (this.isHoveredOrFocused()) {
-            graphics.fillGradient(this.getX(), this.getY() + 1, this.getX() + 1, this.getY() + this.height - 1, 0xff_F3EFE0, 0xff_F3EFE0);
-            graphics.fillGradient(this.getX(), this.getY(), this.getX() + this.width, this.getY() + 1, 0xff_F3EFE0, 0xff_F3EFE0);
-            graphics.fillGradient(this.getX() + this.width - 1, this.getY() + 1, this.getX() + this.width, this.getY() + this.height - 1, 0xff_F3EFE0, 0xff_F3EFE0);
-            graphics.fillGradient(this.getX(), this.getY() + this.height - 1, this.getX() + this.width, this.getY() + this.height, 0xff_F3EFE0, 0xff_F3EFE0);
+        if (this.isMouseOver()) {
+            this.drawGradientRect(this.x, this.y + 1, this.x + 1, this.y + this.height - 1, 0xff_F3EFE0, 0xff_F3EFE0);
+            this.drawGradientRect(this.x, this.y, this.x + this.width, this.y + 1, 0xff_F3EFE0, 0xff_F3EFE0);
+            this.drawGradientRect(this.x + this.width - 1, this.y + 1, this.x + this.width, this.y + this.height - 1, 0xff_F3EFE0, 0xff_F3EFE0);
+            this.drawGradientRect(this.x, this.y + this.height - 1, this.x + this.width, this.y + this.height, 0xff_F3EFE0, 0xff_F3EFE0);
         }
-        this.renderScrollingString(graphics, font, 2, 0xF3EFE0);
+        this.renderScrollingString(mc.fontRenderer, 2, 0xF3EFE0);
     }
 
     public void setSelect(boolean select) {

@@ -1,7 +1,6 @@
 package com.elfmcys.ysm;
 
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLPaths;
+import com.elfmcys.ysm.model.catalog.PathsUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -46,12 +45,12 @@ public final class AssetPaths {
 
     /** Forge game directory. */
     public static Path gameDirectory() {
-        return FMLPaths.GAMEDIR.get();
+        return PathsUtils.gameDirectory();
     }
 
     /** Forge config directory. */
     public static Path configDirectory() {
-        return FMLPaths.CONFIGDIR.get();
+        return gameDirectory().resolve("config");
     }
 
     /** Mod-owned directory inside the game directory. */
@@ -108,8 +107,8 @@ public final class AssetPaths {
 
     /** Builtin models embedded in the mod jar. */
     public static Path builtinModelsResource() {
-        return ModList.get().getModFileById(MOD_DIRECTORY).getFile()
-                .findResource("assets", MOD_DIRECTORY, BUILTIN_MODEL_DIRECTORY);
+        return PathsUtils.containerRoot(YesSteveModel.MOD_ID)
+                .resolve("assets", MOD_DIRECTORY, BUILTIN_MODEL_DIRECTORY);
     }
 
     // --------------------------------------------------------- game cache

@@ -1,7 +1,7 @@
 package com.elfmcys.ysm.network.protocol;
 
 import com.elfmcys.ysm.network.NetworkPayload;
-import net.minecraftforge.network.NetworkEvent;
+import com.elfmcys.ysm.network.forge.NetworkEvent;
 import us.hebi.quickbuf.ProtoMessage;
 import us.hebi.quickbuf.ProtoSource;
 

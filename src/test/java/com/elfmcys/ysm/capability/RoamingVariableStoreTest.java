@@ -38,7 +38,7 @@ class RoamingVariableStoreTest {
         destination.moveFrom(source);
 
         assertEquals(3F, destination.variables(MODEL_HASH).getFloat("value"));
-        assertFalse(source.serialize().contains(String.valueOf(MODEL_HASH.roamingHash())));
+        assertFalse(source.serialize().hasKey(String.valueOf(MODEL_HASH.roamingHash())));
     }
 
     @Test

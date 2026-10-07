@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.parcool;
 
+/*
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import net.minecraft.world.entity.LivingEntity;
@@ -21,3 +22,4 @@ public class ParCoolCtrlBinding {
         return StringUtils.EMPTY;
     }
 }
+*/

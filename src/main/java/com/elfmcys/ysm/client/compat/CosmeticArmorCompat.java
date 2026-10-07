@@ -1,10 +1,10 @@
 package com.elfmcys.ysm.client.compat;
 
-import lain.mods.cos.api.CosArmorAPI;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.ModList;
+/*
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.EntityEquipmentSlot;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fml.common.Loader;
 
 import java.util.Optional;
 
@@ -13,19 +13,19 @@ public class CosmeticArmorCompat {
     private static boolean INSTALLED;
 
     public static void init() {
-        INSTALLED = ModList.get().isLoaded(MOD_ID);
+        INSTALLED = Loader.isModLoaded(MOD_ID);
     }
 
     public static boolean isInstalled() {
         return INSTALLED;
     }
 
-    public static Optional<ItemStack> getSkinArmorItem(Player player, EquipmentSlot slot) {
-        if (!slot.isArmor()) {
+    public static Optional<ItemStack> getSkinArmorItem(EntityPlayer player, EntityEquipmentSlot slot) {
+        if (slot.getSlotType() != EntityEquipmentSlot.Type.ARMOR) {
             return Optional.empty();
         }
 
-        var cosInventory = CosArmorAPI.getCAStacksClient(player.getUUID());
+        var cosInventory = CosArmorAPI.getCAStacksClient(player.getUniqueID());
         if (cosInventory.isSkinArmor(slot.getIndex())) {
             return Optional.of(ItemStack.EMPTY);
         }
@@ -34,3 +34,4 @@ public class CosmeticArmorCompat {
         return skinArmor.isEmpty() ? Optional.empty() : Optional.of(skinArmor);
     }
 }
+*/

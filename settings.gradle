@@ -4,6 +4,13 @@ pluginManagement {
         gradlePluginPortal()
         maven { url = 'https://maven.neoforged.net/releases' }
     }
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == 'net.neoforged.moddev.mcpforge') {
+                useModule("io.github.ruixuqi:moddev-gradle:${requested.version}")
+            }
+        }
+    }
 }
 
 rootProject.name = "YesSteveModel"

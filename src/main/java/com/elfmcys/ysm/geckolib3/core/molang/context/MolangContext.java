@@ -13,15 +13,15 @@ import com.elfmcys.ysm.molang.runtime.ExecutionContext;
 import com.elfmcys.ysm.molang.runtime.ExpressionEvaluator;
 import com.elfmcys.ysm.molang.runtime.Function;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.client.multiplayer.WorldClient;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.IProjectile;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.text.ITextComponent;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Random;
 
 public class MolangContext<TEntity> implements IContext<TEntity> {
     protected final TEntity entity;
@@ -29,7 +29,7 @@ public class MolangContext<TEntity> implements IContext<TEntity> {
     protected final AnimationEvent<?> animationEvent;
     protected final EntityModelData data;
     protected final SoundInstanceManager globalSoundManager;
-    protected final RandomSource random;
+    protected final Random random;
     protected final MolangMemory memory;
     private final DebugSource debugSource;
 
@@ -39,7 +39,7 @@ public class MolangContext<TEntity> implements IContext<TEntity> {
     private boolean allowEmitting;
 
     public MolangContext(TEntity entity, AnimationEvent<?> animationEvent,
-                         MolangMemory memory, RandomSource random, SoundInstanceManager globalSoundManager) {
+                         MolangMemory memory, Random random, SoundInstanceManager globalSoundManager) {
         this.entity = entity;
         this.animatableEntity = animationEvent.getAnimatableEntity();
         this.animationEvent = animationEvent;
@@ -62,18 +62,17 @@ public class MolangContext<TEntity> implements IContext<TEntity> {
         this.memory = context.memory;
         this.debugSource = context.debugSource;
         this.globalSoundManager = context.globalSoundManager;
-        if (entity instanceof Player player) {
-            player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-                foreignStorage = cap.getPublicVariableStorage();
-            });
-        } else if (entity instanceof Projectile projectile) {
-            projectile.getCapability(ProjectileAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-                foreignStorage = cap.getPublicVariableStorage();
-            });
+        if (entity instanceof EntityPlayer player) {
+            var cap = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+            if (cap != null) foreignStorage = cap.getPublicVariableStorage();
         } else if (entity instanceof Entity e) {
-            e.getCapability(VehicleAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-                foreignStorage = cap.getPublicVariableStorage();
-            });
+            if (e instanceof IProjectile) {
+                var cap = e.getCapability(ProjectileAnimatableCapabilityProvider.CAP, null);
+                if (cap != null) foreignStorage = cap.getPublicVariableStorage();
+            } else {
+                var cap = e.getCapability(VehicleAnimatableCapabilityProvider.CAP, null);
+                if (cap != null) foreignStorage = cap.getPublicVariableStorage();
+            }
         }
     }
 
@@ -103,7 +102,7 @@ public class MolangContext<TEntity> implements IContext<TEntity> {
     }
 
     @Override
-    public RandomSource random() {
+    public Random random() {
         return random;
     }
 
@@ -114,14 +113,14 @@ public class MolangContext<TEntity> implements IContext<TEntity> {
 
     @Override
     public Minecraft mc() {
-        return Minecraft.getInstance();
+        return Minecraft.getMinecraft();
     }
 
     @Override
-    public ClientLevel level() {
+    public WorldClient level() {
         Minecraft mc = mc();
         if (mc != null) {
-            return mc.level;
+            return mc.world;
         } else {
             return null;
         }
@@ -209,7 +208,7 @@ public class MolangContext<TEntity> implements IContext<TEntity> {
     }
 
     @Override
-    public void debugPrint(Component message) {
+    public void debugPrint(ITextComponent message) {
         if (isDebugEnabled()) {
             debugSource.print(message);
         }

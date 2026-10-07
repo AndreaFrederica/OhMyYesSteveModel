@@ -9,18 +9,18 @@ import com.elfmcys.ysm.proto.mixel.manifest.Manifest;
 import com.elfmcys.ysm.util.ProtoBytes;
 import java.io.IOException;
 import java.util.Objects;
-import net.minecraftforge.fml.loading.moddiscovery.ModFileInfo;
+import net.minecraftforge.fml.common.CertificateHelper;
 
 public class ModelFileWriter extends AssetFileWriter {
     public ModelFileWriter() {
         setSchemaId(ModelFileConstant.SCHEMA_ID);
         setProperty(ModelFileConstant.PROP_VERSION, ModelFileConstant.CURRENT_VERSION.toString());
         if (YesSteveModel.MOD != null) {
-            var sign = ((ModFileInfo) YesSteveModel.MOD.getModInfo().getOwningFile()).getCodeSigningFingerprint().orElse("(unsigned)");
-            var modInfo = YesSteveModel.MOD.getModInfo();
+            var cert = YesSteveModel.MOD.getSigningCertificate();
+            var sign = cert != null ? CertificateHelper.getFingerprint(cert) : "(unsigned)";
             setProperty(ModelFileConstant.PROP_VENDOR, String.format("%s %s %s",
-                    modInfo.getModId(),
-                    modInfo.getVersion() != null ? modInfo.getVersion().toString() : "(unknown)",
+                    YesSteveModel.MOD.getModId(),
+                    YesSteveModel.MOD.getVersion() != null ? YesSteveModel.MOD.getVersion() : "(unknown)",
                     sign));
         } else {
             setProperty(ModelFileConstant.PROP_VENDOR, "dev");

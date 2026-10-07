@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation;
 
+/*
 import com.elfmcys.ysm.client.animation.AnimationState;
 import com.elfmcys.ysm.client.animation.Priority;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.CustomYsmMaidEntity;
@@ -49,3 +50,4 @@ public class GeoMaidAnimatedRegister {
         return 20 * (float) (livingEntity.position().y - livingEntity.yo);
     }
 }
+*/

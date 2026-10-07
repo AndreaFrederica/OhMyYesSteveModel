@@ -2,48 +2,47 @@ package com.elfmcys.ysm.client.renderer.replace;
 
 import com.elfmcys.ysm.capability.VehicleAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.event.RegisterEntityRenderersEvent;
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.vehicle.AbstractMinecart;
-import net.minecraft.world.phys.Vec3;
+import com.elfmcys.ysm.mclib.utils.Interpolations;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.item.EntityMinecart;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 
 public class EntityRendererReplace {
-    public static boolean renderInMixin(Entity entity, float yawIn, float partialTick, PoseStack poseStack,
-                                        MultiBufferSource bufferSource, int packedLight) {
-        return entity.getCapability(VehicleAnimatableCapabilityProvider.CAP).map(cap -> {
+    public static boolean renderInMixin(Entity entity, double x, double y, double z, float yawIn, float partialTick) {
+        var cap = entity.getCapability(VehicleAnimatableCapabilityProvider.CAP, null);
+        if (cap != null) {
             if (cap.isInitialized() && cap.isModelPresent()) {
                 float yaw = getYaw(entity, yawIn, partialTick);
-                RegisterEntityRenderersEvent.getVehicleRenderer().render(cap, yaw, partialTick, poseStack, bufferSource, packedLight);
+                RegisterEntityRenderersEvent.getVehicleRenderer().doRender(entity, x, y, z, yaw, partialTick);
                 return false;
             }
-            return true;
-        }).orElse(true);
+        }
+        return true;
     }
 
     public static float getYaw(Entity entity, float yawIn, float partialTick) {
         float yaw = yawIn;
 
-        if (entity instanceof LivingEntity livingEntity) {
+        if (entity instanceof EntityLivingBase livingEntity) {
             yaw = getLivingEntityYaw(livingEntity, partialTick);
-        } else if (entity instanceof AbstractMinecart minecart) {
+        } else if (entity instanceof EntityMinecart minecart) {
             yaw = getMinecartYaw(minecart, partialTick, yaw);
         }
         return yaw;
     }
 
-    private static float getLivingEntityYaw(LivingEntity livingEntity, float partialTick) {
-        float yaw = Mth.rotLerp(partialTick, livingEntity.yBodyRotO, livingEntity.yBodyRot);
-        float headYaw = Mth.rotLerp(partialTick, livingEntity.yHeadRotO, livingEntity.yHeadRot);
+    private static float getLivingEntityYaw(EntityLivingBase livingEntity, float partialTick) {
+        float yaw = Interpolations.lerpYaw(livingEntity.prevRenderYawOffset, livingEntity.renderYawOffset, partialTick);
+        float headYaw = Interpolations.lerpYaw(livingEntity.prevRotationYawHead, livingEntity.rotationYawHead, partialTick);
 
-        boolean shouldSit = livingEntity.isPassenger() && (livingEntity.getVehicle() != null && livingEntity.getVehicle().shouldRiderSit());
-        if (shouldSit && livingEntity.getVehicle() instanceof LivingEntity vehicle) {
-            yaw = Mth.rotLerp(partialTick, vehicle.yBodyRotO, vehicle.yBodyRot);
+        boolean shouldSit = livingEntity.isRiding() && (livingEntity.getRidingEntity() != null && livingEntity.getRidingEntity().shouldRiderSit());
+        if (shouldSit && livingEntity.getRidingEntity() instanceof EntityLivingBase vehicle) {
+            yaw = Interpolations.lerpYaw(vehicle.prevRenderYawOffset, vehicle.renderYawOffset, partialTick);
 
-            float wrappedYawDiff = Mth.wrapDegrees(headYaw - yaw);
-            wrappedYawDiff = Mth.clamp(wrappedYawDiff, -85.0F, 85.0F);
+            float wrappedYawDiff = MathHelper.wrapDegrees(headYaw - yaw);
+            wrappedYawDiff = MathHelper.clamp(wrappedYawDiff, -85.0F, 85.0F);
 
             yaw = headYaw - wrappedYawDiff;
             if (wrappedYawDiff * wrappedYawDiff > 2500.0F) {
@@ -53,14 +52,15 @@ public class EntityRendererReplace {
         return yaw;
     }
 
-    private static float getMinecartYaw(AbstractMinecart minecart, float partialTick, float yaw) {
-        double interpX = Mth.lerp(partialTick, minecart.xOld, minecart.getX());
-        double interpY = Mth.lerp(partialTick, minecart.yOld, minecart.getY());
-        double interpZ = Mth.lerp(partialTick, minecart.zOld, minecart.getZ());
-        Vec3 basePos = minecart.getPos(interpX, interpY, interpZ);
+    /// {@link net.minecraft.client.renderer.entity.RenderMinecart#doRender(EntityMinecart, double, double, double, float, float)}
+    private static float getMinecartYaw(EntityMinecart minecart, float partialTick, float yaw) {
+        double interpX = Interpolations.lerp(minecart.lastTickPosX, minecart.posX, partialTick);
+        double interpY = Interpolations.lerp(minecart.lastTickPosY, minecart.posY, partialTick);
+        double interpZ = Interpolations.lerp(minecart.lastTickPosZ, minecart.posZ, partialTick);
+        Vec3d basePos = minecart.getPos(interpX, interpY, interpZ);
         if (basePos != null) {
-            Vec3 posFront = minecart.getPosOffs(interpX, interpY, interpZ, 0.3F);
-            Vec3 posBack = minecart.getPosOffs(interpX, interpY, interpZ, -0.3F);
+            Vec3d posFront = minecart.getPosOffset(interpX, interpY, interpZ, 0.3F);
+            Vec3d posBack = minecart.getPosOffset(interpX, interpY, interpZ, -0.3F);
             if (posFront == null) {
                 posFront = basePos;
             }
@@ -68,7 +68,7 @@ public class EntityRendererReplace {
             if (posBack == null) {
                 posBack = basePos;
             }
-            Vec3 offset = posBack.add(-posFront.x, -posFront.y, -posFront.z);
+            Vec3d offset = posBack.add(-posFront.x, -posFront.y, -posFront.z);
             if (offset.length() != 0) {
                 yaw = (float) (Math.atan2(offset.z, offset.x) * 180 / Math.PI);
             }

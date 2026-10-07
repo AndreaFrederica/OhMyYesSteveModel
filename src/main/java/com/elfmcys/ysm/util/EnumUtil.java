@@ -1,24 +1,22 @@
 package com.elfmcys.ysm.util;
 
-import it.unimi.dsi.fastutil.objects.Object2ReferenceOpenHashMap;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.item.UseAnim;
-import org.apache.commons.lang3.EnumUtils;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import net.minecraft.inventory.EntityEquipmentSlot;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
 import java.util.Locale;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class EnumUtil {
-    private final static Object2ReferenceOpenHashMap<String, EquipmentSlot> EQUIPMENT_SLOTS =
-            new Object2ReferenceOpenHashMap<>(Arrays.stream(EquipmentSlot.values()).collect(Collectors.toMap(u -> u.getName().toLowerCase(Locale.US), u -> u)));
+    private static final Object2ObjectOpenHashMap<String, EntityEquipmentSlot> EQUIPMENT_SLOTS = new Object2ObjectOpenHashMap<>();
 
-    public static Optional<UseAnim> getUseAnim(String name) {
-        return Optional.ofNullable(EnumUtils.getEnum(UseAnim.class, name.toUpperCase(Locale.US)));
+    static {
+        for (EntityEquipmentSlot slot : EntityEquipmentSlot.values()) {
+            EQUIPMENT_SLOTS.put(slot.getName().toLowerCase(Locale.US), slot);
+        }
     }
 
-    public static Optional<EquipmentSlot> getEquipmentSlot(String name) {
-        return Optional.ofNullable(EQUIPMENT_SLOTS.get(name));
+    @Nullable
+    public static EntityEquipmentSlot getEquipmentSlot(String name) {
+        return EQUIPMENT_SLOTS.get(name);
     }
 }

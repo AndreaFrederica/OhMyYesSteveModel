@@ -1,32 +1,38 @@
 package com.elfmcys.ysm.util;
 
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.client.event.InputEvent;
+import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.settings.KeyModifier;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 public class InputCheckUtil {
-    @SuppressWarnings("removal")
-    public static boolean keyIsMatch(InputEvent.Key event, KeyMapping keyMapping) {
-        return keyMapping.matches(event.getKey(), event.getScanCode())
+    public static boolean keyIsPress() {
+        return Keyboard.getEventKeyState() && !Keyboard.isRepeatEvent();
+    }
+
+    public static boolean keyIsMatch(KeyBinding keyMapping) {
+        int keyCode = Keyboard.getEventKey();
+        return matches(keyMapping, keyCode)
                && keyMapping.getKeyModifier().equals(KeyModifier.getActiveModifier());
     }
 
+    public static boolean matches(KeyBinding keyMapping, int targetKeyCode) {
+        int keyCode = keyMapping.getKeyCode();
+        return keyCode != 0 && keyCode == targetKeyCode;
+    }
+
     public static boolean isInGame() {
-        Minecraft mc = Minecraft.getInstance();
-        // 不能是加载界面
-        if (mc.getOverlay() != null) {
-            return false;
-        }
+        Minecraft mc = Minecraft.getMinecraft();
         // 不能打开任何 GUI
-        if (mc.screen != null) {
+        if (mc.currentScreen != null) {
             return false;
         }
         // 当前窗口捕获鼠标操作
-        if (!mc.mouseHandler.isMouseGrabbed()) {
+        if (!Mouse.isGrabbed()) {
             return false;
         }
         // 选择了当前窗口
-        return mc.isWindowActive();
+        return mc.inGameHasFocus;
     }
 }

@@ -6,7 +6,9 @@ import com.elfmcys.ysm.capability.ModelSelectionService;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.capability.StarModelsCapabilityProvider;
 import com.elfmcys.ysm.client.animation.molang.CustomMolangParser;
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.TlmCommonCompat;
+*/
 import com.elfmcys.ysm.event.CapabilityEvent;
 import com.elfmcys.ysm.geckolib3.core.molang.value.IValue;
 import com.elfmcys.ysm.model.domain.Hash256;
@@ -34,18 +36,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
-import net.minecraft.server.level.ServerChunkCache;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.effect.MobEffectUtil;
-import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.util.EnumHand;
 
 public final class ControlHandler {
     private static final int MAX_MOLANG_TARGETS = 1024;
@@ -62,10 +56,10 @@ public final class ControlHandler {
         var connection = context.getNetworkManager();
         if (hashes != null) context.enqueueWork(() ->
                 ClientSessionRuntime.runIfCurrent(connection, () -> {
-                    var player = Minecraft.getInstance().player;
+                    var player = Minecraft.getMinecraft().player;
                     if (player != null) {
-                        player.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP)
-                                .ifPresent(capability -> capability.setStarModels(hashes));
+                        var capability = player.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP, null);
+                        if (capability != null) capability.setStarModels(hashes);
                     }
                 }));
         context.setPacketHandled(true);
@@ -78,14 +72,16 @@ public final class ControlHandler {
         if (sender != null && message.modelHash().remaining() == Hash256.SIZE
                 && message.operation() != StarredModelOperation.STARRED_MODEL_OPERATION_UNSPECIFIED) {
             var hash = new Hash256(ProtoBytes.copy(message.modelHash()));
-            enqueueServer(context, sender, () -> sender.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP)
-                    .ifPresent(capability -> {
-                        if (message.operation() == StarredModelOperation.STARRED_MODEL_OPERATION_ADD) {
-                            capability.addModel(hash);
-                        } else {
-                            capability.removeModel(hash);
-                        }
-                    }));
+            enqueueServer(context, sender, () -> {
+                var capability = sender.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP, null);
+                if (capability != null) {
+                    if (message.operation() == StarredModelOperation.STARRED_MODEL_OPERATION_ADD) {
+                        capability.addModel(hash);
+                    } else {
+                        capability.removeModel(hash);
+                    }
+                }
+            });
         }
         context.setPacketHandled(true);
     }
@@ -94,9 +90,11 @@ public final class ControlHandler {
                                              Supplier<NetworkEvent.Context> contextSupplier) {
         var context = contextSupplier.get();
         var sender = context.getSender();
+        /*
         if (sender != null && validNonPlayerTarget(message.target())) {
+
             enqueueServer(context, sender, () -> {
-                var entity = sender.serverLevel().getEntity(message.target().entityId());
+                var entity = sender.getServerWorld().getEntityByID(message.target().entityId());
                 if (!TlmCommonCompat.canControlMaid(entity, sender)) return;
                 if (message.hasStop() && message.stop()) {
                     TlmCommonCompat.setRouletteAnim(entity, "", -1);
@@ -106,6 +104,7 @@ public final class ControlHandler {
                 }
             });
         }
+        */
         context.setPacketHandled(true);
     }
 
@@ -128,11 +127,14 @@ public final class ControlHandler {
         if (sender != null && message.hasTarget() && !message.target().orElseThrow().hasPlayerId()
                 && message.expression().length() <= MAX_EXPRESSION_LENGTH) {
             enqueueServer(context, sender, () -> {
-                var entity = sender.serverLevel().getEntity(message.target().orElseThrow().entityId());
+                var entity = sender.getServerWorld().getEntityByID(message.target().orElseThrow().entityId());
+                /*
                 if (entity != sender && !TlmCommonCompat.canControlMaid(entity, sender)) return;
+                */
+                if (entity != sender) return;
                 var event = ExecuteMolangEvent.newBuilder()
                         .addTargets(EntityRef.newBuilder()
-                                .setEntityId(entity.getId()).build())
+                                .setEntityId(entity.getEntityId()).build())
                         .setExpression(message.expression())
                         .build();
                 NetworkHandler.broadcastToVisiblePlayers(event, entity);
@@ -149,7 +151,7 @@ public final class ControlHandler {
             enqueueServer(context, sender, () -> {
                 var event = MolangSyncEvent.newBuilder()
                         .setSubject(EntityRef.newBuilder()
-                                .setEntityId(sender.getId()).build());
+                                .setEntityId(sender.getEntityId()).build());
                 message.arguments().forEach(event::addArguments);
                 NetworkHandler.broadcastToVisiblePlayersAndSelf(event.build(), sender);
             });
@@ -164,13 +166,15 @@ public final class ControlHandler {
                 && validArguments(message.arguments())) {
             var connection = context.getNetworkManager();
             context.enqueueWork(() -> ClientSessionRuntime.runIfCurrent(connection, () -> {
-                var level = Minecraft.getInstance().level;
-                Entity entity = level == null ? null : level.getEntity(message.subject().orElseThrow().entityId());
-                if (entity != null) entity.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+                var level = Minecraft.getMinecraft().world;
+                Entity entity = level == null ? null : level.getEntityByID(message.subject().orElseThrow().entityId());
+                if (entity != null) {
+                    var capability = entity.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+                    if (capability == null) return;
                     var args = new FloatArrayList(message.arguments().size());
                     message.arguments().forEach(args::add);
                     capability.molangSync(args);
-                });
+                }
             }));
         }
         context.setPacketHandled(true);
@@ -181,14 +185,14 @@ public final class ControlHandler {
         var context = contextSupplier.get();
         var sender = context.getSender();
         if (sender != null && message.hand() != Hand.HAND_UNSPECIFIED) {
-            enqueueServer(context, sender, () -> swing(sender,
-                    message.hand() == Hand.HAND_MAIN ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND));
+            enqueueServer(context, sender, () -> sender.swingArm(
+                    message.hand() == Hand.HAND_MAIN ? EnumHand.MAIN_HAND : EnumHand.OFF_HAND));
         }
         context.setPacketHandled(true);
     }
 
     private static void enqueueServer(NetworkEvent.Context context,
-                                      ServerPlayer sender, Runnable action) {
+                                      EntityPlayerMP sender, Runnable action) {
         var connection = context.getNetworkManager();
         var service = ServerModelService.current().orElse(null);
         var owner = service == null ? null
@@ -203,15 +207,14 @@ public final class ControlHandler {
         }
     }
 
-    public static void applyAcceptedModelSelection(ServerPlayer sender, Hash256 hash,
+    public static void applyAcceptedModelSelection(EntityPlayerMP sender, Hash256 hash,
                                                    String textureId) {
         applyAcceptedModelSelection(sender, hash, textureId, true);
     }
 
-    static void applyAcceptedModelSelection(ServerPlayer sender, Hash256 hash,
+    static void applyAcceptedModelSelection(EntityPlayerMP sender, Hash256 hash,
                                             String textureId, boolean publishState) {
-        var modelCapability = sender.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP)
-                .resolve().orElse(null);
+        var modelCapability = sender.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
         if (modelCapability == null) {
             return;
         }
@@ -224,8 +227,8 @@ public final class ControlHandler {
             modelCapability.applyClientAnimation("");
         });
         if (publishState && PlayerStateHandler.sendAuthoritativeFull(sender, true)
-                && sender.getVehicle() != null && sender.getVehicle().getFirstPassenger() == sender) {
-            CapabilityEvent.onVehicleSetModel(sender.getVehicle(), sender);
+                && sender.getRidingEntity() != null && sender.getRidingEntity().getControllingPassenger() == sender) {
+            CapabilityEvent.onVehicleSetModel(sender.getRidingEntity(), sender);
         }
     }
 
@@ -251,45 +254,27 @@ public final class ControlHandler {
     }
 
     private static void executeMolang(ExecuteMolangEvent message) {
-        var level = Minecraft.getInstance().level;
+        var level = Minecraft.getMinecraft().world;
         if (level == null) return;
         for (var target : message.targets()) {
             if (target.hasPlayerId()) continue;
-            Entity entity = level.getEntity(target.entityId());
-            if (entity instanceof Player player) {
-                player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+            Entity entity = level.getEntityByID(target.entityId());
+            if (entity instanceof EntityPlayer player) {
+                var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+                if (capability != null) {
                     try {
                         IValue value = CustomMolangParser.parseSingleExpressionUnsafe(message.expression());
                         capability.executeMolangExp(value, true, false, null);
                     } catch (ParseException error) {
                         YesSteveModel.LOGGER.error("Failed to execute molang " + message.expression(), error);
                     }
-                });
-            } else if (TlmCommonCompat.isMaid(entity)) {
-                TlmCommonCompat.handleExecuteMolang(entity, message.expression());
-            }
-        }
-    }
-
-    private static void swing(ServerPlayer player, InteractionHand hand) {
-        ItemStack stack = player.getItemInHand(hand);
-        if (stack.isEmpty() || !stack.onEntitySwing(player)) {
-            if (!player.swinging || player.swingTime >= currentSwingDuration(player) / 2 || player.swingTime < 0) {
-                player.swingTime = -1;
-                player.swinging = true;
-                player.swingingArm = hand;
-                if (player.level() instanceof ServerLevel level) {
-                    var packet = new ClientboundAnimatePacket(player, hand == InteractionHand.MAIN_HAND ? 0 : 3);
-                    ServerChunkCache chunks = level.getChunkSource();
-                    chunks.broadcast(player, packet);
                 }
             }
+            /*
+            else if (TlmCommonCompat.isMaid(entity)) {
+                TlmCommonCompat.handleExecuteMolang(entity, message.expression());
+            }
+            */
         }
-    }
-
-    private static int currentSwingDuration(LivingEntity entity) {
-        if (MobEffectUtil.hasDigSpeed(entity)) return 6 - (1 + MobEffectUtil.getDigSpeedAmplification(entity));
-        return entity.hasEffect(MobEffects.DIG_SLOWDOWN)
-                ? 6 + (1 + entity.getEffect(MobEffects.DIG_SLOWDOWN).getAmplifier()) * 2 : 6;
     }
 }

@@ -12,13 +12,13 @@ import com.elfmcys.ysm.geckolib3.model.provider.data.EntityModelData;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
 import com.elfmcys.ysm.molang.runtime.Function;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.RandomSource;
 
+import net.minecraft.client.multiplayer.WorldClient;
+import net.minecraft.util.text.ITextComponent;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Random;
 
 public interface IContext<TEntity> {
     TEntity entity();
@@ -27,7 +27,7 @@ public interface IContext<TEntity> {
 
     Minecraft mc();
 
-    ClientLevel level();
+    WorldClient level();
 
     AnimationEvent<?> animationEvent();
 
@@ -39,7 +39,7 @@ public interface IContext<TEntity> {
     @Nullable
     ControllerContext controllerContext();
 
-    RandomSource random();
+    Random random();
 
     <TChild> IContext<TChild> createChild(TChild child);
 
@@ -70,7 +70,7 @@ public interface IContext<TEntity> {
 
     void debugPrint(String message, Object... args);
 
-    void debugPrint(Component message);
+    void debugPrint(ITextComponent message);
 
     SoundInstanceManager getSoundManager(boolean global);
 }

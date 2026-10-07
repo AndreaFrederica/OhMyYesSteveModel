@@ -1,8 +1,8 @@
 package com.elfmcys.ysm.model.catalog.source;
 
-import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.AssetPaths;
-import net.minecraftforge.fml.ModList;
+import com.elfmcys.ysm.YesSteveModel;
+import com.elfmcys.ysm.model.catalog.PathsUtils;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -22,8 +22,8 @@ public final class ModelCatalogSources {
     }
 
     public static Path builtinIndex() {
-        return ModList.get().getModFileById(YesSteveModel.MOD_ID).getFile()
-                .findResource("assets", YesSteveModel.MOD_ID, "builtin-index.json");
+        return PathsUtils.containerRoot(YesSteveModel.MOD_ID)
+                .resolve("assets", YesSteveModel.MOD_ID, "builtin-index.json");
     }
 
     public static List<ModelCatalogSource> reloadableSources() {

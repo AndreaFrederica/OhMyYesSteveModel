@@ -1,8 +1,10 @@
 package com.elfmcys.ysm.buffer;
 
 import io.netty.util.internal.PlatformDependent;
+import org.lwjgl.system.MemoryUtil;
 
 import java.lang.ref.Reference;
+import java.nio.ByteBuffer;
 
 public final class UniBufferIO {
     private UniBufferIO() {
@@ -22,17 +24,19 @@ public final class UniBufferIO {
                     System.arraycopy(sourceArray.array(), sourceIndex,
                             targetArray.array(), targetArray.arrayOffset() + targetOffset, length);
                 } else {
-                    PlatformDependent.copyMemory(sourceArray.array(), sourceIndex,
-                            ((NativeBuffer) target).ptr() + targetOffset, length);
+                    var targetBuffer = target.nio();
+                    targetBuffer.position(targetOffset);
+                    targetBuffer.put(sourceArray.array(), sourceIndex, length);
                 }
                 return;
             }
             var sourceAddress = ((NativeBuffer) source).ptr() + sourceOffset;
             if (target instanceof ArrayBuffer targetArray) {
-                PlatformDependent.copyMemory(sourceAddress, targetArray.array(),
-                        targetArray.arrayOffset() + targetOffset, length);
+                var sourceBuffer = MemoryUtil.memByteBuffer(sourceAddress, length);
+                var targetIndex = targetArray.arrayOffset() + targetOffset;
+                ByteBuffer.wrap(targetArray.array(), targetIndex, length).put(sourceBuffer);
             } else {
-                PlatformDependent.copyMemory(sourceAddress,
+                MemoryUtil.memCopy(sourceAddress,
                         ((NativeBuffer) target).ptr() + targetOffset, length);
             }
         } finally {

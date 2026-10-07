@@ -42,9 +42,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import net.minecraft.network.Connection;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.NetworkManager;
 import us.hebi.quickbuf.ProtoMessage;
 
 /** Typed model-session handlers; game-state publication is gated onto the owner thread. */
@@ -52,11 +51,11 @@ public final class SessionProtocolHandler {
     private SessionProtocolHandler() {
     }
 
-    public static void sendServerHello(ServerPlayer player) {
+    public static void sendServerHello(EntityPlayerMP player) {
         if (!NetworkHandler.isPlayerChannelPresent(player)) {
             return;
         }
-        var requestedSyncRoaming = !ServerConfig.LOW_BANDWIDTH_USAGE.get();
+        var requestedSyncRoaming = !ServerConfig.LOW_BANDWIDTH_USAGE;
         var session = ServerModelService.instance().offerSession(player, requestedSyncRoaming);
         if (!session.pending()) {
             return;
@@ -336,11 +335,11 @@ public final class SessionProtocolHandler {
         }
     }
 
-    public static void refreshGrants(ServerPlayer player) {
+    public static void refreshGrants(EntityPlayerMP player) {
         refreshGrants(player, true);
     }
 
-    public static boolean applyCommandSelection(ServerPlayer player,
+    public static boolean applyCommandSelection(EntityPlayerMP player,
                                                 ModelInfoCapability persistence,
                                                 Selection.Model selection,
                                                 boolean ignoreGrants) {
@@ -365,7 +364,7 @@ public final class SessionProtocolHandler {
         return true;
     }
 
-    private static void refreshGrants(ServerPlayer player, boolean publish) {
+    private static void refreshGrants(EntityPlayerMP player, boolean publish) {
         var session = ServerModelService.current()
                 .flatMap(service -> service.session(player)).orElse(null);
         if (session == null) {
@@ -373,7 +372,8 @@ public final class SessionProtocolHandler {
         }
         var beforeGrants = session.grants();
         var beforeSelection = session.selection();
-        player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP).ifPresent(capability -> {
+        var capability = player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP, null);
+        if (capability != null) {
             session.setGrants(capability.getAuthModels().stream()
                     .filter(session::containsModel).collect(Collectors.toSet()));
             if (beforeSelection instanceof Selection.Model
@@ -384,11 +384,11 @@ public final class SessionProtocolHandler {
                     && !beforeGrants.equals(session.grants())) {
                 sendAuthorityDelta(player);
             }
-        });
+        }
     }
 
     private static void acceptSession(
-            ServerPlayer player, ServerModelService service, ServerModelSession session,
+            EntityPlayerMP player, ServerModelService service, ServerModelSession session,
             SessionResponse response) {
         if (response.decision()
                 == SessionDecision.SESSION_DECISION_DECLINE) {
@@ -404,7 +404,9 @@ public final class SessionProtocolHandler {
         var serverCatalog = service.catalog().orElseThrow();
         var defaultModelId = serverCatalog.defaultModel()
                 .map(ManagedContainer::modelId).orElse(null);
-        player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP).ifPresent(capability -> {
+        var capability = player.getCapability(
+                ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
+        if (capability != null) {
             if (ModelSelectionService.resolve(capability, serverCatalog).isEmpty()) {
                 session.select(new Selection.IntrinsicDefault());
                 return;
@@ -417,7 +419,7 @@ public final class SessionProtocolHandler {
                     != ServerModelSession.SelectionResult.ACCEPTED) {
                 ControlHandler.applyAcceptedModelSelection(player, null, "", false);
             }
-        });
+        }
         var catalog = SessionCollectionPublication.distributableCatalog(serverCatalog.catalog());
         var beforeSelection = session.selection();
         final ServerModelSession.CatalogTransition transition;
@@ -440,7 +442,7 @@ public final class SessionProtocolHandler {
                 "initial model-session publication");
     }
 
-    public static void publishCatalog(ServerPlayer player, CatalogSnapshot globalCatalog) {
+    public static void publishCatalog(EntityPlayerMP player, CatalogSnapshot globalCatalog) {
         var service = ServerModelService.current().orElse(null);
         var session = service == null ? null : service.session(player).orElse(null);
         if (service == null || session == null || !session.active()
@@ -448,8 +450,9 @@ public final class SessionProtocolHandler {
             return;
         }
         var requestedGrants = new HashSet<Hash256>();
-        player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP)
-                .ifPresent(capability -> requestedGrants.addAll(capability.getAuthModels()));
+        var authModels = player.getCapability(
+                AuthModelsCapabilityProvider.AUTH_MODELS_CAP, null);
+        if (authModels != null) requestedGrants.addAll(authModels.getAuthModels());
         var catalog = SessionCollectionPublication.distributableCatalog(globalCatalog);
         var previousSelection = session.selection();
         final ServerModelSession.CatalogTransition transition;
@@ -460,9 +463,8 @@ public final class SessionProtocolHandler {
                     player.getGameProfile().getName(), invalidPublication);
             return;
         }
-        player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP)
-                .ifPresent(capability -> ModelSelectionService.resolve(
-                        capability, new ServerCatalog(globalCatalog)));
+        var modelInfo = player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
+        if (modelInfo != null) ModelSelectionService.resolve(modelInfo, new ServerCatalog(globalCatalog));
         if (previousSelection instanceof Selection.Model
                 && transition.current().selection() instanceof Selection.IntrinsicDefault) {
             ControlHandler.applyAcceptedModelSelection(player, null, "");
@@ -476,7 +478,7 @@ public final class SessionProtocolHandler {
                 "model-session catalog delta");
     }
 
-    private static void sendAuthorityDelta(ServerPlayer player) {
+    private static void sendAuthorityDelta(EntityPlayerMP player) {
         var service = ServerModelService.current().orElse(null);
         var session = service == null ? null : service.session(player).orElse(null);
         if (service == null || session == null || !session.active()
@@ -491,7 +493,7 @@ public final class SessionProtocolHandler {
     }
 
     private static void sendPublication(
-            ServerPlayer player, ServerModelService service, ServerModelSession session,
+            EntityPlayerMP player, ServerModelService service, ServerModelSession session,
             List<? extends ProtoMessage<?>> messages, String description) {
         if (messages.isEmpty()) {
             return;
@@ -539,7 +541,7 @@ public final class SessionProtocolHandler {
     }
 
     private static void select(
-            ServerPlayer player, ServerModelService service, ServerModelSession session,
+            EntityPlayerMP player, ServerModelService service, ServerModelSession session,
             SelectModelRequest request) {
         Selection selection;
         try {
@@ -561,7 +563,7 @@ public final class SessionProtocolHandler {
             selection = new Selection.IntrinsicDefault();
         }
         var beforeSelection = session.selection();
-        var result = selection == null || !ServerConfig.CAN_SWITCH_MODEL.get()
+        var result = selection == null || !ServerConfig.CAN_SWITCH_MODEL
                 ? ServerModelSession.SelectionResult.INVALID_REQUEST : session.select(selection);
         if (result == ServerModelSession.SelectionResult.ACCEPTED) {
             ControlHandler.applyAcceptedModelSelection(player,
@@ -584,7 +586,7 @@ public final class SessionProtocolHandler {
 
     @FunctionalInterface
     private interface PresentationFragmentConsumer<T extends ProtoMessage<T>> {
-        void accept(Connection connection, T message,
+        void accept(NetworkManager connection, T message,
                     UniBuffer data);
     }
 }

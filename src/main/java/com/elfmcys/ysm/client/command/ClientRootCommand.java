@@ -1,55 +1,75 @@
 package com.elfmcys.ysm.client.command;
 
-import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.animation.molang.CustomMolangParser;
+import com.elfmcys.ysm.client.animation.molang.roaming.LocalRoamingStruct;
 import com.elfmcys.ysm.client.command.sub.DebugCommand;
 import com.elfmcys.ysm.client.command.sub.MolangCommand;
 import com.elfmcys.ysm.client.command.sub.SimpleWatchCommand;
 import com.elfmcys.ysm.client.entity.CustomEntity;
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.client.entity.IRoamingEntity;
-import com.elfmcys.ysm.client.gui.overlay.DebugAnimationScreen;
+import com.elfmcys.ysm.client.event.RenderDebugAnimationScreenEvent;
 import com.elfmcys.ysm.geckolib3.core.controller.IAnimationController;
 import com.elfmcys.ysm.geckolib3.core.molang.binding.ContextBinding;
-import com.elfmcys.ysm.client.animation.molang.roaming.LocalRoamingStruct;
 import com.elfmcys.ysm.geckolib3.core.molang.util.StringPool;
 import com.elfmcys.ysm.util.CommandUtil;
 import com.google.common.collect.Sets;
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.mojang.brigadier.suggestion.Suggestions;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
-import net.minecraft.commands.synchronization.SuggestionProviders;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.EntityNotFoundException;
+import net.minecraft.command.EntitySelector;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.Entity;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.World;
+import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.server.command.CommandTreeBase;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-@SuppressWarnings("removal")
-public class ClientRootCommand {
-    private static final String ROOT_NAME = "ysmclient";
-
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(ROOT_NAME)
-                .requires(source -> CommandUtil.isLocalPlayer(source.getEntity()));
-        root.then(MolangCommand.get());
-        root.then(SimpleWatchCommand.get());
-        root.then(DebugCommand.get());
-        dispatcher.register(root);
+public class ClientRootCommand extends CommandTreeBase {
+    public ClientRootCommand() {
+        this.addSubcommand(new MolangCommand());
+        this.addSubcommand(new SimpleWatchCommand());
+        this.addSubcommand(new DebugCommand());
     }
 
-    public static final SuggestionProvider<CommandSourceStack> ALL_VARS = SuggestionProviders.register(new ResourceLocation(YesSteveModel.MOD_ID, "vars"), (source, builder) -> {
-        if (source.getSource() instanceof SharedSuggestionProvider && FMLEnvironment.dist == Dist.CLIENT) {
-            return getTarget().map(cap -> {
+    @NotNull
+    @Override
+    public String getName() {
+        return "ysmclient";
+    }
+
+    @NotNull
+    @Override
+    public String getUsage(@NotNull ICommandSender sender) {
+        return "commands.yes_steve_model.ysmclient.usage";
+    }
+
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 0;
+    }
+
+    // 仅客户端时 MinecraftServer 可为 null
+    @Override
+    public boolean checkPermission(@Nullable MinecraftServer server, @NotNull ICommandSender sender) {
+        return CommandUtil.isLocalPlayer(sender.getCommandSenderEntity());
+    }
+
+    public static List<String> allVars() {
+        if (FMLCommonHandler.instance().getSide() == Side.CLIENT) {
+            var cap = getTarget();
+            if (cap != null) {
                 // v 变量
                 Set<String> vars = Sets.newHashSet();
                 cap.getAnimationProcessor().visitScopedVariableNames(name -> {
@@ -78,34 +98,72 @@ public class ClientRootCommand {
                     vars.add(String.format("fn.%s", name));
                 }
 
-                return SharedSuggestionProvider.suggest(vars, builder);
-            }).orElseGet(Suggestions::empty);
+                return new ArrayList<>(vars);
+            }
         }
-        return Suggestions.empty();
-    });
+        return List.of();
+    }
 
-    public static final SuggestionProvider<CommandSourceStack> ALL_CONTROLLERS = SuggestionProviders.register(new ResourceLocation(YesSteveModel.MOD_ID, "controllers"), (source, builder) -> {
-        if (source.getSource() instanceof SharedSuggestionProvider && FMLEnvironment.dist == Dist.CLIENT) {
-            return getTarget().map(target -> {
-                Set<String> vars = target.getAnimationData()
+    public static List<String> allControllers() {
+        if (FMLCommonHandler.instance().getSide() == Side.CLIENT) {
+            var target = getTarget();
+            if (target != null) {
+                //noinspection UnnecessaryLocalVariable
+                List<String> vars = target.getAnimationData()
                         .getAnimationControllers()
                         .stream()
                         .map(IAnimationController::getName)
-                        .collect(Collectors.toSet());
-                return SharedSuggestionProvider.suggest(vars, builder);
-            }).orElseGet(Suggestions::empty);
-        }
-        return Suggestions.empty();
-    });
-
-    private static Optional<CustomEntity<?>> getTarget() {
-        var target = DebugAnimationScreen.getTarget();
-        if (target == null) {
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player != null) {
-                target = player.getCapability(PlayerAnimatableCapabilityProvider.CAP).orElse(null);
+                        .collect(Collectors.toList());
+                return vars;
             }
         }
-        return Optional.ofNullable(target);
+        return List.of();
     }
+
+    @Nullable
+    private static CustomEntity<?> getTarget() {
+        var target = RenderDebugAnimationScreenEvent.getTarget();
+        if (target == null) {
+            EntityPlayerSP player = Minecraft.getMinecraft().player;
+            if (player != null) {
+                target = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+            }
+        }
+        return target;
+    }
+
+    public static Entity getClientEntity(@Nullable World world, ICommandSender sender, String target) throws CommandException {
+        if (world == null) {
+            throw new EntityNotFoundException(target);
+        }
+
+        if (EntitySelector.isSelector(target)) {
+            Entity entity = EntitySelector.matchOneEntity(sender, target, Entity.class);
+            if (entity == null) {
+                throw new EntityNotFoundException(target);
+            }
+            return entity;
+        }
+
+        Entity player = world.getPlayerEntityByName(target);
+        if (player != null) {
+            return player;
+        }
+
+        try {
+            UUID uuid = UUID.fromString(target);
+            for (Entity entity : world.getLoadedEntityList()) {
+                if (uuid.equals(entity.getUniqueID())) {
+                    return entity;
+                }
+            }
+        } catch (IllegalArgumentException ignored) {
+            if (target.split("-").length == 5) {
+                throw new EntityNotFoundException("commands.generic.entity.invalidUuid", target);
+            }
+        }
+
+        throw new EntityNotFoundException(target);
+    }
+
 }

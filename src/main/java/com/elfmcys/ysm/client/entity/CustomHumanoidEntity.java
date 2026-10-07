@@ -20,8 +20,8 @@ import com.elfmcys.ysm.model.domain.Hash256;
 import it.unimi.dsi.fastutil.booleans.BooleanArrayList;
 import it.unimi.dsi.fastutil.booleans.BooleanList;
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Math;
@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * 使用玩家模型的实体
  */
-public abstract class CustomHumanoidEntity<T extends LivingEntity> extends CustomEntity<T> {
+public abstract class CustomHumanoidEntity<T extends EntityLivingBase> extends CustomEntity<T> {
     protected String textureName;
     @Nullable
     private PlayerModelVariant modelVariant;

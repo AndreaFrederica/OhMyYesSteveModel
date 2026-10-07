@@ -1,0 +1,16 @@
+[{
+    "modid": "ysm",
+    "name": "Yes Steve Model",
+    "version": "${mod_version}",
+    "mcversion": "1.12.2",
+    "description": "A mod based on GeckoLib that modifies the player model",
+    "authorList": ["YS Group", "TartaricAcid", "TomatoPuddin", "AryochiL"],
+    "credits": "bernie-g (GeckoLib), fadookie (mclib), TT432 & SQwatermark (helped me solve many difficult problems)",
+    "url": "https://ysm.cfpa.team/",
+    "updateJSON": "",
+    "logoFile": "ysm.png",
+    "modProperties": {
+        "license": "Apache-2.0",
+        "issueTrackerUrl": "https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
+    }
+}]

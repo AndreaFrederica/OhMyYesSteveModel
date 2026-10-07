@@ -2,6 +2,7 @@ package com.elfmcys.ysm.client.compat.curios;
 
 import com.elfmcys.ysm.geckolib3.core.molang.binding.ContextBinding;
 import com.elfmcys.ysm.molang.runtime.Function;
+/*
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.LivingEntity;
@@ -12,9 +13,11 @@ import top.theillusivec4.curios.api.CuriosApi;
 import java.util.List;
 
 import static com.elfmcys.ysm.client.compat.curios.CuriosCompatInner.searchCuriosHandler;
+*/
 
 // FIXME: 在异步动画更新时访问有潜在的并发错误，但是 x86 上应该不太会撞上
 public class CuriosCompat {
+    /*
     private static final String MOD_ID = "curios";
     private static boolean INSTALLED;
 
@@ -63,13 +66,17 @@ public class CuriosCompat {
                 }) != null)
                 .orElse(false);
     }
+    */
 
     public static void addMolangBinding(ContextBinding binding) {
+        /*
         if (INSTALLED) {
             CuriosCompatInner.addMolangBinding(binding);
         } else {
             addMolangBindingPlaceholder(binding);
         }
+        */
+        addMolangBindingPlaceholder(binding);
     }
 
     private static void addMolangBindingPlaceholder(ContextBinding binding) {

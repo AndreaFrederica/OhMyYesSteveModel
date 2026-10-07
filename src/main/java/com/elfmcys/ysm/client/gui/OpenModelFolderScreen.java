@@ -1,38 +1,36 @@
 package com.elfmcys.ysm.client.gui;
 
+import com.elfmcys.ysm.client.gui.button.Button;
 import com.elfmcys.ysm.model.catalog.source.ModelCatalogSources;
-import net.minecraft.Util;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
+import com.elfmcys.ysm.util.GuiRenderUtil;
+import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.resources.I18n;
 
 public class OpenModelFolderScreen extends Screen {
     private final PlayerModelScreen screen;
 
     protected OpenModelFolderScreen(PlayerModelScreen screen) {
-        super(Component.literal("Open Model Folder"));
+        super();
         this.screen = screen;
     }
 
     @Override
-    protected void init() {
+    public void initGui() {
         int x = (width - 310) / 2;
         int y = height / 2 + 60;
-        this.clearWidgets();
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.yes_steve_model.open_model_folder.open"), b -> {
-            Util.getPlatform().openFile(ModelCatalogSources.customPath().toFile());
-        }).bounds(x, y, 150, 20).build());
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.yes_steve_model.model.return"), b -> {
-            getMinecraft().setScreen(this.screen);
-        }).bounds(x + 160, y, 150, 20).build());
+        this.addButton(new Button(x, y, 150, 20, I18n.format("gui.yes_steve_model.open_model_folder.open"), b -> {
+            OpenGlHelper.openFile(ModelCatalogSources.customPath().toFile());
+        }));
+        this.addButton(new Button(x + 160, y, 150, 20, I18n.format("gui.yes_steve_model.model.return"), b -> {
+            mc.displayGuiScreen(this.screen);
+        }));
     }
 
     @Override
-    public void render(GuiGraphics graphics, int pMouseX, int pMouseY, float pPartialTick) {
-        renderBackground(graphics);
-        graphics.drawWordWrap(font, Component.translatable("gui.yes_steve_model.open_model_folder.tips"),
-                (width - 400) / 2, height / 2 - 80, 400, 0XFFFFFF);
-        super.render(graphics, pMouseX, pMouseY, pPartialTick);
+    public void drawScreen(int pMouseX, int pMouseY, float pPartialTick) {
+        drawDefaultBackground();
+        GuiRenderUtil.drawWordWrap(fontRenderer, I18n.format("gui.yes_steve_model.open_model_folder.tips"),
+                (width - 400) / 2, height / 2 - 80, 0XFFFFFF, true, 400, 0);
+        super.drawScreen(pMouseX, pMouseY, pPartialTick);
     }
 }

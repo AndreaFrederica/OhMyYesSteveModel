@@ -2,19 +2,17 @@ package com.elfmcys.ysm.client.renderer.replace;
 
 import com.elfmcys.ysm.capability.ProjectileAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.event.RegisterEntityRenderersEvent;
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.entity.Entity;
 
 public class ProjectileRendererReplace {
-    public static boolean renderInMixin(Projectile entity, float yaw, float partialTick, PoseStack poseStack,
-                                        MultiBufferSource bufferSource, int packedLight) {
-        return entity.getCapability(ProjectileAnimatableCapabilityProvider.CAP).map(cap -> {
+    public static boolean renderInMixin(Entity entity, double x, double y, double z, float yaw, float partialTick) {
+        var cap = entity.getCapability(ProjectileAnimatableCapabilityProvider.CAP, null);
+        if (cap != null) {
             if (cap.isInitialized() && cap.isModelPresent()) {
-                RegisterEntityRenderersEvent.getProjectRenderer().render(cap, yaw, partialTick, poseStack, bufferSource, packedLight);
+                RegisterEntityRenderersEvent.getProjectRenderer().doRender(entity, x, y, z, yaw, partialTick);
                 return false;
             }
-            return true;
-        }).orElse(true);
+        }
+        return true;
     }
 }

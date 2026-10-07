@@ -3,12 +3,12 @@ package com.elfmcys.ysm.client.animation;
 import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
 import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.util.math.MathHelper;
 
 import java.util.function.BiPredicate;
 
-public class AnimationState<TE extends LivingEntity, AE extends AnimatableEntity<TE>> {
+public class AnimationState<TE extends EntityLivingBase, AE extends AnimatableEntity<TE>> {
     private final String animationName;
     private final LoopType loopType;
     private final int priority;
@@ -17,7 +17,7 @@ public class AnimationState<TE extends LivingEntity, AE extends AnimatableEntity
     public AnimationState(String animationName, LoopType loopType, int priority, BiPredicate<TE, AnimationEvent<AE>> predicate) {
         this.animationName = animationName;
         this.loopType = loopType;
-        this.priority = Mth.clamp(priority, Priority.HIGHEST, Priority.LOWEST);
+        this.priority = MathHelper.clamp(priority, Priority.HIGHEST, Priority.LOWEST);
         this.predicate = predicate;
     }
 

@@ -8,7 +8,7 @@ package com.elfmcys.ysm.geckolib3.core.event;
 import com.elfmcys.ysm.client.sound.instance.SoundInstanceManager;
 import com.elfmcys.ysm.geckolib3.core.keyframe.event.EventKeyFrame;
 import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
-import net.minecraft.util.StringUtil;
+import net.minecraft.util.StringUtils;
 
 import java.util.List;
 
@@ -29,7 +29,7 @@ public class SoundKeyframeExecutor {
                 return;
             }
             nextIndex++;
-            if (allowEmitting && !StringUtil.isNullOrEmpty(keyFrame.getEventData())) {
+            if (allowEmitting && !StringUtils.isNullOrEmpty(keyFrame.getEventData())) {
                 soundManager.playSound(animatable, 0, keyFrame.getEventData(), false, null);
             }
         }

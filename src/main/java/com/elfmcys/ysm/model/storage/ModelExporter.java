@@ -105,7 +105,7 @@ public final class ModelExporter {
     }
 
     private static String version() {
-        return YesSteveModel.MOD == null || YesSteveModel.MOD.getModInfo().getVersion() == null
-                ? "dev" : YesSteveModel.MOD.getModInfo().getVersion().toString();
+        return YesSteveModel.MOD == null || YesSteveModel.MOD.getVersion() == null
+                ? "dev" : YesSteveModel.MOD.getVersion();
     }
 }

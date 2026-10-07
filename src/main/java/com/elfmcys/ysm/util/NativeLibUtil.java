@@ -1,17 +1,14 @@
 package com.elfmcys.ysm.util;
 
 import com.elfmcys.ysm.YesSteveModel;
+import com.elfmcys.ysm.model.catalog.PathsUtils;
 import com.elfmcys.ysm.natives.NativeRuntime;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.Platform;
-import net.minecraft.network.chat.Component;
-import net.minecraft.util.StringUtil;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.ModLoadingStage;
-import net.minecraftforge.fml.ModLoadingWarning;
-import net.minecraftforge.fml.loading.FMLEnvironment;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.relauncher.FMLLaunchHandler;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -91,7 +88,7 @@ public final class NativeLibUtil {
     /**
      * 不支持当前平台的提示信息
      */
-    private static Component UNSUPPORTED_MSG;
+    private static ITextComponent UNSUPPORTED_MSG;
     private static String UNSUPPORTED_MSG_KEY;
     private static Object[] UNSUPPORTED_MSG_CTX;
     private static String UNSUPPORTED_MSG_STR;
@@ -124,7 +121,7 @@ public final class NativeLibUtil {
         return MOBILE_PLATFORM;
     }
 
-    public static Component getUnsupportedMsg() {
+    public static ITextComponent getUnsupportedMsg() {
         return UNSUPPORTED_MSG;
     }
 
@@ -137,9 +134,9 @@ public final class NativeLibUtil {
      */
     @Nullable
     private static String getDevLibraryPath() {
-        if (!FMLEnvironment.production) {
+        if (!FMLLaunchHandler.isDeobfuscatedEnvironment()) {
             String libPath = System.getenv(DEV_LIB_ENV);
-            return StringUtil.isNullOrEmpty(libPath) ? null : libPath;
+            return net.minecraft.util.StringUtils.isNullOrEmpty(libPath) ? null : libPath;
         }
         return null;
     }
@@ -332,7 +329,7 @@ public final class NativeLibUtil {
             return preferredPath;
         } catch (Throwable t) {
             YesSteveModel.LOGGER.warn("Failed to create preferred directory, using fallback", t);
-            return FMLPaths.GAMEDIR.get()
+            return PathsUtils.gameDirectory()
                     .resolve(YesSteveModel.MOD_ID)
                     .resolve("cache")
                     .resolve("unstable");
@@ -340,13 +337,10 @@ public final class NativeLibUtil {
     }
 
     private static String getModVersion() {
-        return ModList.get()
-                .getModFileById(YesSteveModel.MOD_ID)
-                .getFile()
-                .getModInfos()
-                .get(0)
-                .getVersion()
-                .toString();
+        return Loader.instance()
+                .getIndexedModList()
+                .get(YesSteveModel.MOD_ID)
+                .getVersion();
     }
 
     /**
@@ -432,14 +426,14 @@ public final class NativeLibUtil {
         if (hint == null) {
             hint = SystemUtils.OS_NAME + " " + SystemUtils.OS_ARCH;
         }
-        UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.unsupported_platform", hint);
+        UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.unsupported_platform", hint);
         UNSUPPORTED_MSG_KEY = "error.yes_steve_model.unsupported_platform_ext";
         UNSUPPORTED_MSG_CTX = new Object[]{hint};
         UNSUPPORTED_MSG_STR = "[YSM] Current platform is unsupported: " + hint;
     }
 
     private static void setUnsatisfiedRuntimeEnvironmentMsg(@NotNull String hint) {
-        UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.unsatisfied_runtime_env", hint);
+        UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.unsatisfied_runtime_env", hint);
         UNSUPPORTED_MSG_KEY = "error.yes_steve_model.unsatisfied_runtime_env_ext";
         UNSUPPORTED_MSG_CTX = new Object[]{hint};
         UNSUPPORTED_MSG_STR = "[YSM] Unsatisfied runtime environment: " + hint;
@@ -447,7 +441,7 @@ public final class NativeLibUtil {
 
     private static void setUnsupportedBuildMsg() {
         String hint = SystemUtils.OS_NAME + " " + SystemUtils.OS_ARCH;
-        UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.unsatisfied_build", hint);
+        UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.unsatisfied_build", hint);
         UNSUPPORTED_MSG_KEY = "error.yes_steve_model.unsatisfied_build_ext";
         UNSUPPORTED_MSG_CTX = new Object[]{hint};
         UNSUPPORTED_MSG_STR = "[YSM] This build does not support current platform: " + hint;
@@ -457,7 +451,7 @@ public final class NativeLibUtil {
         // FCL 版本信息
         String fclVersion = System.getenv(FCL_VERSION_CODE_ENV);
         if (StringUtils.isNotBlank(fclVersion)) {
-            UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.old_launcher", "FCL", "1.2.6.7");
+            UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.old_launcher", "FCL", "1.2.6.7");
             UNSUPPORTED_MSG_KEY = "error.yes_steve_model.old_launcher_ext";
             UNSUPPORTED_MSG_CTX = new Object[]{"FCL", "1.2.6.7"};
             UNSUPPORTED_MSG_STR = "[YSM] Current FCL launcher is old version";
@@ -469,12 +463,12 @@ public final class NativeLibUtil {
         if (StringUtils.isNotBlank(zalithVersion)) {
             int version = Integer.parseInt(zalithVersion);
             if (version < ZALITH_2_MIN_VERSION) {
-                UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.old_launcher", "Zalith 1", "1.4.1.1");
+                UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.old_launcher", "Zalith 1", "1.4.1.1");
                 UNSUPPORTED_MSG_KEY = "error.yes_steve_model.old_launcher_ext";
                 UNSUPPORTED_MSG_CTX = new Object[]{"Zalith 1", "1.4.1.1"};
                 UNSUPPORTED_MSG_STR = "[YSM] Current Zalith 1 launcher is old version";
             } else {
-                UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.old_launcher", "Zalith 2", "2.0.0_beta-20251118a");
+                UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.old_launcher", "Zalith 2", "2.0.0_beta-20251118a");
                 UNSUPPORTED_MSG_KEY = "error.yes_steve_model.old_launcher_ext";
                 UNSUPPORTED_MSG_CTX = new Object[]{"Zalith 2", "2.0.0_beta-20251118a"};
                 UNSUPPORTED_MSG_STR = "[YSM] Current Zalith 2 launcher is old version";
@@ -482,10 +476,11 @@ public final class NativeLibUtil {
             return;
         }
 
-        UNSUPPORTED_MSG = Component.translatable("error.yes_steve_model.unsupported_launcher");
+        UNSUPPORTED_MSG = new TextComponentTranslation("error.yes_steve_model.unsupported_launcher");
         UNSUPPORTED_MSG_STR = "[YSM] Current launcher is unsupported";
     }
 
+    /*
     @SuppressWarnings("removal")
     public static ModLoadingWarning getUnavailableWarning() {
         return new ModLoadingWarning(
@@ -493,6 +488,7 @@ public final class NativeLibUtil {
                 ModLoadingStage.SIDED_SETUP,
                 UNSUPPORTED_MSG_KEY, UNSUPPORTED_MSG_CTX);
     }
+    */
 
     /**
      * 平台配置信息

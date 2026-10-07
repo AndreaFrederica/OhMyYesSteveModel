@@ -2,111 +2,197 @@ package com.elfmcys.ysm.client.command.sub;
 
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.animation.molang.CustomMolangParser;
-import com.elfmcys.ysm.client.gui.overlay.DebugAnimationScreen;
+import com.elfmcys.ysm.client.command.ClientRootCommand;
+import com.elfmcys.ysm.client.event.RenderDebugAnimationScreenEvent;
+import com.elfmcys.ysm.command.SubCommand;
 import com.elfmcys.ysm.geckolib3.core.molang.value.IValue;
 import com.elfmcys.ysm.geckolib3.core.processor.DebugInfo;
 import com.elfmcys.ysm.molang.parser.ParseException;
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.builder.RequiredArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
+import com.elfmcys.ysm.util.CommandUtil;
 import net.minecraft.client.Minecraft;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.command.WrongUsageException;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraftforge.server.command.CommandTreeBase;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.function.Supplier;
+import java.util.List;
 
-import static com.elfmcys.ysm.client.command.ClientRootCommand.ALL_CONTROLLERS;
-import static com.elfmcys.ysm.client.command.ClientRootCommand.ALL_VARS;
-
-public class SimpleWatchCommand {
-    private static final String WATCH_NAME = "watch";
-
-    private static final String VAR_NAME = "var";
-    private static final String STATE_NAME = "state";
-    private static final String CLEAR_NAME = "clear";
-
-    private static final String EXPRESSION_NAME = "exp";
-    private static final String CONTROLLER_NAME = "controller";
-
+public class SimpleWatchCommand extends CommandTreeBase {
     /**
      * 简化版本
      * ysmclient watch var <exp> 等效于 ysmclient molang watch add post <exp_name> <exp>
      */
-    public static LiteralArgumentBuilder<CommandSourceStack> get() {
-        LiteralArgumentBuilder<CommandSourceStack> watch = Commands.literal(WATCH_NAME);
-
-        LiteralArgumentBuilder<CommandSourceStack> var = Commands.literal(VAR_NAME);
-        LiteralArgumentBuilder<CommandSourceStack> state = Commands.literal(STATE_NAME);
-        LiteralArgumentBuilder<CommandSourceStack> clear = Commands.literal(CLEAR_NAME);
-
-        Supplier<RequiredArgumentBuilder<CommandSourceStack, String>> exp = () -> Commands.argument(EXPRESSION_NAME, StringArgumentType.greedyString()).suggests(ALL_VARS);
-        Supplier<RequiredArgumentBuilder<CommandSourceStack, String>> controller = () -> Commands.argument(CONTROLLER_NAME, StringArgumentType.greedyString()).suggests(ALL_CONTROLLERS);
-
-        watch.then(var.then(exp.get().executes(SimpleWatchCommand::addExpression)));
-        watch.then(state.then(controller.get().executes(SimpleWatchCommand::addControllerState)));
-        watch.then(clear.executes(SimpleWatchCommand::clearExpression));
-
-        return watch;
+    public SimpleWatchCommand() {
+        this.addSubcommand(new VarCommand(this));
+        this.addSubcommand(new StateCommand(this));
+        this.addSubcommand(new ClearCommand(this));
     }
 
-    @SuppressWarnings("all")
-    private static int addExpression(CommandContext<CommandSourceStack> ctx) {
-        if (!isClientReady()) {
-            return Command.SINGLE_SUCCESS;
+    @NotNull
+    @Override
+    public String getName() {
+        return "watch";
+    }
+
+    @NotNull
+    @Override
+    public String getUsage(@NotNull ICommandSender sender) {
+        return "commands.yes_steve_model.ysmclient.watch.usage";
+    }
+
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 0;
+    }
+
+    private static class VarCommand extends SubCommand {
+        public VarCommand(CommandBase parent) {
+            super(parent);
         }
-        Minecraft mc = Minecraft.getInstance();
-        String exp = StringArgumentType.getString(ctx, EXPRESSION_NAME);
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "var";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.ysmclient.watch.var.usage";
+        }
+
+        @Override
+        public void execute(@Nullable MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            if (args.length != 1) {
+                throw new WrongUsageException(this.getUsage(sender));
+            }
+            addExpression(sender, args[0]);
+        }
+
+        @NotNull
+        @Override
+        public List<String> getTabCompletions(@Nullable MinecraftServer server, @NotNull ICommandSender sender,
+                                              String[] args, @Nullable BlockPos targetPos) {
+            return args.length == 1
+                    ? getListOfStringsMatchingLastWord(args, ClientRootCommand.allVars()) : List.of();
+        }
+    }
+
+    private static class StateCommand extends SubCommand {
+        public StateCommand(CommandBase parent) {
+            super(parent);
+        }
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "state";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.ysmclient.watch.state.usage";
+        }
+
+        @Override
+        public void execute(@Nullable MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            if (args.length != 1) {
+                throw new WrongUsageException(this.getUsage(sender));
+            }
+            addControllerState(args[0]);
+        }
+
+        @NotNull
+        @Override
+        public List<String> getTabCompletions(@Nullable MinecraftServer server, @NotNull ICommandSender sender,
+                                              String[] args, @Nullable BlockPos targetPos) {
+            return args.length == 1
+                    ? getListOfStringsMatchingLastWord(args, ClientRootCommand.allControllers()) : List.of();
+        }
+    }
+
+    private static class ClearCommand extends SubCommand {
+        public ClearCommand(CommandBase parent) {
+            super(parent);
+        }
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "clear";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.ysmclient.watch.clear.usage";
+        }
+
+        @Override
+        public void execute(@Nullable MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            if (args.length != 0) {
+                throw new WrongUsageException(this.getUsage(sender));
+            }
+            clearExpression();
+        }
+    }
+
+    private static void addExpression(ICommandSender sender, String exp) {
+        if (!isClientReady()) {
+            return;
+        }
+        Minecraft mc = Minecraft.getMinecraft();
         IValue value;
         try {
             value = CustomMolangParser.parseSingleExpressionUnsafe(exp);
         } catch (ParseException e) {
-            ctx.getSource().sendFailure(Component.translatable("message.yes_steve_model.model.debug_animation.parser_error", e.getMessage()));
-            return Command.SINGLE_SUCCESS;
+            CommandUtil.sendFailure(sender, new TextComponentTranslation("message.yes_steve_model.model.debug_animation.parser_error", e.getMessage()));
+            return;
         }
-        mc.execute(() -> mc.player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
-            DebugAnimationScreen.getDebugInfo().add(DebugInfo.Phase.POST_ANIMATION, exp, value);
+        mc.addScheduledTask(() -> {
+            var cap = mc.player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+            if (cap == null) return;
+            RenderDebugAnimationScreenEvent.getDebugInfo().add(DebugInfo.Phase.POST_ANIMATION, exp, value);
             // 强制打开调试界面
-            if (!DebugAnimationScreen.isEnabled()) {
-                DebugAnimationScreen.enableForLocalPlayer();
+            if (!RenderDebugAnimationScreenEvent.isEnabled()) {
+                RenderDebugAnimationScreenEvent.enableForLocalPlayer();
             }
-        }));
-
-        return Command.SINGLE_SUCCESS;
+        });
     }
 
-    @SuppressWarnings("all")
-    private static int clearExpression(CommandContext<CommandSourceStack> ctx) {
+    private static void clearExpression() {
         if (!isClientReady()) {
-            return Command.SINGLE_SUCCESS;
+            return;
         }
-        Minecraft mc = Minecraft.getInstance();
-        mc.execute(() -> mc.player.getCapability(PlayerAnimatableCapabilityProvider.CAP)
-                .ifPresent(cap -> DebugAnimationScreen.getDebugInfo().clear()));
-        DebugAnimationScreen.clearDebugController();
-        return Command.SINGLE_SUCCESS;
+        Minecraft mc = Minecraft.getMinecraft();
+        mc.addScheduledTask(() -> {
+            var cap = mc.player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+            if (cap != null) RenderDebugAnimationScreenEvent.getDebugInfo().clear();
+        });
+        RenderDebugAnimationScreenEvent.clearDebugController();
     }
 
-    @SuppressWarnings("all")
-    private static int addControllerState(CommandContext<CommandSourceStack> ctx) {
+    private static void addControllerState(String controllerName) {
         if (!isClientReady()) {
-            return Command.SINGLE_SUCCESS;
+            return;
         }
-        Minecraft mc = Minecraft.getInstance();
-        String controllerName = StringArgumentType.getString(ctx, CONTROLLER_NAME);
         // 强制打开调试界面
-        DebugAnimationScreen.addDebugController(controllerName);
-        if (!DebugAnimationScreen.isEnabled()) {
-            DebugAnimationScreen.enableForLocalPlayer();
+        RenderDebugAnimationScreenEvent.addDebugController(controllerName);
+        if (!RenderDebugAnimationScreenEvent.isEnabled()) {
+            RenderDebugAnimationScreenEvent.enableForLocalPlayer();
         }
-
-        return Command.SINGLE_SUCCESS;
     }
 
     @SuppressWarnings("ConstantValue")
     private static boolean isClientReady() {
-        return Minecraft.getInstance() != null && Minecraft.getInstance().player != null;
+        return Minecraft.getMinecraft() != null && Minecraft.getMinecraft().player != null;
     }
 }

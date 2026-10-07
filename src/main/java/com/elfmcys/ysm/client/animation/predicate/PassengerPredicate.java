@@ -7,8 +7,8 @@ import com.elfmcys.ysm.geckolib3.core.PlayState;
 import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
 import com.elfmcys.ysm.molang.runtime.ExpressionEvaluator;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
 import org.apache.commons.lang3.StringUtils;
 
 import static com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate.playAnimation;
@@ -16,12 +16,12 @@ import static com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate.pla
 public class PassengerPredicate implements IAnimationPredicate<CustomHumanoidEntity<?>> {
     @Override
     public PlayState test(AnimationEvent<CustomHumanoidEntity<?>> event, ExpressionEvaluator<?> evaluator) {
-        LivingEntity entity = event.getAnimatableEntity().getEntity();
+        EntityLivingBase entity = event.getAnimatableEntity().getEntity();
         if (entity == null || event.getAnimatableEntity() instanceof IPreviewEntity) {
             return PlayState.STOP;
         }
-        Entity passenger = entity.getFirstPassenger();
-        if (passenger == null || !passenger.isAlive()) {
+        Entity passenger = entity.getControllingPassenger();
+        if (passenger == null || !passenger.isEntityAlive()) {
             return PlayState.STOP;
         }
 

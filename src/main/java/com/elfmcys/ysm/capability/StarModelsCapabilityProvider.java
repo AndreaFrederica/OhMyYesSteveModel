@@ -1,47 +1,40 @@
 package com.elfmcys.ysm.capability;
 
-import net.minecraft.core.Direction;
-import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
-import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class StarModelsCapabilityProvider implements ICapabilitySerializable<ListTag> {
-    public static Capability<StarModelsCapability> STAR_MODELS_CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
-    private StarModelsCapability instance = null;
+public class StarModelsCapabilityProvider implements ICapabilitySerializable<NBTTagList> {
+    @CapabilityInject(StarModelsCapability.class)
+    public static Capability<StarModelsCapability> STAR_MODELS_CAP = null;
+    private final StarModelsCapability instance;
 
-    @NotNull
-    @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return STAR_MODELS_CAP.orEmpty(cap, LazyOptional.of(this::createCapability));
-    }
-
-    @NotNull
-    @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap) {
-        return getCapability(cap, null);
-    }
-
-    @NotNull
-    private StarModelsCapability createCapability() {
-        if (instance == null) {
-            this.instance = new StarModelsCapability();
-        }
-        return instance;
+    public StarModelsCapabilityProvider() {
+        this.instance = STAR_MODELS_CAP.getDefaultInstance();
     }
 
     @Override
-    public void deserializeNBT(ListTag nbt) {
-        createCapability().deserializeNBT(nbt);
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == STAR_MODELS_CAP;
+    }
+
+    @Nullable
+    @Override
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        return hasCapability(cap, side) ? STAR_MODELS_CAP.cast(instance) : null;
     }
 
     @Override
-    public ListTag serializeNBT() {
-        return createCapability().serializeNBT();
+    public void deserializeNBT(NBTTagList nbt) {
+        instance.deserializeNBT(nbt);
+    }
+
+    @Override
+    public NBTTagList serializeNBT() {
+        return instance.serializeNBT();
     }
 }

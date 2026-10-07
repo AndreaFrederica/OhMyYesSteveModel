@@ -41,7 +41,7 @@ public final class ModelSystem implements AutoCloseable {
             throw new UncheckedIOException("Failed to load the builtin model contract", error);
         }
         var fullModVersion = Objects.requireNonNull(YesSteveModel.MOD,
-                "Active mod container is unavailable").getModInfo().getVersion().toString();
+                "Active mod container is unavailable").getVersion();
         var storage = ModelStorageInfra.openDefault(fullModVersion);
         BuiltinModelCatalog builtins = null;
         ReloadableModelCatalog catalog = null;

@@ -1,13 +1,16 @@
 package com.elfmcys.ysm.client.compat.parcool;
 
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
+/*
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.config.ClientConfig;
 import com.elfmcys.ysm.geckolib3.core.controller.HybridAnimationController;
 import com.elfmcys.ysm.geckolib3.core.controller.IAnimationController;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.loading.LoadingModList;
+*/
 import org.apache.commons.lang3.StringUtils;
+/*
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
@@ -15,19 +18,19 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 import java.util.function.BiFunction;
+*/
 
 public class ParCoolCompat {
+    /*
     private static final ArtifactVersion MIN_VERSION = new DefaultArtifactVersion("3.4.1");
     private static final String MOD_ID = "parcool";
     private static boolean INSTALLED;
     private static boolean INCOMPATIBLE;
 
     public static void init() {
-        if (ClientConfig.ENABLE_PARCOOL_COMPAT != null) {
-            if (!ClientConfig.ENABLE_PARCOOL_COMPAT.get()) {
-                INSTALLED = false;
-                return;
-            }
+        if (!ClientConfig.ENABLE_PARCOOL_COMPAT) {
+            INSTALLED = false;
+            return;
         }
 
         var modFile = LoadingModList.get().getModFileById(MOD_ID);
@@ -74,12 +77,17 @@ public class ParCoolCompat {
         return null;
     }
 
+    */
+
     public static void addBinding(CtrlBinding binding) {
+        /*
         if (isInstalled()) {
             ParCoolCtrlBinding.addInnerBinding(binding);
         } else {
             addEmptyBinding(binding);
         }
+        */
+        addEmptyBinding(binding);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid;
 
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.event.CopyYsmModelEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -8,10 +9,12 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModList;
+*/
 
 /**
  * 这个类是客户端和服务端都可能用到的类
  */
+/*
 public class TlmCommonCompat {
     private static final String MOD_ID = "touhou_little_maid";
 
@@ -55,3 +58,4 @@ public class TlmCommonCompat {
         }
     }
 }
+*/

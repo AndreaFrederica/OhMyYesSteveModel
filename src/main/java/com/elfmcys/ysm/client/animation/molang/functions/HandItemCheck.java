@@ -1,27 +1,18 @@
 package com.elfmcys.ysm.client.animation.molang.functions;
 
-import com.elfmcys.ysm.client.animation.condition.InnerClassify;
+import com.elfmcys.ysm.client.match.ItemMatchKind;
+import com.elfmcys.ysm.client.match.ItemMatchRegistry;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.LivingEntityFunction;
 import com.elfmcys.ysm.geckolib3.util.MolangUtils;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.tags.ITagManager;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.inventory.EntityEquipmentSlot;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumHand;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Locale;
-
 public class HandItemCheck extends LivingEntityFunction {
-    private static final String ID_PREFIX = "$";
-    private static final String TAG_PREFIX = "#";
-    private static final String EXTRA_PREFIX = ":";
     private static final String EMPTY = "empty";
     private static final int FALSE = 0;
     private static final int TRUE = 1;
@@ -37,29 +28,29 @@ public class HandItemCheck extends LivingEntityFunction {
     }
 
     public static HandItemCheck swingCheck() {
-        return new HandItemCheck((entity, hand) -> entity.swinging && !entity.isSleeping());
+        return new HandItemCheck((entity, hand) -> entity.isSwingInProgress && !entity.isPlayerSleeping());
     }
 
     public static HandItemCheck useCheck() {
-        return new HandItemCheck((entity, hand) -> entity.isUsingItem() && !entity.isSleeping());
+        return new HandItemCheck((entity, hand) -> entity.isHandActive() && !entity.isPlayerSleeping());
     }
 
     @Override
-    protected Object eval(ExecutionContext<IContext<LivingEntity>> context, ArgumentCollection arguments) {
-        EquipmentSlot slotType = MolangUtils.parseSlotType(context.entity(), arguments.getAsString(context, 0));
-        if (slotType == null || slotType.isArmor()) {
+    protected Object eval(ExecutionContext<IContext<EntityLivingBase>> context, ArgumentCollection arguments) {
+        EntityEquipmentSlot slotType = MolangUtils.parseSlotType(context.entity(), arguments.getAsString(context, 0));
+        if (slotType == null || slotType.getSlotType() == EntityEquipmentSlot.Type.ARMOR) {
             return FALSE;
         }
 
         String input = arguments.getAsString(context, 1);
-        LivingEntity entity = context.entity().entity();
+        EntityLivingBase entity = context.entity().entity();
 
         if (StringUtils.isBlank(input)) {
             return FALSE;
         }
 
-        ItemStack item = entity.getItemBySlot(slotType);
-        InteractionHand hand = slotType == EquipmentSlot.OFFHAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        ItemStack item = entity.getItemStackFromSlot(slotType);
+        EnumHand hand = slotType == EntityEquipmentSlot.OFFHAND ? EnumHand.OFF_HAND : EnumHand.MAIN_HAND;
 
         if (!this.condition.test(entity, hand)) {
             return FALSE;
@@ -70,39 +61,8 @@ public class HandItemCheck extends LivingEntityFunction {
             return TRUE;
         }
 
-        String subInput = input.substring(1);
-        if (input.startsWith(ID_PREFIX)) {
-            ResourceLocation registryName = ForgeRegistries.ITEMS.getKey(item.getItem());
-            if (registryName == null) {
-                return FALSE;
-            }
-            boolean equals = subInput.equals(registryName.toString());
-            return equals ? TRUE : FALSE;
-        }
-
-        if (input.startsWith(TAG_PREFIX)) {
-            ITagManager<Item> tags = ForgeRegistries.ITEMS.tags();
-            if (tags == null) {
-                return FALSE;
-            }
-            ResourceLocation tag = new ResourceLocation(subInput);
-            TagKey<Item> tagKey = tags.createTagKey(tag);
-            return item.is(tagKey) ? TRUE : FALSE;
-        }
-
-        if (input.startsWith(EXTRA_PREFIX)) {
-            String innerName = InnerClassify.getClassify(item);
-            if (StringUtils.isNotBlank(innerName) && innerName.equals(subInput)) {
-                return TRUE;
-            }
-            String anim = item.getUseAnimation().name().toLowerCase(Locale.ENGLISH);
-            if (anim.equals(subInput)) {
-                return TRUE;
-            }
-            return FALSE;
-        }
-
-        return FALSE;
+        ItemMatchKind kind = ItemMatchKind.fromName(input);
+        return ItemMatchRegistry.matches(item, input, kind) ? TRUE : FALSE;
     }
 
     @Override
@@ -111,6 +71,6 @@ public class HandItemCheck extends LivingEntityFunction {
     }
 
     private interface Condition {
-        boolean test(LivingEntity entity, InteractionHand hand);
+        boolean test(EntityLivingBase entity, EnumHand hand);
     }
 }

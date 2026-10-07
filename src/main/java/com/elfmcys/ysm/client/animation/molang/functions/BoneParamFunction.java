@@ -6,7 +6,7 @@ import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.geckolib3.core.molang.util.StringPool;
 import com.elfmcys.ysm.geckolib3.core.processor.BoneView;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
 import org.jetbrains.annotations.NotNull;
 
 public abstract class BoneParamFunction extends EntityFunction {

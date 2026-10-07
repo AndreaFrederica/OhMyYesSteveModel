@@ -1,12 +1,16 @@
 package com.elfmcys.ysm.client.compat.swem;
 
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
+/*
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.fml.ModList;
+*/
+import net.minecraft.entity.EntityLivingBase;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
 public class SwemCompat {
+    /*
     private static final String MOD_ID = "swem";
     private static boolean INSTALLED;
 
@@ -17,21 +21,28 @@ public class SwemCompat {
     public static boolean isInstalled() {
         return INSTALLED;
     }
+*/
 
     @Nullable
+    public static String getAnimation(EntityLivingBase livingEntity) {
+        /*
     public static String getAnimation(LivingEntity livingEntity) {
         if (isInstalled()) {
             return SwemCompatInner.getAnimation(livingEntity);
         }
+        */
         return null;
     }
 
     public static void addBinding(CtrlBinding binding) {
+        /*
         if (isInstalled()) {
             SwemCtrlBinding.addInnerBinding(binding);
         } else {
             addEmptyBinding(binding);
         }
+        */
+        addEmptyBinding(binding);
     }
 
     /**

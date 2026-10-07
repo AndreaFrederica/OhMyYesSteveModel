@@ -1,6 +1,7 @@
 package com.elfmcys.ysm.client.compat.backpack.sophisticated;
 
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
+/*
 import com.elfmcys.ysm.client.compat.curios.CuriosCompat;
 import com.elfmcys.ysm.client.event.RegisterEntityRenderersEvent;
 import com.elfmcys.ysm.config.ClientConfig;
@@ -15,18 +16,22 @@ import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
+*/
 
 public class SophisticatedCompat {
+    /*
     private static final ArtifactVersion MIN_VERSION = new DefaultArtifactVersion("3.24.25");
     private static final String MOD_ID = "sophisticatedbackpacks";
     private static boolean INSTALLED;
     private static boolean INCOMPATIBLE;
+    */
 
     /**
      * 需要在资源加载后初始化
      */
+    /*
     public static void init() {
-        if (!ClientConfig.ENABLE_SOPHISTICATED_BACKPACK_COMPAT.get()) {
+        if (!ClientConfig.ENABLE_SOPHISTICATED_BACKPACK_COMPAT) {
             return;
         }
 
@@ -56,13 +61,17 @@ public class SophisticatedCompat {
     public static boolean isInstalled() {
         return INSTALLED;
     }
+    */
 
     public static void addBinding(CtrlBinding binding) {
+        /*
         if (isInstalled()) {
             SophisticatedCtrlBinding.addInnerBinding(binding);
         } else {
             addEmptyBinding(binding);
         }
+        */
+        addEmptyBinding(binding);
     }
 
     /**
@@ -72,6 +81,7 @@ public class SophisticatedCompat {
         binding.livingEntityVar("has_sophisticated_backpack", ctx -> false);
     }
 
+    /*
     @Nullable
     public static ItemStack getBackpackItemStack(LivingEntity livingEntity) {
         // 先尝试获取 curios 的背包
@@ -95,4 +105,5 @@ public class SophisticatedCompat {
         }
         return null;
     }
+    */
 }

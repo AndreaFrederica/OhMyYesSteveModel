@@ -1,47 +1,40 @@
 package com.elfmcys.ysm.capability;
 
-import net.minecraft.core.Direction;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
-import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class ModelInfoCapabilityProvider implements ICapabilitySerializable<CompoundTag> {
-    public static Capability<ModelInfoCapability> MODEL_INFO_CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
-    private ModelInfoCapability instance = null;
+public class ModelInfoCapabilityProvider implements ICapabilitySerializable<NBTTagCompound> {
+    @CapabilityInject(ModelInfoCapability.class)
+    public static Capability<ModelInfoCapability> MODEL_INFO_CAP = null;
+    private final ModelInfoCapability instance;
 
-    @NotNull
-    @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return MODEL_INFO_CAP.orEmpty(cap, LazyOptional.of(this::createCapability));
-    }
-
-    @NotNull
-    @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap) {
-        return getCapability(cap, null);
-    }
-
-    @NotNull
-    private ModelInfoCapability createCapability() {
-        if (instance == null) {
-            this.instance = new ModelInfoCapability();
-        }
-        return instance;
+    public ModelInfoCapabilityProvider() {
+        this.instance = MODEL_INFO_CAP.getDefaultInstance();
     }
 
     @Override
-    public void deserializeNBT(CompoundTag nbt) {
-        createCapability().deserializeNBT(nbt);
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == MODEL_INFO_CAP;
+    }
+
+    @Nullable
+    @Override
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        return hasCapability(cap, side) ? MODEL_INFO_CAP.cast(instance) : null;
     }
 
     @Override
-    public CompoundTag serializeNBT() {
-        return createCapability().serializeNBT();
+    public void deserializeNBT(NBTTagCompound nbt) {
+        instance.deserializeNBT(nbt);
+    }
+
+    @Override
+    public NBTTagCompound serializeNBT() {
+        return instance.serializeNBT();
     }
 }

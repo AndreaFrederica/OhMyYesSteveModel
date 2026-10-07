@@ -12,7 +12,7 @@ import it.unimi.dsi.fastutil.ints.Int2FloatMap;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.entity.EntityPlayerSP;
 
 final class LocalPlayerStateReporter {
     private final PlayerStateReportPlanner planner = new PlayerStateReportPlanner();
@@ -35,11 +35,11 @@ final class LocalPlayerStateReporter {
         }
     }
 
-    synchronized void tick(LocalPlayer player, PlayerAnimatableCapability capability) {
+    synchronized void tick(EntityPlayerSP player, PlayerAnimatableCapability capability) {
         if (!bindCurrentSession()) {
             return;
         }
-        planner.observe(System.nanoTime(), player.getId(), roamingSample(capability))
+        planner.observe(System.nanoTime(), player.getEntityId(), roamingSample(capability))
                 .ifPresent(report -> {
                     try {
                         NetworkHandler.sendToServer(report);

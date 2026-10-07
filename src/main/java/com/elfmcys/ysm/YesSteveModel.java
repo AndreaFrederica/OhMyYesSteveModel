@@ -1,60 +1,71 @@
 package com.elfmcys.ysm;
 
-import com.elfmcys.ysm.api.internal.event.YsmEventHandlerLoader;
-import com.elfmcys.ysm.config.ClientConfig;
-import com.elfmcys.ysm.config.ServerConfig;
-import com.elfmcys.ysm.init.ModSounds;
 import com.elfmcys.ysm.util.NativeLibUtil;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.eventbus.api.Event;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.ModContainer;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.ModLoadingWarning;
+import net.minecraft.util.text.ITextComponent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.common.ModContainer;
+import net.minecraftforge.fml.common.SidedProxy;
+import net.minecraftforge.fml.common.event.*;
+import net.minecraftforge.fml.common.eventhandler.Event;
+import net.minecraftforge.fml.common.eventhandler.EventBus;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
-
-@Mod(YesSteveModel.MOD_ID)
-@SuppressWarnings("removal")
+@Mod(
+        modid = YesSteveModel.MOD_ID,
+        name = YesSteveModel.MOD_NAME,
+        useMetadata = true,
+        guiFactory = "com.elfmcys.ysm.config.ConfigGuiFactory"
+)
 public class YesSteveModel {
     public static final String MOD_ID = "ysm";
+    public static final String MOD_NAME = "Yes Steve Model";
     public static ModContainer MOD;
     public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
-    private static IEventBus EVENT_BUS;
+    static final EventBus EVENT_BUS = new EventBus();
 
-    public YesSteveModel() throws IOException {
-        MOD = ModLoadingContext.get().getActiveContainer();
-        EVENT_BUS = FMLJavaModLoadingContext.get().getModEventBus();
-        initConfig();
+    @SuppressWarnings("unused")
+    @SidedProxy(
+            serverSide = "com.elfmcys.ysm.CommonProxy",
+            clientSide = "com.elfmcys.ysm.client.ClientProxy"
+    )
+    private static CommonProxy PROXY;
 
-        NativeLibUtil.load();
-        if (!NativeLibUtil.isAvailable()) {
-            LOGGER.error(getUnavailableMessageString());
-            return;
-        }
+    @Mod.EventHandler
+    public void preInit(FMLPreInitializationEvent event) {
+        PROXY.preInit(event);
+    }
 
-        YsmEventHandlerLoader.attach(EVENT_BUS);
+    @Mod.EventHandler
+    public void init(FMLInitializationEvent event) {
+        PROXY.init(event);
+    }
+
+    @Mod.EventHandler
+    public void postInit(FMLPostInitializationEvent event) {
+        PROXY.postInit(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStarting(FMLServerStartingEvent event) {
+        PROXY.serverStarting(event);
+    }
+
+    @Mod.EventHandler
+    public void serverStopping(FMLServerStoppingEvent event) {
+        PROXY.serverStopping(event);
+    }
+
+    @Mod.EventHandler
+    public void interModProcess(FMLInterModComms.IMCEvent event) {
+        PROXY.interModProcess(event);
     }
 
     public static void registerEventHandler(Object handler) {
         EVENT_BUS.register(handler);
-    }
-
-    private static void initConfig() {
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.init());
-        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ServerConfig.init());
-        if (FMLEnvironment.dist == Dist.CLIENT) {
-            ModSounds.SOUNDS.register(FMLJavaModLoadingContext.get().getModEventBus());
-        }
     }
 
     public static boolean postEvent(Event event) {
@@ -69,19 +80,21 @@ public class YesSteveModel {
         return NativeLibUtil.isMobilePlatform();
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @SideOnly(Side.CLIENT)
     public static void sendUnavailableMessage() {
-        var player = Minecraft.getInstance().player;
+        var player = Minecraft.getMinecraft().player;
         if (player != null) {
-            player.sendSystemMessage(getUnavailableMessage());
+            player.sendMessage(getUnavailableMessage());
         }
     }
 
+    /*
     public static ModLoadingWarning getUnavailableWarning() {
         return NativeLibUtil.getUnavailableWarning();
     }
+    */
 
-    public static Component getUnavailableMessage() {
+    public static ITextComponent getUnavailableMessage() {
         return NativeLibUtil.getUnsupportedMsg();
     }
 

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.swem;
 
+/*
 import com.alaharranhonor.swem.forge.entities.horse.SWEMHorseEntityBase;
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
@@ -39,3 +40,4 @@ public class SwemCtrlBinding {
         return StringUtils.EMPTY;
     }
 }
+*/

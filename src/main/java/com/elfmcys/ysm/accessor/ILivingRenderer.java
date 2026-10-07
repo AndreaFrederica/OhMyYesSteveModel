@@ -1,9 +1,7 @@
 package com.elfmcys.ysm.accessor;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.EntityLivingBase;
 
 public interface ILivingRenderer {
-    void ysm$renderNameTag(LivingEntity pEntity, float pEntityYaw, float pPartialTicks, PoseStack pMatrixStack, MultiBufferSource pBuffer, int pPackedLight);
+    void ysm$renderNameTag(EntityLivingBase entity, double x, double y, double z, float entityYaw, float partialTicks);
 }

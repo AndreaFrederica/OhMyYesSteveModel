@@ -4,10 +4,10 @@ import com.elfmcys.ysm.client.entity.CustomEntity;
 import com.elfmcys.ysm.config.ClientConfig;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.IProjectile;
 
 import java.lang.ref.WeakReference;
 
@@ -20,8 +20,8 @@ public class AnimationParallelTicker {
     }
 
     public static void scheduleAll(final float partialTick) {
-        final Minecraft mc = Minecraft.getInstance();
-        final LocalPlayer localPlayer = mc.player;
+        final Minecraft mc = Minecraft.getMinecraft();
+        final EntityPlayerSP localPlayer = mc.player;
         if (localPlayer == null) {
             return;
         }
@@ -47,21 +47,21 @@ public class AnimationParallelTicker {
 
             final Entity entity = animatable.getEntity();
             if (entity instanceof AbstractClientPlayer) {
-                if (entity instanceof LocalPlayer) {
-                    if (ClientConfig.DISABLE_SELF_MODEL.get()) {
+                if (entity instanceof EntityPlayerSP) {
+                    if (ClientConfig.DISABLE_SELF_MODEL) {
                         continue;
                     }
                 } else {
-                    if (ClientConfig.DISABLE_OTHER_MODEL.get()) {
+                    if (ClientConfig.DISABLE_OTHER_MODEL) {
                         continue;
                     }
                 }
-            } else if (entity instanceof Projectile) {
-                if (ClientConfig.DISABLE_PROJECTILE_MODEL.get()) {
+            } else if (entity instanceof IProjectile) {
+                if (ClientConfig.DISABLE_PROJECTILE_MODEL) {
                     continue;
                 }
             } else {
-                if (ClientConfig.DISABLE_VEHICLE_MODEL.get()) {
+                if (ClientConfig.DISABLE_VEHICLE_MODEL) {
                     continue;
                 }
             }

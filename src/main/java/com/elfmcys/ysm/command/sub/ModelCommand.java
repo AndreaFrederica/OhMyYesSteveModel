@@ -2,108 +2,234 @@ package com.elfmcys.ysm.command.sub;
 
 import com.elfmcys.ysm.capability.AuthModelsCapabilityProvider;
 import com.elfmcys.ysm.capability.ModelInfoCapabilityProvider;
-import com.elfmcys.ysm.event.CommandRegistry;
+import com.elfmcys.ysm.command.RootCommand;
+import com.elfmcys.ysm.command.SubCommand;
 import com.elfmcys.ysm.model.catalog.source.AccessPolicy;
 import com.elfmcys.ysm.model.domain.ModelScanWarning;
 import com.elfmcys.ysm.model.service.ServerModelService;
 import com.elfmcys.ysm.model.session.server.state.Selection;
 import com.elfmcys.ysm.network.forge.SessionProtocolHandler;
 import com.elfmcys.ysm.util.CommandUtil;
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import java.util.Collection;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.command.*;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.text.TextComponentString;
+import net.minecraftforge.server.command.CommandTreeBase;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-public final class ModelCommand {
-    private static final String TARGETS = "targets";
-    private static final String MODEL_PATH = "model_path";
-    private static final String TEXTURE = "texture";
-    private static final String IGNORE_AUTH = "ignore_auth";
+import java.util.List;
 
-    private ModelCommand() {
+public class ModelCommand extends CommandTreeBase {
+    public ModelCommand() {
+        this.addSubcommand(new ReloadCommand(this));
+        this.addSubcommand(new ErrorsCommand(this));
+        this.addSubcommand(new DisableCommand(this));
+        this.addSubcommand(new SetCommand(this));
     }
 
-    public static LiteralArgumentBuilder<CommandSourceStack> get() {
-        var model = Commands.literal("model").requires(source -> CommandUtil.hasPermission(source, 2));
-        model.then(Commands.literal("reload").executes(ModelCommand::reload));
-        model.then(Commands.literal("errors").executes(ModelCommand::errors));
-        model.then(Commands.literal("disable")
-                .then(Commands.argument(TARGETS, EntityArgument.players())
-                        .then(Commands.argument("value", BoolArgumentType.bool()).executes(ModelCommand::disable))));
-        var set = Commands.literal("set")
-                .then(Commands.argument(TARGETS, EntityArgument.players())
-                        .then(Commands.argument(MODEL_PATH, StringArgumentType.string())
-                                .suggests(CommandRegistry.ALL_MODELS)
-                                .then(Commands.argument(TEXTURE, StringArgumentType.string())
-                                        .suggests(CommandRegistry.ALL_TEXTURES)
-                                        .executes(context -> set(context, false))
-                                        .then(Commands.argument(IGNORE_AUTH, BoolArgumentType.bool())
-                                                .executes(context -> set(context,
-                                                        BoolArgumentType.getBool(context, IGNORE_AUTH)))))));
-        model.then(set);
-        return model;
+    @NotNull
+    @Override
+    public String getName() {
+        return "model";
     }
 
-    private static int set(CommandContext<CommandSourceStack> context, boolean ignoreAuth)
-            throws CommandSyntaxException {
-        var path = StringArgumentType.getString(context, MODEL_PATH);
+    @NotNull
+    @Override
+    public String getUsage(@NotNull ICommandSender sender) {
+        return "commands.yes_steve_model.ysm.model.usage";
+    }
+
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 2;
+    }
+
+    @Override
+    public boolean checkPermission(@NotNull MinecraftServer server, @NotNull ICommandSender sender) {
+        return super.checkPermission(server, sender) || CommandUtil.isLocalPlayer(sender.getCommandSenderEntity());
+    }
+
+    private static class ReloadCommand extends SubCommand {
+        public ReloadCommand(CommandBase parent) {
+            super(parent);
+        }
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "reload";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.model.reload.usage";
+        }
+
+        @Override
+        public void execute(@NotNull MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            if (args.length != 0) {
+                throw new WrongUsageException(this.getUsage(sender));
+            }
+            reload(server, sender, this);
+        }
+    }
+
+    private static class ErrorsCommand extends SubCommand {
+        public ErrorsCommand(CommandBase parent) {
+            super(parent);
+        }
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "errors";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.model.errors.usage";
+        }
+
+        @Override
+        public void execute(@NotNull MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            if (args.length != 0) {
+                throw new WrongUsageException(this.getUsage(sender));
+            }
+            errors(sender);
+        }
+    }
+
+    private static class DisableCommand extends SubCommand {
+        public DisableCommand(CommandBase parent) {
+            super(parent);
+        }
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "disable";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.model.disable.usage";
+        }
+
+        @Override
+        public void execute(@NotNull MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            if (args.length != 2) {
+                throw new WrongUsageException(this.getUsage(sender));
+            }
+            disable(server, sender, args[0], args[1]);
+        }
+
+        @NotNull
+        @Override
+        public List<String> getTabCompletions(@NotNull MinecraftServer server, @NotNull ICommandSender sender,
+                                              String[] args, @Nullable BlockPos targetPos) {
+            return switch (args.length) {
+                case 1 -> getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+                case 2 -> getListOfStringsMatchingLastWord(args, RootCommand.allBooleans());
+                default -> List.of();
+            };
+        }
+    }
+
+    private static class SetCommand extends SubCommand {
+        public SetCommand(CommandBase parent) {
+            super(parent);
+        }
+
+        @NotNull
+        @Override
+        public String getName() {
+            return "set";
+        }
+
+        @NotNull
+        @Override
+        public String getUsage(@NotNull ICommandSender sender) {
+            return "commands.yes_steve_model.model.set.usage";
+        }
+
+        @Override
+        public void execute(@NotNull MinecraftServer server, @NotNull ICommandSender sender, String @NotNull [] args) throws CommandException {
+            switch (args.length) {
+                case 3 -> set(server, sender, args[0], args[1], args[2], false);
+                case 4 -> set(server, sender, args[0], args[1], args[2], parseBoolean(args[3]));
+                default -> throw new WrongUsageException(this.getUsage(sender));
+            }
+        }
+
+        @NotNull
+        @Override
+        public List<String> getTabCompletions(@NotNull MinecraftServer server, @NotNull ICommandSender sender,
+                                              String[] args, @Nullable BlockPos targetPos) {
+            return switch (args.length) {
+                case 1 -> getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+                case 2 -> getListOfStringsMatchingLastWord(args, RootCommand.allModels());
+                case 3 -> getListOfStringsMatchingLastWord(args, RootCommand.allTextures(args[1]));
+                case 4 -> getListOfStringsMatchingLastWord(args, RootCommand.allBooleans());
+                default -> List.of();
+            };
+        }
+    }
+
+    private static void set(MinecraftServer server, ICommandSender sender, String path, String texture, String targets, boolean ignoreAuth)
+            throws CommandException {
         var catalog = ServerModelService.instance().catalog().orElseThrow();
         var model = catalog.findPath(path);
         if (model.isEmpty()) {
-            context.getSource().sendFailure(Component.literal("Unknown or ambiguous model path: " + path));
-            return 0;
+            CommandUtil.sendFailure(sender, new TextComponentString("Unknown or ambiguous model path: " + path));
+            return;
         }
         var handle = model.get();
-        var texture = StringArgumentType.getString(context, TEXTURE);
         if ("-".equals(texture)) {
             var requested = handle.view().getMetadata().getSettings().defaultTexture().orElse("");
             texture = handle.view().getPlayer().getTextureNames().contains(requested)
                     ? requested : handle.view().getPlayer().getTextureNames().stream().sorted().findFirst().orElse("");
         }
         if (!handle.view().getPlayer().getTextureNames().contains(texture)) {
-            context.getSource().sendFailure(Component.literal("Unknown texture for " + path + ": " + texture));
-            return 0;
+            CommandUtil.sendFailure(sender, new TextComponentString("Unknown texture for " + path + ": " + texture));
+            return;
         }
 
         var hash = handle.representation().modelId();
         var selectedTexture = texture;
-        Collection<ServerPlayer> targets = EntityArgument.getPlayers(context, TARGETS);
-        for (var player : targets) {
-            player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP).ifPresent(selection ->
-                    player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP).ifPresent(auth -> {
-                        if (!ignoreAuth && handle.location().rootKind().accessPolicy()
-                                == AccessPolicy.SESSION_AUTHORIZED
-                                && !auth.containModel(hash)) {
-                            context.getSource().sendFailure(Component.literal(
-                                    player.getScoreboardName() + " is not authorized for " + path));
-                            return;
-                        }
-                        if (!SessionProtocolHandler.applyCommandSelection(player, selection,
-                                new Selection.Model(hash, selectedTexture), ignoreAuth)) {
-                            context.getSource().sendFailure(Component.literal(
-                                    player.getScoreboardName() + " rejected the model selection"));
-                            return;
-                        }
-                    }));
+        for (var player : getPlayers(server, sender, targets)) {
+            var selection = player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
+            if (selection != null) {
+                var auth = player.getCapability(AuthModelsCapabilityProvider.AUTH_MODELS_CAP, null);
+                if (auth != null) {
+                    if (!ignoreAuth && handle.location().rootKind().accessPolicy()
+                            == AccessPolicy.SESSION_AUTHORIZED
+                            && !auth.containModel(hash)) {
+                        CommandUtil.sendFailure(sender, new TextComponentString(
+                                player.getName() + " is not authorized for " + path));
+                        return;
+                    }
+                    if (!SessionProtocolHandler.applyCommandSelection(player, selection,
+                            new Selection.Model(hash, selectedTexture), ignoreAuth)) {
+                        CommandUtil.sendFailure(sender, new TextComponentString(
+                                player.getName() + " rejected the model selection"));
+                        return;
+                    }
+                }
+            }
         }
-        return Command.SINGLE_SUCCESS;
     }
 
-    private static int reload(CommandContext<CommandSourceStack> context) {
-        context.getSource().sendSuccess(() -> Component.literal("Reloading model catalog..."), true);
+    private static void reload(MinecraftServer server, ICommandSender sender, ICommand command) {
+        notifyCommandListener(sender, command, "Reloading model catalog...");
         ServerModelService.instance().reload().thenAccept(result -> {
-            CommandUtil.sendAsyncFeedback(context.getSource(), Component.literal(result.success()
+            CommandUtil.sendAsyncFeedback(server, sender, command, true, result.success()
                     ? "Model catalog reloaded: " + result.modelCount() + " model(s), "
                     + result.errorCount() + " scan error(s)"
-                    : "Model catalog reload failed: " + result.message()), true);
+                    : "Model catalog reload failed: " + result.message());
             if (result.success() && result.warningCount() > 0) {
                 for (var kind : ModelScanWarning.Kind.values()) {
                     var count = result.warnings().stream()
@@ -115,39 +241,35 @@ public final class ModelCommand {
                             case UNKNOWN_AUDIO -> "commands.ysm.model.reload.unknown_audio";
                             case INVALID_AUDIO -> "commands.ysm.model.reload.invalid_audio";
                         };
-                        CommandUtil.sendAsyncFeedback(context.getSource(),
-                                Component.translatable(key, count), true);
+                        CommandUtil.sendAsyncFeedback(server, sender, command, true, key, count);
                     }
                 }
             }
         });
-        return Command.SINGLE_SUCCESS;
     }
 
-    private static int errors(CommandContext<CommandSourceStack> context) {
+    private static void errors(ICommandSender sender) {
         var errors = ServerModelService.instance().lastReport().errors();
         if (errors.isEmpty()) {
-            context.getSource().sendSuccess(() -> Component.literal("The last model scan had no errors."), false);
-            return Command.SINGLE_SUCCESS;
+            sender.sendMessage(new TextComponentString("The last model scan had no errors."));
+            return;
         }
-        context.getSource().sendSuccess(() -> Component.literal("Model scan errors: " + errors.size()), false);
+        sender.sendMessage(new TextComponentString("Model scan errors: " + errors.size()));
         for (var error : errors) {
             var text = "[" + error.rootKind() + "] " + error.source() + ": " + error.message();
             if (!error.detail().isBlank()) {
                 text += "\n" + error.detail();
             }
             var output = text;
-            context.getSource().sendSuccess(() -> Component.literal(output), false);
+            sender.sendMessage(new TextComponentString(output));
         }
-        return Command.SINGLE_SUCCESS;
     }
 
-    private static int disable(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        var disabled = BoolArgumentType.getBool(context, "value");
-        for (var player : EntityArgument.getPlayers(context, TARGETS)) {
-            player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP)
-                    .ifPresent(capability -> capability.setDisabled(disabled));
+    private static void disable(MinecraftServer server, ICommandSender sender, String targets, String value) throws CommandException {
+        var disabled = parseBoolean(value);
+        for (var player : getPlayers(server, sender, targets)) {
+            var capability = player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
+            if (capability != null) capability.setDisabled(disabled);
         }
-        return Command.SINGLE_SUCCESS;
     }
 }

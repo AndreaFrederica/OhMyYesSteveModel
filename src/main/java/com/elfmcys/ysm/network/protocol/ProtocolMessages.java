@@ -36,7 +36,7 @@ import com.elfmcys.ysm.proto.network.UpdateStarredModelRequest;
 import com.elfmcys.ysm.proto.network.VehicleModelState;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import net.minecraftforge.network.NetworkEvent;
+import com.elfmcys.ysm.network.forge.NetworkEvent;
 import us.hebi.quickbuf.ProtoMessage;
 
 /** Stable ids and the only parser/handler registry for the current wire. */

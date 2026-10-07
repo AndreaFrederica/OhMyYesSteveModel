@@ -1,17 +1,20 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client;
 
 import com.elfmcys.ysm.client.animation.molang.TLMBinding;
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.GeoMaidAnimatedRegister;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.MaidControllerCollection;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.molang.TLMBindingInner;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.predicate.MaidVehiclePredicate;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.input.OpenRouletteScreen;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.render.CustomYsmMaidRenderer;
+*/
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.model.resource.client.CommonAsset;
 import com.elfmcys.ysm.model.resource.client.PlayerModelResources;
 import com.elfmcys.ysm.geckolib3.core.PlayState;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
+/*
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
@@ -19,14 +22,22 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLEnvironment;
+*/
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import org.apache.commons.lang3.StringUtils;
+/*
 import org.apache.maven.artifact.versioning.ArtifactVersion;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
 import org.apache.maven.artifact.versioning.VersionRange;
 import org.jetbrains.annotations.Nullable;
+*/
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public class TlmClientCompat {
+    /*
     private static final String MOD_ID = "touhou_little_maid";
     private static final VersionRange VERSION_RANGE;
     private static boolean INSTALLED = false;
@@ -57,14 +68,53 @@ public class TlmClientCompat {
             }
         });
     }
+    */
 
     public static Object buildControllerFactory(PlayerModelResources model, CommonAsset assets) {
+        /*
         if (INSTALLED) {
             return MaidControllerCollection.build(model, assets);
         }
+        */
         return null;
     }
 
+    public static boolean isMaid(Entity entity) {
+        return false;
+    }
+
+    public static boolean hasMaidCap(Entity entity) {
+        return false;
+    }
+
+    public static boolean isChair(Entity entity) {
+        return false;
+    }
+
+    public static boolean isSit(Entity entity) {
+        return false;
+    }
+
+    public static boolean isMaidFishing(EntityLivingBase entity) {
+        return false;
+    }
+
+    public static boolean isInstalled() {
+        return false;
+    }
+
+    public static boolean pointToMaid() {
+        return false;
+    }
+
+    public static void onRouletteMainKeyPressed() {
+    }
+
+    public static PlayState getMaidVehicleAnimation(AnimationEvent<CustomHumanoidEntity<?>> event, EntityLivingBase entity, Entity vehicle) {
+        return null;
+    }
+
+    /*
     public static boolean isInstalled() {
         return INSTALLED;
     }
@@ -102,13 +152,17 @@ public class TlmClientCompat {
     public static boolean isMaidFishing(LivingEntity entity) {
         return isInstalled() && TlmClientCompatInner.maidIsFishing(entity);
     }
+    */
 
     public static void addBinding(TLMBinding binding) {
+        /*
         if (isInstalled()) {
             TLMBindingInner.addInnerBinding(binding);
         } else {
             addEmptyBinding(binding);
         }
+        */
+        addEmptyBinding(binding);
     }
 
     /**
@@ -133,6 +187,7 @@ public class TlmClientCompat {
         binding.livingEntityVar("show_item", ctx -> StringUtils.EMPTY);
     }
 
+    /*
     @Nullable
     public static PlayState getMaidVehicleAnimation(AnimationEvent<CustomHumanoidEntity<?>> event, LivingEntity entity, Entity vehicle) {
         if (isInstalled()) {
@@ -163,4 +218,5 @@ public class TlmClientCompat {
             OpenRouletteScreen.onRouletteMainKeyPressed();
         }
     }
+    */
 }

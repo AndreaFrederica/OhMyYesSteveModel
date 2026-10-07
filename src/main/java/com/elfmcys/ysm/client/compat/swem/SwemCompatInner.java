@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.swem;
 
+/*
 import com.alaharranhonor.swem.forge.entities.horse.SWEMHorseEntityBase;
 import com.google.common.collect.Maps;
 import net.minecraft.util.Mth;
@@ -37,3 +38,4 @@ public class SwemCompatInner {
         return Math.sqrt(x * x + z * z) <= 0d;
     }
 }
+*/

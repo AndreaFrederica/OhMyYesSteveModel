@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.model.catalog.client;
 
-import net.minecraft.client.renderer.texture.AbstractTexture;
+import com.elfmcys.ysm.client.texture.CustomTexture;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,10 +18,10 @@ public class ModelPackInfo {
     /**
      * 最大 260 x 450，是游戏分辨率为 2k 且界面尺寸为 5 时 ModelButton 的大小。
      */
-    private volatile @Nullable AbstractTexture icon;
+    private volatile @Nullable CustomTexture icon;
     private final @Nullable Map<String, Map<String, String>> lang;
 
-    public ModelPackInfo(String hierarchy, String name, String desc, @Nullable AbstractTexture icon, @Nullable Map<String, Map<String, String>> lang) {
+    public ModelPackInfo(String hierarchy, String name, String desc, @Nullable CustomTexture icon, @Nullable Map<String, Map<String, String>> lang) {
         this.hierarchy = hierarchy;
         this.name = name;
         this.desc = desc;
@@ -45,11 +45,11 @@ public class ModelPackInfo {
     }
 
     @Nullable
-    public AbstractTexture icon() {
+    public CustomTexture icon() {
         return icon;
     }
 
-    public void setIcon(@Nullable AbstractTexture icon) {
+    public void setIcon(@Nullable CustomTexture icon) {
         this.icon = icon;
     }
 

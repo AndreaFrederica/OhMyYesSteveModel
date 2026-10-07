@@ -1,32 +1,47 @@
 package com.elfmcys.ysm.config;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import com.elfmcys.ysm.config.util.ConfigBuilder;
 
 public class ExtraPlayerScreenConfig {
-    public static ForgeConfigSpec.BooleanValue DISABLE_PLAYER_RENDER;
-    public static ForgeConfigSpec.IntValue PLAYER_POS_X;
-    public static ForgeConfigSpec.IntValue PLAYER_POS_Y;
-    public static ForgeConfigSpec.DoubleValue PLAYER_SCALE;
-    public static ForgeConfigSpec.DoubleValue PLAYER_YAW_OFFSET;
+    public static boolean DISABLE_PLAYER_RENDER = false;
+    public static int PLAYER_POS_X = 10;
+    public static int PLAYER_POS_Y = 10;
+    public static float PLAYER_SCALE = 40;
+    public static float PLAYER_YAW_OFFSET = 5;
 
-    public static void init(ForgeConfigSpec.Builder builder) {
-        builder.push("extra_player_render");
+    static void build(ConfigBuilder builder) {
+        builder.pushCategory("extra_player_render");
 
-        builder.comment("Whether to display player");
-        DISABLE_PLAYER_RENDER = builder.define("DisablePlayerRender", false);
+        DISABLE_PLAYER_RENDER = builder.get(
+                "DisablePlayerRender",
+                DISABLE_PLAYER_RENDER,
+                "Whether to display player"
+        );
 
-        builder.comment("Player position x in screen");
-        PLAYER_POS_X = builder.defineInRange("PlayerPosX", 10, 0, Integer.MAX_VALUE);
+        PLAYER_POS_X = builder.getProp(
+                "PlayerPosX",
+                PLAYER_POS_X,
+                "Player position x in screen"
+        ).setMinValue(0).setMaxValue(Integer.MAX_VALUE).getInt();
 
-        builder.comment("Player position y in screen");
-        PLAYER_POS_Y = builder.defineInRange("PlayerPosY", 10, 0, Integer.MAX_VALUE);
+        PLAYER_POS_Y = builder.getProp(
+                "PlayerPosY",
+                PLAYER_POS_Y,
+                "Player position y in screen"
+        ).setMinValue(0).setMaxValue(Integer.MAX_VALUE).getInt();
 
-        builder.comment("Player scale in screen");
-        PLAYER_SCALE = builder.defineInRange("PlayerScale", 40, 8.0, 360.0);
+        PLAYER_SCALE = (float) builder.getProp(
+                "PlayerScale",
+                PLAYER_SCALE,
+                "Player scale in screen"
+        ).setMinValue(8.0).setMaxValue(360.0).getDouble();
 
-        builder.comment("Player yaw offset in screen");
-        PLAYER_YAW_OFFSET = builder.defineInRange("PlayerYawOffset", 5, Double.MIN_VALUE, Double.MAX_VALUE);
+        PLAYER_YAW_OFFSET = (float) builder.getProp(
+                "PlayerYawOffset",
+                PLAYER_YAW_OFFSET,
+                "Player yaw offset in screen"
+        ).setMinValue(Double.MIN_VALUE).setMaxValue(Double.MAX_VALUE).getDouble();
 
-        builder.pop();
+        builder.popCategory();
     }
 }

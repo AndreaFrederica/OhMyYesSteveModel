@@ -1,21 +1,27 @@
 package com.elfmcys.ysm.config;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import com.elfmcys.ysm.config.util.ConfigBuilder;
 
 public class LoadingStateScreenConfig {
-    public static ForgeConfigSpec.BooleanValue DISABLE_LOADING_STATE_SCREEN;
-    public static ForgeConfigSpec.EnumValue<Position> LOADING_STATE_POSITION;
+    public static boolean DISABLE_LOADING_STATE_SCREEN = false;
+    public static Position LOADING_STATE_POSITION = Position.TOP_CENTER;
 
-    public static void init(ForgeConfigSpec.Builder builder) {
-        builder.push("loading_state_screen");
+    static void build(ConfigBuilder builder) {
+        builder.pushCategory("loading_state_screen");
 
-        builder.comment("Whether to disable loading state screen");
-        DISABLE_LOADING_STATE_SCREEN = builder.define("DisableLoadingStateScreen", false);
+        DISABLE_LOADING_STATE_SCREEN = builder.get(
+                "DisableLoadingStateScreen",
+                DISABLE_LOADING_STATE_SCREEN,
+                "Whether to disable loading state screen"
+        );
 
-        builder.comment("Loading state screen position");
-        LOADING_STATE_POSITION = builder.defineEnum("LoadingStatePosition", Position.TOP_CENTER);
+        LOADING_STATE_POSITION = builder.get(
+                "LoadingStatePosition",
+                LOADING_STATE_POSITION,
+                "Loading state screen position"
+        );
 
-        builder.pop();
+        builder.popCategory();
     }
 
     public enum Position {

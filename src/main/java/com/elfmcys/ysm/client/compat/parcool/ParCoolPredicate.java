@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.parcool;
 
+/*
 import com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate;
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.client.entity.IPreviewEntity;
@@ -26,3 +27,4 @@ public class ParCoolPredicate implements IAnimationPredicate<CustomPlayerEntity>
         return PlayState.STOP;
     }
 }
+*/

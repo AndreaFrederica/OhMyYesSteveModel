@@ -19,7 +19,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-import static com.github.tartaricacid.touhoulittlemaid.geckolib3.util.AnimationUtils.convertSecondsToTicks;
+import static com.elfmcys.ysm.geckolib3.util.AnimationUtils.convertSecondsToTicks;
 
 /**
  * 用于将 json 转换成关键帧的工具类

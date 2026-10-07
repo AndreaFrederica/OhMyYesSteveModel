@@ -8,23 +8,23 @@ import com.elfmcys.ysm.geckolib3.core.builder.LoopType;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
 import com.elfmcys.ysm.molang.runtime.ExpressionEvaluator;
 import com.elfmcys.ysm.util.EquipmentUtil;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.inventory.EntityEquipmentSlot;
+import net.minecraft.item.ItemStack;
 import org.apache.commons.lang3.StringUtils;
 
 import static com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate.playAnimation;
 
 public class FPArmArmorPredicate implements IAnimationPredicate<CustomFirstPersonArmEntity> {
-    private final EquipmentSlot slot;
+    private final EntityEquipmentSlot slot;
 
-    public FPArmArmorPredicate(EquipmentSlot slot) {
+    public FPArmArmorPredicate(EntityEquipmentSlot slot) {
         this.slot = slot;
     }
 
     @Override
     public PlayState test(AnimationEvent<CustomFirstPersonArmEntity> event, ExpressionEvaluator<?> evaluator) {
-        LocalPlayer localPlayer = event.getAnimatableEntity().getEntity();
+        EntityPlayerSP localPlayer = event.getAnimatableEntity().getEntity();
         if (localPlayer == null || event.getAnimatableEntity() instanceof IPreviewEntity) {
             return PlayState.STOP;
         }

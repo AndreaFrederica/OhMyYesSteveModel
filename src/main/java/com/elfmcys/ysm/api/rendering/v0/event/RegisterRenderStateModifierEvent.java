@@ -6,11 +6,10 @@ import com.elfmcys.ysm.geckolib3.geo.GeoRenderData;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import it.unimi.dsi.fastutil.objects.ReferenceList;
 import it.unimi.dsi.fastutil.objects.ReferenceLists;
-import net.minecraftforge.eventbus.api.Event;
-import net.minecraftforge.fml.event.IModBusEvent;
+import net.minecraftforge.fml.common.eventhandler.Event;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
-public class RegisterRenderStateModifierEvent extends Event implements IModBusEvent {
+public class RegisterRenderStateModifierEvent extends Event {
     private final ReferenceArrayList<ImmutablePair<TargetKind, RenderStateModifier<?, ?>>> modifiers = new ReferenceArrayList<>();
 
     public RegisterRenderStateModifierEvent() {

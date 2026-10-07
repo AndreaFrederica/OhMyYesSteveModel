@@ -4,6 +4,7 @@ import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.StarModelsCapabilityProvider;
 import com.elfmcys.ysm.client.event.RegisterEntityRenderersEvent;
 import com.elfmcys.ysm.client.gui.CustomGuiPlayerEntity;
+import com.elfmcys.ysm.client.gui.Screen;
 import com.elfmcys.ysm.model.resource.client.asset.ClientAssetBatch;
 import com.elfmcys.ysm.model.resource.client.ModelRenderTarget;
 import com.elfmcys.ysm.model.catalog.client.entry.CatalogModelMetadata;
@@ -11,21 +12,19 @@ import com.elfmcys.ysm.model.catalog.client.entry.ClientCatalogEntry;
 import com.elfmcys.ysm.client.texture.TextureHolder;
 import com.elfmcys.ysm.config.ClientConfig;
 import com.elfmcys.ysm.model.domain.Hash256;
+import com.elfmcys.ysm.util.GuiRenderUtil;
 import com.elfmcys.ysm.util.ModelIdUtil;
 import com.elfmcys.ysm.util.RenderUtil;
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.Util;
+import com.elfmcys.ysm.util.TextMeasureUtil;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.resources.language.I18n;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.util.ResourceLocation;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +32,6 @@ import java.util.List;
 /** A catalog entry that progresses from loading indicator to preview image to a full local renderTarget. */
 public final class CatalogModelButton extends Button implements AutoCloseable {
     private static final ResourceLocation ICON = new ResourceLocation(YesSteveModel.MOD_ID, "texture/icon.png");
-    private static final int CARD_OVERLAY_Z = 3500;
-    private static final int TOOLTIP_Z = 4000;
 
     private final ClientCatalogEntry entry;
     private final CatalogModelMetadata metadata;
@@ -42,21 +39,23 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
     private final boolean needAuth;
     private final SelectionHandler selection;
     private final RenderTargetHandler openRenderTarget;
-    private final Component pathName;
+    private final String pathName;
     private final CatalogModelCardState state;
+
+    private boolean focused;
 
     public CatalogModelButton(int x, int y, ClientCatalogEntry entry, boolean needAuth,
                               ClientAssetBatch assets,
                               CustomGuiPlayerEntity entity, SelectionHandler selection,
                               RenderTargetHandler openRenderTarget) {
-        super(x, y, 52, 90, name(CatalogModelMetadata.from(entry)), ignored -> { }, DEFAULT_NARRATION);
+        super(x, y, 52, 90, name(CatalogModelMetadata.from(entry)), ignored -> { });
         this.entry = entry;
         this.metadata = CatalogModelMetadata.from(entry);
         this.entity = entity;
         this.needAuth = needAuth;
         this.selection = selection;
         this.openRenderTarget = openRenderTarget;
-        this.pathName = Component.literal(ModelIdUtil.getFileNameFromPath(metadata.path()));
+        this.pathName = ModelIdUtil.getFileNameFromPath(metadata.path());
         this.state = new CatalogModelCardState(assets, entry, metadata, entity);
     }
 
@@ -73,8 +72,8 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
     }
 
     @Override
-    public Component getMessage() {
-        return ClientConfig.SHOW_MODEL_ID_FIRST.get() ? pathName : super.getMessage();
+    public String getMessage() {
+        return ClientConfig.SHOW_MODEL_ID_FIRST ? pathName : super.getMessage();
     }
 
     @Override
@@ -84,63 +83,59 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
         }
     }
 
+    @Deprecated
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mousePressed(@NotNull Minecraft mc, int mouseX, int mouseY) {
+        return false;
+    }
+
+    public boolean mouseClicked(Minecraft mc, int mouseX, int mouseY, int button) {
+        boolean pressed = !needAuth && super.mousePressed(mc, mouseX, mouseY);
+
         var renderTarget = state.renderTarget();
-        if (button == 1 && isMouseOver(mouseX, mouseY) && renderTarget != null) {
+        if (button == 1 && pressed && renderTarget != null) {
             openRenderTarget.open(entry.modelHash(), metadata.path(), renderTarget);
-            return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+
+        return pressed;
     }
 
     @Override
-    public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        state.updatePreviewAnimations(isHovered(), isFocused(), Util.getMillis());
+    public void renderWidget(Minecraft mc, int mouseX, int mouseY, float partialTick) {
+        state.updatePreviewAnimations(isMouseOver(), focused, Minecraft.getSystemTime());
         var color = needAuth ? 0x7F000000 : 0xFF434242;
-        graphics.fillGradient(getX(), getY(), getX() + width, getY() + height, color, color);
+        this.drawGradientRect(x, y, x + width, y + height, color, color);
         var renderTarget = state.renderTarget();
         if (renderTarget != null) {
-            renderImage(graphics, state.background());
-            renderEntity(graphics);
-            renderImage(graphics, state.foreground());
+            renderImage(mc, state.background());
+            renderEntity(partialTick);
+            renderImage(mc, state.foreground());
         } else {
             var preview = state.preview();
             if (preview != null) {
-                renderImage(graphics, preview);
+                renderImage(mc, preview);
             } else {
-                renderLoading(graphics);
+                renderLoading(mc);
             }
         }
-        renderName(graphics);
-        renderState(graphics);
+        renderName(mc);
+        renderState(mc);
     }
 
-    public void renderTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
-        if (!isHovered()) {
+    public void renderTooltip(GuiScreen screen, int mouseX, int mouseY) {
+        if (!isMouseOver()) {
             return;
         }
-        var locale = Minecraft.getInstance().getLanguageManager().getSelected();
+        var locale = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode();
         var input = CatalogModelTooltipFormatter.input(metadata, entry, locale, state.loadError());
-        var lines = CatalogModelTooltipFormatter.format(input, Screen.hasShiftDown(), I18n::get);
-        var wrapped = new ArrayList<FormattedCharSequence>();
+        var lines = CatalogModelTooltipFormatter.format(input, GuiScreen.isShiftKeyDown(), I18n::format);
+        var wrapped = new ArrayList<String>();
         for (var line : lines) {
-            wrapped.addAll(screen.getMinecraft().font.split(
-                    Component.literal(line.text()).withStyle(line.color()),
+            wrapped.addAll(TextMeasureUtil.split(screen.mc.fontRenderer,
+                    line.color() + line.text(),
                     CatalogModelTooltipFormatter.MAX_WIDTH));
         }
-        graphics.pose().pushPose();
-        try {
-            graphics.pose().translate(0, 0, TOOLTIP_Z);
-            graphics.renderTooltip(screen.getMinecraft().font, wrapped, mouseX, mouseY);
-        } finally {
-            graphics.pose().popPose();
-        }
-    }
-
-    @Override
-    protected boolean clicked(double mouseX, double mouseY) {
-        return !needAuth && super.clicked(mouseX, mouseY);
+        screen.drawHoveringText(wrapped, mouseX, mouseY);
     }
 
     @Override
@@ -148,75 +143,82 @@ public final class CatalogModelButton extends Button implements AutoCloseable {
         state.close();
     }
 
-    private void renderEntity(GuiGraphics graphics) {
-        Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
-        RenderSystem.enableScissor((int) (getX() * scale),
-                (int) (window.getHeight() - ((getY() + height - 20) * scale)),
-                (int) (width * scale), (int) ((height - 20) * scale));
-        RenderUtil.renderModelInGui(getX() + width / 2f, getY() + height / 2f + 20f, 30f,
-                Minecraft.getInstance().getFrameTime(), entity,
+    private void renderEntity(float partialTick) {
+        GuiRenderUtil.enableScissor(x, y, width, height - 20);
+        RenderUtil.renderModelInGui(x + width / 2f, y + height / 2f + 20f, 30f,
+                partialTick, entity,
                 RegisterEntityRenderersEvent.getPlayerRenderer(),
                 metadata.info().getSettings().disablePreviewRotation(), true);
-        RenderSystem.disableScissor();
+        GuiRenderUtil.disableScissor();
+        GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT);
     }
 
-    private void renderImage(GuiGraphics graphics, @Nullable TextureHolder image) {
+    private void renderImage(Minecraft mc, @Nullable TextureHolder image) {
         if (image == null) {
             return;
         }
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        graphics.blit(image.id(), getX(), getY(), 0, 0, width, height, width, height);
-        RenderSystem.disableBlend();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+        mc.getTextureManager().bindTexture(image.id());
+        drawModalRectWithCustomSizedTexture(x, y, 0, 0, width, height, width, height);
+        GlStateManager.disableBlend();
     }
 
-    private void renderLoading(GuiGraphics graphics) {
-        var phase = (int) ((Util.getMillis() / 250L) % 4L);
+    private void renderLoading(Minecraft mc) {
+        var phase = (int) ((Minecraft.getSystemTime() / 250L) % 4L);
         var dots = ".".repeat(phase);
-        graphics.drawCenteredString(Minecraft.getInstance().font, dots, getX() + width / 2,
-                getY() + (height - 20) / 2, 0xFFF3EFE0);
+        this.drawCenteredString(mc.fontRenderer, dots, x + width / 2,
+                y + (height - 20) / 2, 0xFFF3EFE0);
     }
 
-    private void renderName(GuiGraphics graphics) {
-        Font font = Minecraft.getInstance().font;
-        List<FormattedCharSequence> split = font.split(getMessage(), 45);
+    private void renderName(Minecraft mc) {
+        FontRenderer font = mc.fontRenderer;
+        List<String> split = TextMeasureUtil.split(font, getMessage(), 45);
         if (split.size() > 1) {
-            graphics.drawCenteredString(font, split.get(0), getX() + width / 2, getY() + height - 19, 0xF3EFE0);
-            graphics.drawCenteredString(font, split.get(1), getX() + width / 2, getY() + height - 10, 0xF3EFE0);
+            this.drawCenteredString(font, split.get(0), x + width / 2, y + height - 19, 0xF3EFE0);
+            this.drawCenteredString(font, split.get(1), x + width / 2, y + height - 10, 0xF3EFE0);
         } else {
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + height - 15, 0xF3EFE0);
+            this.drawCenteredString(font, getMessage(), x + width / 2, y + height - 15, 0xF3EFE0);
         }
     }
 
-    private void renderState(GuiGraphics graphics) {
-        var z = CARD_OVERLAY_Z;
-        if (!needAuth && isHoveredOrFocused()) {
-            graphics.fillGradient(getX(), getY() + 1, getX() + 1, getY() + height - 1,
-                    z, 0xFFF3EFE0, 0xFFF3EFE0);
-            graphics.fillGradient(getX(), getY(), getX() + width, getY() + 1, z, 0xFFF3EFE0, 0xFFF3EFE0);
-            graphics.fillGradient(getX() + width - 1, getY() + 1, getX() + width, getY() + height - 1,
-                    z, 0xFFF3EFE0, 0xFFF3EFE0);
-            graphics.fillGradient(getX(), getY() + height - 1, getX() + width, getY() + height,
-                    z, 0xFFF3EFE0, 0xFFF3EFE0);
+    private void renderState(Minecraft mc) {
+        if (!needAuth && isMouseOver()) {
+            this.drawGradientRect(x, y + 1, x + 1, y + height - 1,
+                    0xFFF3EFE0, 0xFFF3EFE0);
+            this.drawGradientRect(x, y, x + width, y + 1, 0xFFF3EFE0, 0xFFF3EFE0);
+            this.drawGradientRect(x + width - 1, y + 1, x + width, y + height - 1,
+                    0xFFF3EFE0, 0xFFF3EFE0);
+            this.drawGradientRect(x, y + height - 1, x + width, y + height,
+                    0xFFF3EFE0, 0xFFF3EFE0);
         }
         if (needAuth) {
-            graphics.fillGradient(getX(), getY(), getX() + width, getY() + height,
-                    z, 0x9F222222, 0x9F222222);
+            this.drawGradientRect(x, y, x + width, y + height,
+                    0x9F222222, 0x9F222222);
         }
-        var player = Minecraft.getInstance().player;
+        var player = mc.player;
         if (player != null) {
-            player.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP).ifPresent(stars -> {
+            var stars = player.getCapability(StarModelsCapabilityProvider.STAR_MODELS_CAP, null);
+            if (stars != null) {
                 if (stars.containModel(entry.modelHash())) {
-                    graphics.blit(ICON, getX() + width - 14, getY(), z, 16, 0, 16, 16, 256, 256);
+                    mc.getTextureManager().bindTexture(ICON);
+                    drawModalRectWithCustomSizedTexture(x + width - 14, y, 16, 0, 16, 16, 256, 256);
                 }
-            });
+            }
         }
     }
 
-    private static Component name(CatalogModelMetadata metadata) {
-        return Component.literal(CatalogModelTooltipFormatter.displayName(metadata,
-                Minecraft.getInstance().getLanguageManager().getSelected()));
+    private static String name(CatalogModelMetadata metadata) {
+        return CatalogModelTooltipFormatter.displayName(metadata,
+                Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode());
+    }
+
+    public void setFocused(boolean focused) {
+        this.focused = focused;
+    }
+
+    public boolean isMouseOver(int mouseX, int mouseY) {
+        return Screen.isMouseWithin(mouseX, mouseY, x, y, width, height);
     }
 
     @FunctionalInterface

@@ -1,30 +1,34 @@
 package com.elfmcys.ysm.client.compat.bettercombat;
 
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
-import net.minecraftforge.fml.loading.LoadingModList;
 import org.apache.commons.lang3.StringUtils;
 
 public class BetterCombatCompat {
     private static final String MOD_ID = "bettercombat";
     private static boolean INSTALLED;
 
+    /*
     public static void init() {
-        if (LoadingModList.get().getModFileById(MOD_ID) != null) {
+        if (Loader.isModLoaded(MOD_ID)) {
             BetterCombatCompatInner.innerInit();
             INSTALLED = true;
         }
     }
+    */
 
     public static boolean isInstalled() {
         return INSTALLED;
     }
 
     public static void addBinding(CtrlBinding binding) {
+        /*
         if (isInstalled()) {
             BetterCombatCompatInner.addInnerBinding(binding);
         } else {
             addEmptyBinding(binding);
         }
+        */
+        addEmptyBinding(binding);
     }
 
     /**

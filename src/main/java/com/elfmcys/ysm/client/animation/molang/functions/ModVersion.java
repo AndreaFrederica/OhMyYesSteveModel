@@ -2,9 +2,7 @@ package com.elfmcys.ysm.client.animation.molang.functions;
 
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
 import com.elfmcys.ysm.molang.runtime.Function;
-import net.minecraftforge.common.util.MavenVersionStringHelper;
-import net.minecraftforge.fml.ModList;
-
+import net.minecraftforge.fml.common.Loader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,9 +15,8 @@ public class ModVersion implements Function {
             return null;
         }
 
-        return ModList.get().getModContainerById(modId)
-                .map(modContainer -> MavenVersionStringHelper.artifactVersionToString((modContainer.getModInfo().getVersion())))
-                .orElse(null);
+        var modContainer = Loader.instance().getIndexedModList().get(modId);
+        return modContainer != null ? modContainer.getVersion() : null;
     }
 
     @Override

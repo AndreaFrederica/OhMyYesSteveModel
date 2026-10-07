@@ -2,22 +2,26 @@ package com.elfmcys.ysm.client.sound.stream;
 
 import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.media.SupportedAudioProbe;
-import com.mojang.blaze3d.audio.OggAudioStream;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.BufferUtils;
+import paulscode.sound.SoundBuffer;
+import paulscode.sound.codecs.CodecJOrbis;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.UnsupportedAudioFileException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public final class VorbisAudioStream implements CustomAudioStream {
     private static final ByteBuffer EMPTY_BUFFER = BufferUtils.createByteBuffer(0);
 
-    private final OggAudioStream decoder;
+    private final CodecJOrbis decoder;
     private final AudioFormat audioFormat;
     private final int channels;
     private final long expectedFrames;
@@ -39,21 +43,24 @@ public final class VorbisAudioStream implements CustomAudioStream {
             throw new UnsupportedAudioFileException("Vorbis sample rate is not exactly representable by the host");
         }
 
-        final OggAudioStream opened;
+        final CodecJOrbis opened = new CodecJOrbis();
+        // OpenAL 侧不需要反转字节序，jorbis 输出即为小端
+        opened.reverseByteOrder(false);
         try {
-            opened = new OggAudioStream(
-                    new ByteBufInputStream(Unpooled.wrappedBuffer(data.duplicate())));
-        } catch (IOException failure) {
+            if (!opened.initialize(wrapAsUrl(data))) {
+                throw AssetLoadException.content("Invalid Ogg Vorbis stream");
+            }
+        } catch (RuntimeException failure) {
             throw AssetLoadException.content("Invalid Ogg Vorbis stream", failure);
         }
-        var format = opened.getFormat();
-        if (format.getChannels() != media.channels()
+        var format = opened.getAudioFormat();
+        if (format == null || format.getChannels() != media.channels()
                 || format.getSampleRate() != representedRate) {
             var failure = AssetLoadException.content(
                     "Vorbis decoder metadata disagrees with inspection");
             try {
-                opened.close();
-            } catch (IOException closeFailure) {
+                opened.cleanup();
+            } catch (RuntimeException closeFailure) {
                 failure.addSuppressed(closeFailure);
             }
             throw failure;
@@ -78,20 +85,17 @@ public final class VorbisAudioStream implements CustomAudioStream {
             return EMPTY_BUFFER;
         }
 
-        int requested = size == 1 ? 2 : size - size % 2;
-        int sourceBytes;
+        final SoundBuffer decoded;
         try {
-            sourceBytes = Math.multiplyExact(requested, channels);
-        } catch (ArithmeticException exception) {
-            throw new IOException("Vorbis read size is too large", exception);
-        }
-        final ByteBuffer decoded;
-        try {
-            decoded = decoder.read(sourceBytes);
-        } catch (IOException failure) {
+            decoded = decoder.read();
+        } catch (RuntimeException failure) {
+            eof = true;
             throw AssetLoadException.content("Invalid Ogg Vorbis stream", failure);
         }
-        if (!decoded.hasRemaining()) {
+        if (decoded == null || decoded.audioData == null || decoded.audioData.length == 0) {
+            if (decoded != null) {
+                decoded.cleanup();
+            }
             if (decodedFrames != expectedFrames) {
                 eof = true;
                 throw AssetLoadException.content(
@@ -100,46 +104,58 @@ public final class VorbisAudioStream implements CustomAudioStream {
             eof = true;
             return EMPTY_BUFFER;
         }
+        var sourceBytes = decoded.audioData;
+        var sourceFormat = decoded.audioFormat;
+        decoded.cleanup();
+        if (sourceFormat == null || sourceFormat.getChannels() != channels
+                || sourceFormat.getSampleSizeInBits() != 16) {
+            eof = true;
+            throw AssetLoadException.content(
+                    "Vorbis decoder metadata disagrees with inspection");
+        }
 
         int frameBytes = channels * Short.BYTES;
-        if (decoded.remaining() % frameBytes != 0) {
+        if (sourceBytes.length % frameBytes != 0) {
             eof = true;
             throw AssetLoadException.content("Vorbis decoder returned a partial frame");
         }
-        long frames = decoded.remaining() / frameBytes;
-        if (frames > expectedFrames - decodedFrames) {
-            eof = true;
-            throw AssetLoadException.content(
-                    "Vorbis decoder exceeded the inspected frame count");
+        long frames = sourceBytes.length / frameBytes;
+        long remainingFrames = expectedFrames - decodedFrames;
+        if (frames > remainingFrames) {
+            // paulscode 不执行 Ogg Vorbis 的 EOS 尾部裁剪，超出 granule 的尾帧在此丢弃
+            long trimmed = frames - remainingFrames;
+            if (trimmed > expectedFrames / 4 + 4096) {
+                eof = true;
+                throw AssetLoadException.content(
+                        "Vorbis decoder exceeded the inspected frame count");
+            }
+            sourceBytes = Arrays.copyOf(sourceBytes,
+                    Math.toIntExact(remainingFrames * frameBytes));
+            frames = remainingFrames;
         }
         decodedFrames += frames;
+
+        var source = ByteBuffer.wrap(sourceBytes).order(ByteOrder.LITTLE_ENDIAN);
         if (channels == 1) {
-            return decoded;
+            return source;
         }
 
-        var source = decoded.duplicate().order(ByteOrder.nativeOrder());
-        ByteBuffer destination;
-        if (!decoded.isReadOnly()) {
-            destination = decoded.duplicate().order(ByteOrder.nativeOrder());
-            destination.limit(source.remaining() / 2);
-        } else {
-            destination = BufferUtils.createByteBuffer(source.remaining() / 2)
-                    .order(ByteOrder.nativeOrder());
-        }
-        var result = destination.slice();
+        ByteBuffer destination = BufferUtils.createByteBuffer(source.remaining() / 2)
+                .order(ByteOrder.LITTLE_ENDIAN);
         while (source.hasRemaining()) {
             int left = source.getShort();
             int right = source.getShort();
             destination.putShort((short) Math.rint((left + right) / 2.0));
         }
-        return result;
+        destination.flip();
+        return destination;
     }
 
     @Override
     public void close() throws IOException {
         if (!closed) {
             closed = true;
-            decoder.close();
+            decoder.cleanup();
         }
     }
 
@@ -156,5 +172,28 @@ public final class VorbisAudioStream implements CustomAudioStream {
             throw new UnsupportedAudioFileException(inspection.diagnostic());
         }
         return inspection.media();
+    }
+
+    private static URL wrapAsUrl(ByteBuffer byteBuffer) {
+        var handler = new URLStreamHandler() {
+            @Override
+            protected URLConnection openConnection(URL url) {
+                return new URLConnection(url) {
+                    @Override
+                    public void connect() {
+                    }
+
+                    @Override
+                    public InputStream getInputStream() {
+                        return new ByteBufInputStream(Unpooled.wrappedBuffer(byteBuffer.duplicate()));
+                    }
+                };
+            }
+        };
+        try {
+            return URL.of(URI.create("ysmvorbis:memory.ogg"), handler);
+        } catch (MalformedURLException impossible) {
+            throw new IllegalStateException("Failed to create in-memory vorbis URL", impossible);
+        }
     }
 }

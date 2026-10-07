@@ -11,8 +11,9 @@ import com.elfmcys.ysm.model.resource.client.ResourceLease;
 import com.elfmcys.ysm.model.resource.client.VehicleModelResources;
 import com.elfmcys.ysm.model.service.ClientModelService;
 import com.elfmcys.ysm.proto.mixel.manifest.asset.RenderTargetKind;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
@@ -31,7 +32,7 @@ public class CustomVehicleEntity extends CustomEntity<Entity> {
         return hash == null ? null : ClientModelService.instance()
                 .findRenderTarget(hash,
                         RenderTargetKind.RENDER_TARGET_KIND_VEHICLE,
-                        entity.getType().builtInRegistryHolder().key().location()).orElse(null);
+                        EntityList.getKey(entity)).orElse(null);
     }
 
     @Override
@@ -73,7 +74,6 @@ public class CustomVehicleEntity extends CustomEntity<Entity> {
      * 当前载具没有模型时，由于跳过渲染而不会检查模型更新，此时依赖于异步更新的机制检查。
      */
     @Override
-    @SuppressWarnings("deprecation")
     protected void onModelRenderTargetLoaded(ModelRenderTarget newModel) {
         super.onModelRenderTargetLoaded(newModel);
         vehicleResources = newModel.vehicleResources();

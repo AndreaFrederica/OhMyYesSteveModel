@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.input;
 
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.capability.YsmMaidCapabilityProvider;
 import com.elfmcys.ysm.client.gui.AnimationRouletteScreen;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -45,3 +46,4 @@ public class OpenRouletteScreen {
         }
     }
 }
+*/

@@ -1,13 +1,13 @@
 package com.elfmcys.ysm.model.resource.client.render;
 
 import com.elfmcys.ysm.YesSteveModel;
-import com.elfmcys.ysm.client.compat.IrisCompat;
 import com.elfmcys.ysm.client.texture.CustomPBRTextureSet;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.elfmcys.ysm.util.RenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ interface HostTexturePublisher {
             RuntimeException failure = null;
             for (var index = mappings.size() - 1; index >= 0; index--) {
                 try {
-                    textureManager.release(mappings.get(index));
+                    textureManager.deleteTexture(mappings.get(index));
                 } catch (RuntimeException error) {
                     if (failure == null) {
                         failure = error;
@@ -72,8 +72,8 @@ final class MinecraftHostTexturePublisher implements HostTexturePublisher {
 
     @Override
     public PublishedTextureBinding publish(PreparedTextureSet prepared) {
-        RenderSystem.assertOnRenderThread();
-        var manager = Minecraft.getInstance().getTextureManager();
+        RenderUtil.assertOnMinecraftThread();
+        var manager = Minecraft.getMinecraft().getTextureManager();
         var texture = prepared.transfer();
         var mappings = new ArrayList<ResourceLocation>(3);
         var hostOwned = new ArrayList<AbstractTexture>(3);
@@ -84,12 +84,10 @@ final class MinecraftHostTexturePublisher implements HostTexturePublisher {
             register(manager, base, texture);
             mappings.add(base);
             hostOwned.add(texture);
-            if (IrisCompat.isInstalled()) {
-                IrisCompat.requirePbrTextures(texture, hostOwned::add);
-            } else {
-                registerComponent(manager, mappings, hostOwned, texture.getNormal(), "normal");
-                registerComponent(manager, mappings, hostOwned, texture.getSpecular(), "specular");
-            }
+            // 1.12.2 无 Iris/Oculus 集成（迁移侧已删除 IrisCompat，build.gradle 已注释 oculus 依赖），
+            // 固定走上游 else 分支
+            registerComponent(manager, mappings, hostOwned, texture.getNormal(), "normal");
+            registerComponent(manager, mappings, hostOwned, texture.getSpecular(), "specular");
             success = true;
             return new PublishedTextureBinding(base, manager, mappings);
         } catch (RuntimeException | Error failure) {
@@ -100,7 +98,7 @@ final class MinecraftHostTexturePublisher implements HostTexturePublisher {
                 RuntimeException cleanupFailure = null;
                 for (var index = mappings.size() - 1; index >= 0; index--) {
                     try {
-                        manager.release(mappings.get(index));
+                        manager.deleteTexture(mappings.get(index));
                     } catch (RuntimeException error) {
                         cleanupFailure = append(cleanupFailure, error);
                     }
@@ -123,7 +121,7 @@ final class MinecraftHostTexturePublisher implements HostTexturePublisher {
 
     private void registerComponent(TextureManager manager, List<ResourceLocation> mappings,
                                    List<AbstractTexture> hostOwned,
-                                   AbstractTexture texture, String component) {
+                                   @Nullable AbstractTexture texture, String component) {
         if (texture == null) {
             return;
         }
@@ -135,14 +133,14 @@ final class MinecraftHostTexturePublisher implements HostTexturePublisher {
 
     private static void register(TextureManager manager, ResourceLocation id,
                                  AbstractTexture texture) {
-        manager.register(id, texture);
+        manager.loadTexture(id, texture);
         try {
             if (manager.getTexture(id) == texture) {
                 return;
             }
         } catch (RuntimeException error) {
             try {
-                manager.release(id);
+                manager.deleteTexture(id);
             } catch (RuntimeException cleanupFailure) {
                 error.addSuppressed(cleanupFailure);
             }
@@ -150,7 +148,7 @@ final class MinecraftHostTexturePublisher implements HostTexturePublisher {
         }
         var failure = new IllegalStateException("Host substituted model texture mapping: " + id);
         try {
-            manager.release(id);
+            manager.deleteTexture(id);
         } catch (RuntimeException cleanupFailure) {
             failure.addSuppressed(cleanupFailure);
         }

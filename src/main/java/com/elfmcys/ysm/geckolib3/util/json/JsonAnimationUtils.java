@@ -21,7 +21,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
-import net.minecraft.server.ChainedJsonException;
+import net.minecraft.client.util.JsonException;
 
 import java.util.*;
 
@@ -50,17 +50,17 @@ public class JsonAnimationUtils {
     }
 
     private static JsonElement getObjectByKey(Set<Map.Entry<String, JsonElement>> json, String key)
-            throws ChainedJsonException {
+            throws JsonException {
         for (Map.Entry<String, JsonElement> entry : json) {
             if (entry.getKey().equals(key)) {
                 return entry.getValue();
             }
         }
-        throw new ChainedJsonException("Could not find key: " + key);
+        throw new JsonException("Could not find key: " + key);
     }
 
     public static Map.Entry<String, JsonElement> getAnimation(JsonObject animationFile, String animationName)
-            throws ChainedJsonException {
+            throws JsonException {
         return new AbstractMap.SimpleEntry(animationName, getObjectByKey(getAnimations(animationFile), animationName));
     }
 

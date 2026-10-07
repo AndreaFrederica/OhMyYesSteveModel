@@ -11,7 +11,7 @@ import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.shorts.Short2ReferenceMap;
 import it.unimi.dsi.fastutil.shorts.Short2ReferenceMaps;
 import it.unimi.dsi.fastutil.shorts.Short2ReferenceOpenHashMap;
-import net.minecraft.util.StringUtil;
+import net.minecraft.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -86,7 +86,7 @@ public class AssetContainerWriter implements AutoCloseable {
             if (decodeSize != 0) {
                 throw new IllegalArgumentException("Uncompressed chunk data decode size must be 0");
             }
-            if (!StringUtil.isNullOrEmpty(encoding)) {
+            if (!StringUtils.isNullOrEmpty(encoding)) {
                 throw new IllegalArgumentException("Uncompressed chunk data encoding must be null or empty");
             }
             encoding = "zstd";

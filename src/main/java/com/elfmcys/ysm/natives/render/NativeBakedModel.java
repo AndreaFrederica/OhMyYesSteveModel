@@ -4,13 +4,11 @@ import com.elfmcys.ysm.buffer.ArrayBuffer;
 import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.buffer.UniBuffer;
 import com.elfmcys.ysm.buffer.annotation.Owned;
-import com.elfmcys.ysm.mixin.client.NativeImageAccessor;
 import com.elfmcys.ysm.natives.NativeObject;
 import com.elfmcys.ysm.natives.buffer.BufferArgument;
 import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
 import com.elfmcys.ysm.proto.mixel.asset.model.data.GeoModel;
 import com.elfmcys.ysm.util.ProtoUtil;
-import com.mojang.blaze3d.platform.NativeImage;
 import java.io.IOException;
 import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
@@ -221,32 +219,18 @@ public final class NativeBakedModel extends NativeObject {
 
     @Owned
     public static BakeResult bake(GeoModel model,
-                                  NativeImage texture, int originVersion,
+                                  NativeBuffer texturePixels, int textureWidth,
+                                  int textureHeight, int originVersion,
                                   boolean forceCulling, boolean forceTranslucent,
                                   boolean hasPbr) throws IOException {
         try (var modelData = ArrayBuffer.allocateWithScope(model.getSerializedSize())) {
             model.writeTo(ProtoUtil.sink(modelData.get()));
-            return bake(modelData.get(), boneCount(model), texture, originVersion,
+            return bake(modelData.get(), boneCount(model), texturePixels,
+                    textureWidth, textureHeight, originVersion,
                     forceCulling, forceTranslucent, hasPbr);
         }
     }
 
-    @Owned
-    public static BakeResult bake(UniBuffer modelData, int boneCount,
-                                  NativeImage texture, int originVersion,
-                                  boolean forceCulling, boolean forceTranslucent,
-                                  boolean hasPbr) {
-        if (texture.format() != NativeImage.Format.RGBA) {
-            throw new IllegalArgumentException("Texture format not supported");
-        }
-        var accessor = (NativeImageAccessor) (Object) texture;
-        validateTextureSize(accessor.ysm$size(), texture.getWidth(), texture.getHeight());
-        return bake(modelData, boneCount, accessor.ysm$pixels(), texture,
-                texture.getWidth(), texture.getHeight(), originVersion,
-                forceCulling, forceTranslucent, hasPbr);
-    }
-
-    @Owned
     public static BakeResult bake(UniBuffer modelData, int boneCount,
                                   NativeBuffer texturePixels, int textureWidth,
                                   int textureHeight, int originVersion,
@@ -309,19 +293,6 @@ public final class NativeBakedModel extends NativeObject {
             throw new RuntimeException("Failed to read BakedModel");
         }
         return new ReadResult(new NativeBakedModel(ptr), sortedBoneIndices);
-    }
-
-    public static boolean tryBake(UniBuffer modelData, NativeImage texture,
-                                  int originVersion, boolean forceCulling,
-                                  boolean forceTranslucent, boolean hasPbr) {
-        if (texture.format() != NativeImage.Format.RGBA) {
-            throw new IllegalArgumentException("Texture format not supported");
-        }
-        var accessor = (NativeImageAccessor) (Object) texture;
-        validateTextureSize(accessor.ysm$size(), texture.getWidth(), texture.getHeight());
-        return tryBake(modelData, accessor.ysm$pixels(), texture, texture.getWidth(),
-                texture.getHeight(), originVersion, forceCulling,
-                forceTranslucent, hasPbr);
     }
 
     public static boolean tryBake(GeoModel model,

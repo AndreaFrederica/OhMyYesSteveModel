@@ -1,22 +1,19 @@
 package com.elfmcys.ysm.capability;
 
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.core.Direction;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityManager;
-import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
-import net.minecraftforge.common.util.LazyOptional;
-
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public class PlayerAnimatableCapabilityProvider implements ICapabilityProvider {
-    public static Capability<PlayerAnimatableCapability> CAP = CapabilityManager.get(new CapabilityToken<>() {
-    });
+    @CapabilityInject(PlayerAnimatableCapability.class)
+    public static Capability<PlayerAnimatableCapability> CAP = null;
     private PlayerAnimatableCapability instance;
     private AbstractClientPlayer player;
 
@@ -24,24 +21,19 @@ public class PlayerAnimatableCapabilityProvider implements ICapabilityProvider {
         this.player = player;
     }
 
-    @NotNull
     @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        return getCapability(cap);
+    public boolean hasCapability(@NotNull Capability<?> cap, @Nullable EnumFacing side) {
+        return cap == CAP;
     }
 
-    @NotNull
+    @Nullable
     @Override
-    public <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap) {
-        return CAP.orEmpty(cap, LazyOptional.of(this::createCapability));
-    }
-
-    @NotNull
-    private PlayerAnimatableCapability createCapability() {
+    public <T> T getCapability(@NotNull Capability<T> cap, @Nullable EnumFacing side) {
+        if (!hasCapability(cap, side)) return null;
         if (instance == null) {
             this.instance = new PlayerAnimatableCapability(player);
             player = null;
         }
-        return instance;
+        return CAP.cast(instance);
     }
 }

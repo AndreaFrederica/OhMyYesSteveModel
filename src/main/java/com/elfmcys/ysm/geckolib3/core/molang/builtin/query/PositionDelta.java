@@ -3,7 +3,7 @@ package com.elfmcys.ysm.geckolib3.core.molang.builtin.query;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.function.entity.EntityFunction;
 import com.elfmcys.ysm.molang.runtime.ExecutionContext;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
 
 public class PositionDelta extends EntityFunction {
     @Override

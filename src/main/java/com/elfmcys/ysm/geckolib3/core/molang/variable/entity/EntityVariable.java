@@ -3,7 +3,7 @@ package com.elfmcys.ysm.geckolib3.core.molang.variable.entity;
 import com.elfmcys.ysm.geckolib3.core.molang.variable.IValueEvaluator;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.molang.variable.LambdaVariable;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
 
 public class EntityVariable extends LambdaVariable<Entity> {
     public EntityVariable(IValueEvaluator<?, IContext<Entity>> evaluator) {

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.tacz;
 
+/*
 import com.elfmcys.ysm.client.animation.condition.ConditionTAC;
 import com.elfmcys.ysm.client.entity.CustomHumanoidEntity;
 import com.elfmcys.ysm.client.model.locator.PlayerLocator;
@@ -87,11 +88,13 @@ class TacCompatInner {
         return playLoopAnimation(event, "tac:offhand:grenade");
     }
 
+*/
     /**
      * tac:idle
      * tac:run
      * tac:walk
      */
+/*
     static PlayState playGunMainAnimation(AnimationEvent<? extends AnimatableEntity<? extends LivingEntity>> event, String animationName, LoopType loopType) {
         String tacName = "tac:" + animationName;
         if (event.getAnimatableEntity().getAnimation(tacName) != null) {
@@ -100,6 +103,7 @@ class TacCompatInner {
         return playAnimation(event, animationName, loopType);
     }
 
+*/
     /**
      * tac:hold:pistol
      * tac:aim:pistol
@@ -108,6 +112,7 @@ class TacCompatInner {
      * tac:hold_shoot:pistol
      * tac:run:pistol
      */
+/*
     static PlayState playGunHoldAnimation(AnimationEvent<? extends CustomHumanoidEntity<?>> event, ItemStack heldItem) {
         IGun gun = IGun.getIGunOrNull(heldItem);
         if (gun == null) {
@@ -141,9 +146,11 @@ class TacCompatInner {
         }
     }
 
+*/
     /**
      * 这些动画可能是带有后摇的动画，故需要单独分一个频道来播放，从而才能超过时长进行播放
      */
+/*
     static PlayState playGunOnceAnimation(AnimationEvent<? extends CustomHumanoidEntity<?>> event, ItemStack heldItem) {
         IGun gun = IGun.getIGunOrNull(heldItem);
         if (gun == null) {
@@ -256,3 +263,4 @@ class TacCompatInner {
         return type.equals(tabType.name().toLowerCase(Locale.ENGLISH));
     }
 }
+*/

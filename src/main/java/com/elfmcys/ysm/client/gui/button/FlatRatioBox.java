@@ -1,30 +1,21 @@
 package com.elfmcys.ysm.client.gui.button;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.narration.NarrationElementOutput;
-import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
-@OnlyIn(Dist.CLIENT)
-public class FlatRatioBox extends AbstractWidget implements IConfigFormsButton {
+@SideOnly(Side.CLIENT)
+public class FlatRatioBox extends Button implements IConfigFormsButton {
     private final int maxHeight;
 
-    public FlatRatioBox(int pX, int pY, int maxHeight, Component component) {
-        super(pX, pY, 115, 15, component);
+    public FlatRatioBox(int pX, int pY, int maxHeight, String component) {
+        super(pX, pY, 115, 15, component, _ -> {});
         this.maxHeight = maxHeight;
     }
 
     @Override
-    protected void renderWidget(GuiGraphics graphics, int pMouseX, int pMouseY, float pPartialTick) {
-        graphics.fill(this.getX(), this.getY(), this.getX() + this.getWidth(), this.getY() + maxHeight, 0xef_434242);
-        this.renderScrollingString(graphics, Minecraft.getInstance().font, 2, 0xFFFFFF);
-    }
-
-    @Override
-    protected void updateWidgetNarration(NarrationElementOutput output) {
-        this.defaultButtonNarrationText(output);
+    protected void renderWidget(Minecraft mc, int pMouseX, int pMouseY, float pPartialTick) {
+        drawRect(this.x, this.y, this.x + this.width, this.y + maxHeight, 0xef_434242);
+        this.renderScrollingString(mc.fontRenderer, 2, 0xFFFFFF);
     }
 }

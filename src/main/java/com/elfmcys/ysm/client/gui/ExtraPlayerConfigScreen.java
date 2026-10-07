@@ -1,20 +1,22 @@
 package com.elfmcys.ysm.client.gui;
 
+import com.elfmcys.ysm.client.gui.button.Button;
+import com.elfmcys.ysm.client.gui.button.Checkbox;
+import com.elfmcys.ysm.config.Config;
 import com.elfmcys.ysm.config.ExtraPlayerScreenConfig;
 import com.elfmcys.ysm.util.RenderUtil;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Checkbox;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.util.FormattedCharSequence;
-import org.lwjgl.glfw.GLFW;
+import com.elfmcys.ysm.util.TextMeasureUtil;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.resources.I18n;
+import org.jetbrains.annotations.NotNull;
+import org.lwjgl.input.Keyboard;
 
+import java.io.IOException;
 import java.util.List;
 
 public class ExtraPlayerConfigScreen extends Screen {
-    private static final char RESET_KEY = 'r';
+    private static final int RESET_KEY = Keyboard.KEY_R;
     private int posX;
     private int posY;
     private float scale;
@@ -22,143 +24,131 @@ public class ExtraPlayerConfigScreen extends Screen {
     private boolean isChangePos = false;
     private boolean isChangeScale = false;
     private int controlSize = 5;
-    private int yawChangeButton = GLFW.GLFW_MOUSE_BUTTON_RIGHT;
+    private int yawChangeButton = RIGHT_MOUSE_BUTTON;
 
     public ExtraPlayerConfigScreen() {
-        super(Component.literal("YSM Extra Player Render Config GUI"));
-        this.posX = ExtraPlayerScreenConfig.PLAYER_POS_X.get();
-        this.posY = ExtraPlayerScreenConfig.PLAYER_POS_Y.get();
-        this.scale = ExtraPlayerScreenConfig.PLAYER_SCALE.get().floatValue();
-        this.yawOffset = ExtraPlayerScreenConfig.PLAYER_YAW_OFFSET.get().floatValue();
+        super();
+        this.posX = ExtraPlayerScreenConfig.PLAYER_POS_X;
+        this.posY = ExtraPlayerScreenConfig.PLAYER_POS_Y;
+        this.scale = ExtraPlayerScreenConfig.PLAYER_SCALE;
+        this.yawOffset = ExtraPlayerScreenConfig.PLAYER_YAW_OFFSET;
         if (AndroidCompat.isAndroid()) {
             this.controlSize = 16;
-            this.yawChangeButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
+            this.yawChangeButton = LEFT_MOUSE_BUTTON;
         }
     }
 
     @Override
-    protected void init() {
-        this.clearWidgets();
-
-
+    public void initGui() {
         int yOffset = -30;
         if (AndroidCompat.isAndroid()) {
-            Component reset = Component.translatable("controls.reset");
-            this.addRenderableWidget(Button.builder(reset, button -> this.reset())
-                    .bounds(this.width / 2 - 50, this.height - 35, 100, 30)
-                    .build());
+            String reset = I18n.format("controls.reset");
+            this.addButton(new Button(this.width / 2 - 50, this.height - 35, 100, 30, reset, button -> this.reset()));
             yOffset = -60;
         }
 
-        Component name = Component.translatable("gui.yes_steve_model.hide_or_show");
-        int nameWidth = this.font.width(name) + 24;
-        this.addRenderableWidget(new Checkbox((this.width - nameWidth) / 2, this.height + yOffset, nameWidth, 20,
-                name, ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER.get(), true) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER.set(this.selected());
-            }
-        });
+        String name = I18n.format("gui.yes_steve_model.hide_or_show");
+        int nameWidth = this.fontRenderer.getStringWidth(name) + 24;
+        this.addButton(new Checkbox((this.width - nameWidth) / 2, this.height + yOffset, name, this.fontRenderer,
+                ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER,
+                b -> ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER = ((Checkbox) b).selected()));
     }
 
     @Override
-    public void render(GuiGraphics graphics, int pMouseX, int pMouseY, float frameDeltaTime) {
+    public void drawScreen(int pMouseX, int pMouseY, float frameDeltaTime) {
         int startX = this.posX;
         int startY = this.posY;
         int endX = (int) (startX + this.scale * 1);
         int endY = (int) (startY + this.scale * 2);
 
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, -500 - (50 * this.scale / 40));
+        GlStateManager.pushMatrix();
+        GlStateManager.translate(0, 0, -500 - (50 * this.scale / 40));
 
-        graphics.vLine(width / 2 - 1, -2, height + 2, 0x9fffffff);
-        graphics.hLine(-2, width + 2, height / 2 - 1, 0x9fffffff);
+        this.drawVerticalLine(width / 2 - 1, -2, height + 2, 0x9fffffff);
+        this.drawHorizontalLine(-2, width + 2, height / 2 - 1, 0x9fffffff);
 
-        graphics.vLine(10, -2, height + 2, 0x9fffffff);
-        graphics.vLine(width - 10, -2, height + 2, 0x9fffffff);
-        graphics.hLine(-2, width + 2, 10, 0x9fffffff);
-        graphics.hLine(-2, width + 2, height - 10, 0x9fffffff);
+        this.drawVerticalLine(10, -2, height + 2, 0x9fffffff);
+        this.drawVerticalLine(width - 10, -2, height + 2, 0x9fffffff);
+        this.drawHorizontalLine(-2, width + 2, 10, 0x9fffffff);
+        this.drawHorizontalLine(-2, width + 2, height - 10, 0x9fffffff);
 
-        graphics.vLine(startX, startY, endY, 0xffff0000);
-        graphics.vLine(endX, startY, endY, 0xffff0000);
-        graphics.hLine(startX, endX, startY, 0xffff0000);
-        graphics.hLine(startX, endX, endY, 0xffff0000);
+        this.drawVerticalLine(startX, startY, endY, 0xffff0000);
+        this.drawVerticalLine(endX, startY, endY, 0xffff0000);
+        this.drawHorizontalLine(startX, endX, startY, 0xffff0000);
+        this.drawHorizontalLine(startX, endX, endY, 0xffff0000);
 
-        graphics.fillGradient(startX, startY, endX, endY, 0x4fffffff, 0x4fffffff);
+        this.drawGradientRect(startX, startY, endX, endY, 0x4fffffff, 0x4fffffff);
 
-        graphics.fillGradient(startX - this.controlSize, startY - this.controlSize, startX + this.controlSize, startY + this.controlSize, 0xFF00FF9F, 0xFF00FF9F);
-        graphics.fillGradient(endX - this.controlSize, endY - this.controlSize, endX + this.controlSize, endY + this.controlSize, 0xFF00009F, 0xFF00009F);
+        this.drawGradientRect(startX - this.controlSize, startY - this.controlSize, startX + this.controlSize, startY + this.controlSize, 0xFF00FF9F, 0xFF00FF9F);
+        this.drawGradientRect(endX - this.controlSize, endY - this.controlSize, endX + this.controlSize, endY + this.controlSize, 0xFF00009F, 0xFF00009F);
 
         int y = 15;
-        MutableComponent component = Component.translatable("gui.yes_steve_model.extra_player_render.tips");
-        List<FormattedCharSequence> split = font.split(component, 500);
-        for (FormattedCharSequence charSequence : split) {
-            int w = font.width(charSequence);
-            graphics.drawString(font, charSequence, width - 15 - w, y, 0xFFFFFF);
+        String component = I18n.format("gui.yes_steve_model.extra_player_render.tips");
+        List<String> split = TextMeasureUtil.split(this.fontRenderer, component, 500);
+        for (String charSequence : split) {
+            int w = fontRenderer.getStringWidth(charSequence);
+            this.drawString(fontRenderer, charSequence, width - 15 - w, y, 0xFFFFFF);
             y += 10;
         }
 
-        graphics.pose().popPose();
+        GlStateManager.popMatrix();
 
-        if (getMinecraft().player != null && !ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER.get()) {
-            RenderUtil.renderExtraPlayerEntity(graphics, getMinecraft().player, this.posX, this.posY, this.scale, this.yawOffset, -500, minecraft.getFrameTime());
+        if (mc.player != null && !ExtraPlayerScreenConfig.DISABLE_PLAYER_RENDER) {
+            RenderUtil.renderExtraPlayerEntity(mc.player, this.posX, this.posY, this.scale, this.yawOffset, -500, frameDeltaTime);
         }
 
-        super.render(graphics, pMouseX, pMouseY, frameDeltaTime);
+        super.drawScreen(pMouseX, pMouseY, frameDeltaTime);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
         boolean xIn = this.posX - this.controlSize < mouseX && mouseX < this.posX + this.controlSize;
         boolean yIn = this.posY - this.controlSize < mouseY && mouseY < this.posY + this.controlSize;
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && xIn && yIn) {
+        if (button == LEFT_MOUSE_BUTTON && xIn && yIn) {
             this.isChangePos = true;
         }
         int endX = (int) (this.posX + this.scale * 1);
         int endY = (int) (this.posY + this.scale * 2);
         boolean xIn2 = endX - this.controlSize < mouseX && mouseX < endX + this.controlSize;
         boolean yIn2 = endY - this.controlSize < mouseY && mouseY < endY + this.controlSize;
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && xIn2 && yIn2) {
+        if (button == LEFT_MOUSE_BUTTON && xIn2 && yIn2) {
             this.isChangeScale = true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseReleased(double pMouseX, double pMouseY, int pButton) {
+    public void mouseReleased(int mouseX, int mouseY, int button) {
         this.isChangePos = false;
         this.isChangeScale = false;
-        return super.mouseReleased(pMouseX, pMouseY, pButton);
+        super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+    public void mouseDragged(int mouseX, int mouseY, int button, int deltaX, int deltaY) {
         if (isChangeScale) {
             double scale1 = mouseX - this.posX;
-            double scale2 = (mouseY - this.posY) / 2;
+            double scale2 = (double) (mouseY - this.posY) / 2;
             this.scale = (float) Math.min(scale1, scale2);
-            return true;
+            return;
         }
         if (isChangePos) {
-            this.posX = (int) mouseX;
-            this.posY = (int) mouseY;
-            return true;
+            this.posX = mouseX;
+            this.posY = mouseY;
+            return;
         }
         // 手机下是左键，桌面端是右键
         if (button == this.yawChangeButton) {
             this.yawOffset += (float) (deltaX * 2);
-            return true;
         }
-        return false;
     }
 
     @Override
-    public boolean charTyped(char typedChar, int keyCode) {
-        if (Character.toLowerCase(typedChar) == RESET_KEY && hasAltDown()) {
+    public void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (keyCode == RESET_KEY && isAltKeyDown()) {
             this.reset();
         }
-        return super.charTyped(typedChar, keyCode);
+        super.keyTyped(typedChar, keyCode);
     }
 
     private void reset() {
@@ -169,11 +159,22 @@ public class ExtraPlayerConfigScreen extends Screen {
     }
 
     @Override
-    public void onClose() {
-        ExtraPlayerScreenConfig.PLAYER_POS_X.set(this.posX);
-        ExtraPlayerScreenConfig.PLAYER_POS_Y.set(this.posY);
-        ExtraPlayerScreenConfig.PLAYER_SCALE.set((double) this.scale);
-        ExtraPlayerScreenConfig.PLAYER_YAW_OFFSET.set((double) this.yawOffset);
-        super.onClose();
+    public void onGuiClosed() {
+        ExtraPlayerScreenConfig.PLAYER_POS_X = this.posX;
+        ExtraPlayerScreenConfig.PLAYER_POS_Y = this.posY;
+        ExtraPlayerScreenConfig.PLAYER_SCALE = this.scale;
+        ExtraPlayerScreenConfig.PLAYER_YAW_OFFSET = this.yawOffset;
+        Config.save();
+        super.onGuiClosed();
+    }
+
+    @Override
+    public void onResize(@NotNull Minecraft mc, int width, int height) {
+        ExtraPlayerScreenConfig.PLAYER_POS_X = this.posX;
+        ExtraPlayerScreenConfig.PLAYER_POS_Y = this.posY;
+        ExtraPlayerScreenConfig.PLAYER_SCALE = this.scale;
+        ExtraPlayerScreenConfig.PLAYER_YAW_OFFSET = this.yawOffset;
+        Config.save();
+        super.onResize(mc, width, height);
     }
 }

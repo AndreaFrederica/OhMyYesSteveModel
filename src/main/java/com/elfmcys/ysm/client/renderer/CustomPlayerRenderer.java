@@ -2,7 +2,6 @@ package com.elfmcys.ysm.client.renderer;
 
 import com.elfmcys.ysm.capability.PlayerAnimatableCapability;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
-import com.elfmcys.ysm.client.compat.swarfare.SWarfareCompat;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.TlmClientCompat;
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.client.gui.CustomGuiPlayerEntity;
@@ -12,44 +11,39 @@ import com.elfmcys.ysm.client.renderer.layer.CustomPlayerHeadLayer;
 import com.elfmcys.ysm.client.renderer.layer.CustomPlayerItemInHandLayer;
 import com.elfmcys.ysm.event.api.SpecialPlayerRenderEvent;
 import com.elfmcys.ysm.geckolib3.geo.GeoReplacedEntityRenderer;
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.scores.Objective;
-import net.minecraft.world.scores.Score;
-import net.minecraft.world.scores.Scoreboard;
-import net.minecraft.world.scores.Team;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.renderer.texture.TextureMap;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.scoreboard.Score;
+import net.minecraft.scoreboard.ScoreObjective;
+import net.minecraft.scoreboard.Scoreboard;
+import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
 import org.jetbrains.annotations.NotNull;
 
-public class CustomPlayerRenderer extends GeoReplacedEntityRenderer<Player, CustomPlayerEntity> {
+public class CustomPlayerRenderer extends GeoReplacedEntityRenderer<EntityPlayer, CustomPlayerEntity> {
     private ResourceLocation textureOverride;
 
-    @SuppressWarnings("all")
-    public CustomPlayerRenderer(EntityRendererProvider.Context ctx) {
+    public CustomPlayerRenderer(RenderManager ctx) {
         super(ctx);
-        addLayer(new CustomPlayerItemInHandLayer(ctx.getItemInHandRenderer()));
+        addLayer(new CustomPlayerItemInHandLayer());
         addLayer(new CustomPlayerElytraLayer(ctx));
         addLayer(new CustomParrotOnShoulderLayer(ctx));
-        addLayer(new CustomPlayerHeadLayer(ctx));
+        addLayer(new CustomPlayerHeadLayer());
     }
 
     @Override
-    @SuppressWarnings("all")
-    public void render(Player player, float entityYaw, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
+    public void doRender(EntityPlayer player, double x, double y, double z, float entityYaw, float partialTicks) {
+        /*
         // 检查卓越前线的隐藏功能
         if (SWarfareCompat.shouldHidePlayerRender(player)) {
             return;
         }
+        */
 
-        PlayerAnimatableCapability cap = player.getCapability(PlayerAnimatableCapabilityProvider.CAP).orElse(null);
+        PlayerAnimatableCapability cap = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
         if (cap == null) {
             return;
         }
@@ -61,74 +55,43 @@ public class CustomPlayerRenderer extends GeoReplacedEntityRenderer<Player, Cust
             return;
         }
 
-        renderAnimatableEntity(cap, event.getTextureLocationOverride(), entityYaw, partialTick, poseStack, bufferSource, packedLight);
-    }
-
-    @Override
-    public boolean shouldShowName(Player entity) {
-        double distance = this.entityRenderDispatcher.distanceToSqr(entity);
-        float renderDistance = entity.isDiscrete() ? 32.0F : 64.0F;
-        if (distance >= (double) (renderDistance * renderDistance)) {
-            return false;
-        } else {
-            Minecraft minecraft = Minecraft.getInstance();
-            LocalPlayer player = minecraft.player;
-            if (player == null) {
-                return false;
-            }
-            boolean invisible = !entity.isInvisibleTo(player);
-            if (entity != player) {
-                Team team1 = entity.getTeam();
-                Team team2 = player.getTeam();
-                if (team1 != null) {
-                    Team.Visibility team$visibility = team1.getNameTagVisibility();
-                    return switch (team$visibility) {
-                        case ALWAYS -> invisible;
-                        case NEVER -> false;
-                        case HIDE_FOR_OTHER_TEAMS ->
-                                team2 == null ? invisible : team1.isAlliedTo(team2) && (team1.canSeeFriendlyInvisibles() || invisible);
-                        case HIDE_FOR_OWN_TEAM -> team2 == null ? invisible : !team1.isAlliedTo(team2) && invisible;
-                    };
-                }
-            }
-            return Minecraft.renderNames() && entity != minecraft.getCameraEntity() && invisible && !entity.isVehicle();
-        }
+        renderAnimatableEntity(cap, event.getTextureLocationOverride(), x, y, z, entityYaw, partialTicks);
     }
 
     @Override
     @NotNull
-    public ResourceLocation getTextureLocation(Player pEntity) {
-        return textureOverride == null ? pEntity.getCapability(PlayerAnimatableCapabilityProvider.CAP).map(CustomPlayerEntity::getTextureLocation).orElse(MissingTextureAtlasSprite.getLocation()) : textureOverride;
+    protected ResourceLocation getEntityTexture(EntityPlayer pEntity) {
+        if (textureOverride != null) {
+            return textureOverride;
+        }
+        PlayerAnimatableCapability cap = pEntity.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        return cap == null ? TextureMap.LOCATION_MISSING_TEXTURE : cap.getTextureLocation();
     }
 
     @Override
-    @SuppressWarnings("all")
-    protected void renderNameTag(Player player, Component displayName, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
+    protected void renderEntityName(EntityPlayer player, double x, double y, double z, String displayName, double distanceSq) {
         if (CustomGuiPlayerEntity.isFakePlayer(player)) {
             return;
         }
-        double distance = this.entityRenderDispatcher.distanceToSqr(player);
-        poseStack.pushPose();
-        if (distance < 100) {
-            Scoreboard scoreboard = player.getScoreboard();
-            Objective objective = scoreboard.getDisplayObjective(2);
+        if (distanceSq < 100) {
+            Scoreboard scoreboard = player.getWorldScoreboard();
+            ScoreObjective objective = scoreboard.getObjectiveInDisplaySlot(2);
             if (objective != null) {
-                Score score = scoreboard.getOrCreatePlayerScore(player.getScoreboardName(), objective);
-                super.renderNameTag(player, (Component.literal(Integer.toString(score.getScore()))).append(" ").append(objective.getDisplayName()), poseStack, buffer, packedLight);
-                poseStack.translate(0, 9.0 * 1.15 * 0.025, 0);
+                Score score = scoreboard.getOrCreateScore(player.getName(), objective);
+                this.renderLivingLabel(player, score.getScorePoints() + " " + objective.getDisplayName(), x, y, z, 64);
+                y += this.getFontRendererFromRenderManager().FONT_HEIGHT * 1.15 * 0.025;
             }
         }
-        super.renderNameTag(player, displayName, poseStack, buffer, packedLight);
-        poseStack.popPose();
+        super.renderEntityName(player, x, y, z, displayName, distanceSq);
     }
 
     @Override
-    protected void setupRotations(Player player, @NotNull PoseStack poseStack, float pAgeInTicks, float pRotationYaw, float pPartialTicks) {
-        super.setupRotations(player, poseStack, pAgeInTicks, pRotationYaw, pPartialTicks);
+    protected void applyRotations(EntityPlayer player, float pAgeInTicks, float pRotationYaw, float pPartialTicks) {
+        super.applyRotations(player, pAgeInTicks, pRotationYaw, pPartialTicks);
         // 如果是坐在女仆的实体上，则需要偏移回去（哎，屎山代码+1006）
-        Entity vehicle = player.getVehicle();
+        Entity vehicle = player.getRidingEntity();
         if (TlmClientCompat.isChair(vehicle) || TlmClientCompat.isSit(vehicle)) {
-            poseStack.translate(0, 0.5, 0);
+            GlStateManager.translate(0, 0.5F, 0);
         }
     }
 }

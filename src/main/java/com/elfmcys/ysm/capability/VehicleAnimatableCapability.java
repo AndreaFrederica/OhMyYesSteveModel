@@ -5,13 +5,13 @@ import com.elfmcys.ysm.client.entity.CustomVehicleEntity;
 import com.elfmcys.ysm.model.domain.Hash256;
 import it.unimi.dsi.fastutil.ints.Int2FloatMap;
 import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
-import net.minecraft.world.entity.Entity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraft.entity.Entity;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public class VehicleAnimatableCapability extends CustomVehicleEntity {
     private @Nullable RemoteRoamingStruct roamingStruct;
 

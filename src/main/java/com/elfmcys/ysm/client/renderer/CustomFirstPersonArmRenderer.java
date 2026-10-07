@@ -4,22 +4,20 @@ import com.elfmcys.ysm.capability.PlayerAnimatableCapability;
 import com.elfmcys.ysm.client.entity.CustomFirstPersonArmEntity;
 import com.elfmcys.ysm.event.api.SpecialPlayerRenderEvent;
 import com.elfmcys.ysm.geckolib3.core.util.Color;
-import com.elfmcys.ysm.geckolib3.geo.CustomTranslucentRenderType;
+import com.elfmcys.ysm.geckolib3.geo.GeoVertexFormat;
 import com.elfmcys.ysm.natives.render.NativeRenderer;
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.util.EnumHandSide;
 import net.minecraftforge.common.MinecraftForge;
+import org.lwjgl.opengl.GL11;
 
 public class CustomFirstPersonArmRenderer {
     private CustomFirstPersonArmEntity armEntity = null;
 
-    @SuppressWarnings("all")
-    public void render(LocalPlayer player, PlayerAnimatableCapability cap, HumanoidArm arm,
-                       PoseStack poseStack, MultiBufferSource bufferSource,
-                       int packedLight, float partialTick) {
+    public void render(EntityPlayerSP player, PlayerAnimatableCapability cap, EnumHandSide arm,
+                       float partialTick) {
         if (armEntity == null || armEntity.getEntity() != player) {
             armEntity = new CustomFirstPersonArmEntity(player, cap);
         }
@@ -36,18 +34,21 @@ public class CustomFirstPersonArmRenderer {
         }
 
         var textureLocation = renderEvent.getTextureLocationOverride() == null ? cap.getTextureLocation() : renderEvent.getTextureLocationOverride();
-        var vertexConsumer = bufferSource.getBuffer(CustomTranslucentRenderType.create(textureLocation));
 
-        poseStack.pushPose();
-        if (arm == HumanoidArm.LEFT) {
-            poseStack.translate(0.25, 1.8, 0);
+        GlStateManager.pushMatrix();
+        if (arm == EnumHandSide.LEFT) {
+            GlStateManager.translate(0.25, 1.8, 0);
         } else {
-            poseStack.translate(-0.25, 1.8, 0);
+            GlStateManager.translate(-0.25, 1.8, 0);
         }
-        poseStack.scale(-1, -1, 1);
+        GlStateManager.scale(-1, -1, 1);
 
-        NativeRenderer.render(vertexConsumer, poseStack.last(), data.modelState.getNativeState(), data.modelState.getVertexCount(),
-                packedLight, OverlayTexture.NO_OVERLAY, Color.WHITE.getColor(), data.ctx.nativeType());
-        poseStack.popPose();
+        var tess = Tessellator.getInstance();
+        var buffer = tess.getBuffer();
+        buffer.begin(GL11.GL_QUADS, GeoVertexFormat.NEW_ENTITY);
+        NativeRenderer.render(buffer, data.modelState.getNativeState(), data.modelState.getVertexCount(),
+                0x7FFF7FFF, 0, Color.WHITE.getColor(), data.ctx.nativeType());
+        tess.draw();
+        GlStateManager.popMatrix();
     }
 }

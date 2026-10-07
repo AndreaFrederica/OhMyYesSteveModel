@@ -2,10 +2,10 @@ package com.elfmcys.ysm.client.texture;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.util.CleanerUtil;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.elfmcys.ysm.util.RenderUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 import org.apache.commons.lang3.time.StopWatch;
 
 import java.lang.ref.WeakReference;
@@ -26,17 +26,17 @@ public final class CustomTextureManager {
     }
 
     public static TextureHolder register(AbstractTexture texture, int removingDelayTicks) {
-        RenderSystem.assertOnRenderThread();
+        RenderUtil.assertOnMinecraftThread();
         return REGISTRY.register(texture, removingDelayTicks);
     }
 
     public static void release(AbstractTexture texture) {
-        RenderSystem.assertOnRenderThread();
+        RenderUtil.assertOnMinecraftThread();
         REGISTRY.release(texture);
     }
 
     public static void tick() {
-        RenderSystem.assertOnRenderThread();
+        RenderUtil.assertOnMinecraftThread();
         REGISTRY.tick();
     }
 
@@ -154,12 +154,12 @@ public final class CustomTextureManager {
     private static final class MinecraftHost implements Host {
         @Override
         public void register(ResourceLocation id, AbstractTexture texture) {
-            Minecraft.getInstance().getTextureManager().register(id, texture);
+            Minecraft.getMinecraft().getTextureManager().loadTexture(id, texture);
         }
 
         @Override
         public void release(ResourceLocation id) {
-            Minecraft.getInstance().getTextureManager().release(id);
+            Minecraft.getMinecraft().getTextureManager().deleteTexture(id);
         }
     }
 

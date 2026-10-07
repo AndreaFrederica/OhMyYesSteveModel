@@ -119,38 +119,39 @@ public final class {{CHECKER}} {
                 return null;
             }
             try {
-                Class<?> environment = Class.forName(
-                        "net.minecraftforge.fml.loading.FMLEnvironment", false, loader());
-                Object dist = environment.getField("dist").get(null);
-                if (!String.valueOf(dist).equals("CLIENT")) {
+                Class<?> commonHandler = Class.forName(
+                        "net.minecraftforge.fml.common.FMLCommonHandler", false, loader());
+                Object common = commonHandler.getMethod("instance").invoke(null);
+                Object physicalSide = commonHandler.getMethod("getSide").invoke(common);
+                if (!String.valueOf(physicalSide).equals("CLIENT")) {
                     return new Result(Status.NOT_APPLICABLE, java.util.List.of());
                 }
                 return null;
             } catch (ClassNotFoundException exception) {
                 return result(Status.CHECK_FAILED, IssueKind.YSM_ENTRYPOINT_ERROR,
-                        "net.minecraftforge.fml.loading.FMLEnvironment.dist",
+                        "net.minecraftforge.fml.common.FMLCommonHandler",
                         "Cannot determine the physical side outside a Forge runtime.");
             } catch (Throwable throwable) {
                 return result(Status.CHECK_FAILED, IssueKind.YSM_ENTRYPOINT_ERROR,
-                        "net.minecraftforge.fml.loading.FMLEnvironment.dist", describe(throwable));
+                        "net.minecraftforge.fml.common.FMLCommonHandler", describe(throwable));
             }
         }
 
         private static Result checkYsmEntrypoint() {
             Boolean modLoaded = null;
             try {
-                Class<?> modListClass = Class.forName("net.minecraftforge.fml.ModList", false, loader());
-                Object modList = modListClass.getMethod("get").invoke(null);
-                modLoaded = (Boolean) modListClass.getMethod("isLoaded", String.class)
-                        .invoke(modList, "ysm");
+                Class<?> loaderClass = Class.forName("net.minecraftforge.fml.common.Loader", false, loader());
+                Object loader = loaderClass.getMethod("instance").invoke(null);
+                modLoaded = (Boolean) loaderClass.getMethod("isModLoaded", String.class)
+                        .invoke(loader, "ysm");
                 if (!modLoaded) {
                     return new Result(Status.YSM_NOT_LOADED, java.util.List.of());
                 }
             } catch (ClassNotFoundException ignored) {
-                // A plain JVM test/runtime has no ModList; class presence is the fallback.
+                // A plain JVM test/runtime has no Loader; class presence is the fallback.
             } catch (Throwable throwable) {
                 return result(Status.CHECK_FAILED, IssueKind.YSM_ENTRYPOINT_ERROR,
-                        "net.minecraftforge.fml.ModList#isLoaded", describe(throwable));
+                        "net.minecraftforge.fml.common.Loader#isModLoaded", describe(throwable));
             }
 
             Class<?> ysm;
@@ -193,10 +194,15 @@ public final class {{CHECKER}} {
         private static Result checkReobfCanary(String canaryProbe) {
             final boolean production;
             try {
-                production = isForgeProduction();
-            } catch (ProbeFailure failure) {
+                Class<?> launchHandler = Class.forName(
+                        "net.minecraftforge.fml.relauncher.FMLLaunchHandler", false, loader());
+                production = Boolean.TRUE.equals(launchHandler.getMethod(
+                        "isDeobfuscatedEnvironment").invoke(null));
+            } catch (ClassNotFoundException ignored) {
+                production = false;
+            } catch (Throwable throwable) {
                 return result(Status.CHECK_FAILED, IssueKind.REOBF_PROBE_ERROR,
-                        "Forge production environment", failure.getMessage());
+                        "Forge production environment", describe(throwable));
             }
             if (!production) {
                 return null;
@@ -222,9 +228,9 @@ public final class {{CHECKER}} {
 
         private static boolean isForgeProduction() throws ProbeFailure {
             try {
-                Class<?> loaderClass = Class.forName(
-                        "net.minecraftforge.fml.loading.FMLLoader", false, loader());
-                return Boolean.TRUE.equals(loaderClass.getMethod("isProduction").invoke(null));
+                Class<?> launchHandler = Class.forName(
+                        "net.minecraftforge.fml.relauncher.FMLLaunchHandler", false, loader());
+                return Boolean.TRUE.equals(launchHandler.getMethod("isDeobfuscatedEnvironment").invoke(null));
             } catch (ClassNotFoundException ignored) {
                 return false;
             } catch (Throwable throwable) {

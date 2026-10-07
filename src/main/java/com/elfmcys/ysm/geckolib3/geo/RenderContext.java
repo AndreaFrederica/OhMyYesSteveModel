@@ -24,6 +24,7 @@ public record RenderContext(boolean level, boolean irisShadow, boolean firstPers
         if (irisShadow) {
             return RenderContextType.IRIS_SHADOW;
         }
-        return level || offScreen ? RenderContextType.LEVEL : RenderContextType.GUI;
+        // FIXME：临时解决第一人称
+        return level || offScreen || firstPersonMod ? RenderContextType.LEVEL : RenderContextType.GUI;
     }
 }

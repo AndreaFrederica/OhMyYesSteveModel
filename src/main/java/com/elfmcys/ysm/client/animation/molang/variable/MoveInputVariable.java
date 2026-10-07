@@ -2,8 +2,9 @@ package com.elfmcys.ysm.client.animation.molang.variable;
 
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
 import com.elfmcys.ysm.geckolib3.core.util.MathUtil;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
+import com.elfmcys.ysm.util.EntityUtil;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.math.MathHelper;
 
 public class MoveInputVariable {
     public static double getVertical(IContext<Entity> context) {
@@ -21,11 +22,11 @@ public class MoveInputVariable {
         }
 
         // 计算移动角度和实体偏航角度，并作差计算出相对角度
-        float moveAngleDeg = MathUtil.radiansToDegrees((float) Mth.atan2(z, x));
-        float entityYawDeg = 90 - Mth.wrapDegrees(-entity.getViewYRot(partialTick));
-        float relativeAnglesDeg = Mth.wrapDegrees(moveAngleDeg - entityYawDeg);
+        float moveAngleDeg = MathUtil.radiansToDegrees((float) MathHelper.atan2(z, x));
+        float entityYawDeg = 90 - MathHelper.wrapDegrees(-EntityUtil.getViewYRot(entity, partialTick));
+        float relativeAnglesDeg = MathHelper.wrapDegrees(moveAngleDeg - entityYawDeg);
 
-        return Mth.cos(MathUtil.degreesToRadians(relativeAnglesDeg));
+        return MathHelper.cos(MathUtil.degreesToRadians(relativeAnglesDeg));
     }
 
     public static double getHorizontal(IContext<Entity> context) {
@@ -43,10 +44,10 @@ public class MoveInputVariable {
         }
 
         // 计算移动角度和实体偏航角度，并作差计算出相对角度
-        float moveAngleDeg = MathUtil.radiansToDegrees((float) Mth.atan2(z, x));
-        float entityYawDeg = 90 - Mth.wrapDegrees(-entity.getViewYRot(partialTick));
-        float relativeAnglesDeg = Mth.wrapDegrees(moveAngleDeg - entityYawDeg);
+        float moveAngleDeg = MathUtil.radiansToDegrees((float) MathHelper.atan2(z, x));
+        float entityYawDeg = 90 - MathHelper.wrapDegrees(-EntityUtil.getViewYRot(entity, partialTick));
+        float relativeAnglesDeg = MathHelper.wrapDegrees(moveAngleDeg - entityYawDeg);
 
-        return Mth.sin(MathUtil.degreesToRadians(relativeAnglesDeg));
+        return MathHelper.sin(MathUtil.degreesToRadians(relativeAnglesDeg));
     }
 }

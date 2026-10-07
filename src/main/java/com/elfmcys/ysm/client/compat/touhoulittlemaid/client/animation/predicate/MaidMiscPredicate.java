@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation.predicate;
 
+/*
 import com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.CustomYsmMaidEntity;
 import com.elfmcys.ysm.client.entity.IPreviewEntity;
@@ -38,3 +39,4 @@ public class MaidMiscPredicate implements IAnimationPredicate<CustomYsmMaidEntit
         return PlayState.STOP;
     }
 }
+*/

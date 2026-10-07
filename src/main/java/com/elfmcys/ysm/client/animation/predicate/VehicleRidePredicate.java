@@ -4,7 +4,7 @@ import com.elfmcys.ysm.client.entity.CustomVehicleEntity;
 import com.elfmcys.ysm.geckolib3.core.PlayState;
 import com.elfmcys.ysm.geckolib3.core.event.predicate.AnimationEvent;
 import com.elfmcys.ysm.molang.runtime.ExpressionEvaluator;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.entity.Entity;
 
 import static com.elfmcys.ysm.client.animation.predicate.IAnimationPredicate.playAnimation;
 

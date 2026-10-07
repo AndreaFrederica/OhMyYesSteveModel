@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.animation;
 
+/*
 import com.elfmcys.ysm.client.animation.condition.ConditionArmor;
 import com.elfmcys.ysm.client.animation.predicate.*;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.CustomYsmMaidEntity;
@@ -115,3 +116,4 @@ public class MaidControllerCollection {
         }
     }
 }
+*/

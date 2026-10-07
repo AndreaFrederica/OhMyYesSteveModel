@@ -1,50 +1,50 @@
 package com.elfmcys.ysm.client.compat.jade;
 
-import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.capability.VehicleAnimatableCapabilityProvider;
 import com.elfmcys.ysm.util.ModelIdUtil;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import snownee.jade.api.*;
-import snownee.jade.api.config.IPluginConfig;
+import mcp.mobius.waila.api.*;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.EntityPlayer;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 @WailaPlugin
 @SuppressWarnings("unused")
 public class JadePlugin implements IWailaPlugin {
     @Override
-    public void registerClient(IWailaClientRegistration reg) {
-        reg.registerEntityComponent(new YSMProvider(), Entity.class);
+    public void register(IWailaRegistrar reg) {
+        reg.addConfig(I18n.format("config.jade.plugin_ysm"), YSMProvider.UID, I18n.format("config.jade.plugin_ysm.model_info"));
+        reg.registerBodyProvider(new YSMProvider(), Entity.class);
     }
 
-    private static class YSMProvider implements IEntityComponentProvider {
-        @SuppressWarnings("removal")
-        private static final ResourceLocation UID = new ResourceLocation(YesSteveModel.MOD_ID, "model_info");
+    private static class YSMProvider implements IWailaEntityProvider {
+        private static final String UID = "ysm.model_info";
 
+        @NotNull
         @Override
-        public void appendTooltip(ITooltip tooltip, EntityAccessor entityAccessor, IPluginConfig config) {
-            if (entityAccessor.getEntity() instanceof Player player) {
-                player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
+        public List<String> getWailaBody(Entity entity, List<String> tooltip, IWailaEntityAccessor entityAccessor, IWailaConfigHandler config) {
+            if (!config.getConfig(UID)) return tooltip;
+            if (entityAccessor.getEntity() instanceof EntityPlayer player) {
+                var cap = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+                if (cap != null) {
                     if (cap.isInitializedAndEnabled()) {
-                        tooltip.add(Component.translatable("top.yes_steve_model.model_info.id")
-                                .append(cap.getModelRenderTarget().getDisplayName(ModelIdUtil.getFileNameFromPath(cap.getModelId()))));
+                        tooltip.add(I18n.format("top.yes_steve_model.model_info.id") +
+                                cap.getModelRenderTarget().getDisplayName(ModelIdUtil.getFileNameFromPath(cap.getModelId())));
                     }
-                });
+                }
             } else {
-                entityAccessor.getEntity().getCapability(VehicleAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
+                var cap = entityAccessor.getEntity().getCapability(VehicleAnimatableCapabilityProvider.CAP, null);
+                if (cap != null) {
                     if (cap.isInitialized() && cap.isModelPresent()) {
-                        tooltip.add(Component.translatable("top.yes_steve_model.model_info.id")
-                                .append(cap.getModelRenderTarget().getDisplayName(ModelIdUtil.getFileNameFromPath(cap.getModelId()))));
+                        tooltip.add(I18n.format("top.yes_steve_model.model_info.id") +
+                                cap.getModelRenderTarget().getDisplayName(ModelIdUtil.getFileNameFromPath(cap.getModelId())));
                     }
-                });
+                }
             }
-        }
-
-        @Override
-        public ResourceLocation getUid() {
-            return UID;
+            return tooltip;
         }
     }
 }

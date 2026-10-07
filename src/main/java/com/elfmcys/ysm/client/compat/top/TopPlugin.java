@@ -16,15 +16,16 @@ import mcjty.theoneprobe.api.IProbeInfo;
 import mcjty.theoneprobe.api.IProbeInfoEntityProvider;
 import mcjty.theoneprobe.api.ITheOneProbe;
 import mcjty.theoneprobe.api.ProbeMode;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.World;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
+@SuppressWarnings("unused")
 public final class TopPlugin implements Function<ITheOneProbe, Void> {
     @Nullable
     @Override
@@ -36,13 +37,13 @@ public final class TopPlugin implements Function<ITheOneProbe, Void> {
     }
 
     private static class YSMProvider implements IProbeInfoEntityProvider {
-        @SuppressWarnings("removal")
         private static final String ID = (new ResourceLocation(YesSteveModel.MOD_ID, "model_info")).toString();
 
         @Override
-        public void addProbeEntityInfo(ProbeMode probeMode, IProbeInfo probeInfo, Player sourcePlayer, Level world, Entity entity, IProbeHitEntityData iProbeHitEntityData) {
-            if (entity instanceof ServerPlayer player) {
-                player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP).ifPresent(cap -> {
+        public void addProbeEntityInfo(ProbeMode probeMode, IProbeInfo probeInfo, EntityPlayer sourcePlayer, World world, Entity entity, IProbeHitEntityData iProbeHitEntityData) {
+            if (entity instanceof EntityPlayerMP player) {
+                var cap = player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
+                if (cap != null) {
                     if (cap.isMandatory() || NetworkHandler.isPlayerChannelPresent(player)) {
                         var hash = cap.getModelId();
                         if (hash == null) {
@@ -52,14 +53,15 @@ public final class TopPlugin implements Function<ITheOneProbe, Void> {
                             var metadata = m.view().getManifest().info().metadata()
                                     .map(Metadata::name).orElse("");
                             probeInfo.horizontal(probeInfo.defaultLayoutStyle().alignment(ElementAlignment.ALIGN_CENTER))
-                                    .text(Component.translatable("top.yes_steve_model.model_info.id").append(
+                                    .text(formatKey("top.yes_steve_model.model_info.id") +
                                             StringUtils.defaultIfBlank(metadata, ModelIdUtil.getFileNameFromPath(
-                                                    m.location().path().value()))));
+                                                    m.location().path().value())));
                         });
                     }
-                });
+                }
             } else {
-                entity.getCapability(VehicleModelInfoCapabilityProvider.CAP).ifPresent(cap -> {
+                var cap = entity.getCapability(VehicleModelInfoCapabilityProvider.CAP, null);
+                if (cap != null) {
                     if (cap.isInitialized()) {
                         var hash = cap.getOwnerModelHash();
                         if (hash == null) {
@@ -71,11 +73,11 @@ public final class TopPlugin implements Function<ITheOneProbe, Void> {
                                     var metadata = m.view().getManifest().info().metadata()
                                             .map(Metadata::name).orElse("");
                                     probeInfo.horizontal(probeInfo.defaultLayoutStyle().alignment(ElementAlignment.ALIGN_CENTER))
-                                            .text(Component.translatable("top.yes_steve_model.model_info.id").append(
-                                                    StringUtils.defaultIfBlank(metadata, ModelIdUtil.getFileNameFromPath(m.location().path().value()))));
+                                            .text(formatKey("top.yes_steve_model.model_info.id") +
+                                                    StringUtils.defaultIfBlank(metadata, ModelIdUtil.getFileNameFromPath(m.location().path().value())));
                                 });
                     }
-                });
+                }
             }
         }
 
@@ -86,7 +88,8 @@ public final class TopPlugin implements Function<ITheOneProbe, Void> {
 
         private static boolean hasVehicle(Manifest manifest,
                                           Entity entity) {
-            var id = entity.getType().builtInRegistryHolder().key().location();
+            var id = EntityList.getKey(entity);
+            if (id == null) return false;
             for (var replacement : manifest.renderTargets()) {
                 if (replacement.kind() != RenderTargetKind.RENDER_TARGET_KIND_VEHICLE) {
                     continue;
@@ -101,6 +104,11 @@ public final class TopPlugin implements Function<ITheOneProbe, Void> {
                 }
             }
             return false;
+        }
+
+        @SuppressWarnings("SameParameterValue")
+        private static String formatKey(String langKey) {
+            return IProbeInfo.STARTLOC + langKey + IProbeInfo.ENDLOC;
         }
     }
 }

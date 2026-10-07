@@ -1,7 +1,9 @@
 package com.elfmcys.ysm.client.controller;
 
+/* 1.12.2 无沉浸飞行器（immersive-aircraft）与简易飞机（simple-planes），暂缓兼容
 import com.elfmcys.ysm.client.compat.ImmersiveAircraftCompat;
 import com.elfmcys.ysm.client.compat.SimplePlaneCompat;
+*/
 import com.elfmcys.ysm.client.entity.CustomVehicleEntity;
 import com.elfmcys.ysm.geckolib3.core.controller.IAnimationController;
 import com.elfmcys.ysm.geckolib3.core.controller.IBoneAnimationQueue;
@@ -55,10 +57,12 @@ public class VehicleOriginController implements IAnimationController<CustomVehic
 
     @Override
     public void process(AnimationEvent<CustomVehicleEntity> event, ExpressionEvaluator<MolangContext<?>> evaluator, boolean allowEmitting) {
+        /*
         ImmersiveAircraftCompat.getRotation(event).or(() -> SimplePlaneCompat.getRotation(event)).ifPresent(q -> {
             rotation = new AnimationVec3(q);
             rotation.setEndingTransitionPercentProgressIfLess(0);
         });
+        */
     }
 
     @Override

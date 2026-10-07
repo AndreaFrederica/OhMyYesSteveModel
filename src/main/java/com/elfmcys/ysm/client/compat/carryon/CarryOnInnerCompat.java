@@ -1,28 +1,34 @@
 package com.elfmcys.ysm.client.compat.carryon;
 
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import tschipp.carryon.common.carry.CarryOnData;
-import tschipp.carryon.common.carry.CarryOnDataManager;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+import tschipp.carryon.common.item.ItemEntity;
+import tschipp.carryon.common.item.ItemTile;
 
 public class CarryOnInnerCompat {
-    static boolean isCarryOnPrincess(LivingEntity entity) {
-        Entity vehicle = entity.getVehicle();
-        return vehicle instanceof Player playerVehicle && getCarryOnType(playerVehicle) == CarryOnInnerCompat.Type.PLAYER;
+    static boolean isCarryOnPrincess(EntityLivingBase entity) {
+        Entity vehicle = entity.getRidingEntity();
+        return vehicle instanceof EntityPlayer playerVehicle && getCarryOnType(playerVehicle) == CarryOnInnerCompat.Type.PLAYER;
     }
 
-    static CarryOnInnerCompat.Type getCarryOnType(Player player) {
-        CarryOnData carry = CarryOnDataManager.getCarryData(player);
-        if (carry.isCarrying(CarryOnData.CarryType.BLOCK)) {
+    static CarryOnInnerCompat.Type getCarryOnType(EntityPlayer player) {
+        ItemStack carry = player.getHeldItemMainhand();
+        if (!carry.isEmpty()) {
+            return CarryOnInnerCompat.Type.NONE;
+        }
+        if (carry.getItem() instanceof ItemTile && ItemTile.hasTileData(carry)) {
             return CarryOnInnerCompat.Type.BLOCK;
         }
-        if (carry.isCarrying(CarryOnData.CarryType.ENTITY)) {
+        if (carry.getItem() instanceof ItemEntity && ItemEntity.hasEntityData(carry)) {
             return CarryOnInnerCompat.Type.ENTITY;
         }
+        /*
         if (carry.isCarrying(CarryOnData.CarryType.PLAYER)) {
             return CarryOnInnerCompat.Type.PLAYER;
         }
+        */
         return CarryOnInnerCompat.Type.NONE;
     }
 

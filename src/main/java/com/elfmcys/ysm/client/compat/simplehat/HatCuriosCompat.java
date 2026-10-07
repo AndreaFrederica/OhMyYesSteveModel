@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.simplehat;
 
+/*
 import com.elfmcys.ysm.client.compat.curios.CuriosCompatInner;
 import fonnymunkey.simplehats.common.item.HatItem;
 import net.minecraft.world.entity.LivingEntity;
@@ -19,3 +20,4 @@ public class HatCuriosCompat {
                 .orElse(null);
     }
 }
+*/

@@ -2,12 +2,11 @@ package com.elfmcys.ysm.api.internal.event;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.api.annotation.YsmEventHandler;
-import java.lang.annotation.ElementType;
+import net.minecraftforge.fml.common.discovery.ASMDataTable;
+import net.minecraftforge.fml.common.eventhandler.EventBus;
+
+import java.util.Collection;
 import java.util.List;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
-import net.minecraftforge.forgespi.language.ModFileScanData;
 
 /** Internal Forge discovery and registration bridge for {@link YsmEventHandler}. */
 public final class YsmEventHandlerLoader {
@@ -16,14 +15,14 @@ public final class YsmEventHandlerLoader {
     private YsmEventHandlerLoader() {
     }
 
-    public static void attach(IEventBus eventBus) {
-        eventBus.addListener((FMLLoadCompleteEvent event) -> registerAll(eventBus));
+    public static void attach(ASMDataTable asmData, EventBus eventBus) {
+        registerAll(asmData, eventBus);
     }
 
-    private static void registerAll(IEventBus eventBus) {
+    private static void registerAll(ASMDataTable asmData, EventBus eventBus) {
         List<String> handlerNames;
         try {
-            handlerNames = discoverHandlerNames();
+            handlerNames = discoverHandlerNames(asmData.getAll(ANNOTATION_NAME));
         } catch (RuntimeException | LinkageError exception) {
             YesSteveModel.LOGGER.error("Failed to discover @YsmEventHandler classes", exception);
             return;
@@ -38,17 +37,10 @@ public final class YsmEventHandlerLoader {
         }
     }
 
-    private static List<String> discoverHandlerNames() {
-        return discoverHandlerNames(ModList.get().getAllScanData());
-    }
-
-    static List<String> discoverHandlerNames(List<ModFileScanData> scanData) {
+    static List<String> discoverHandlerNames(Collection<ASMDataTable.ASMData> scanData) {
         return scanData.stream()
-                .flatMap(fileScan -> fileScan.getAnnotations().stream())
-                .filter(annotation -> annotation.targetType() == ElementType.TYPE)
-                .filter(annotation -> ANNOTATION_NAME.equals(
-                        annotation.annotationType().getClassName()))
-                .map(ModFileScanData.AnnotationData::memberName)
+                .filter(data -> data.getObjectName() == null || data.getObjectName().equals(data.getClassName()))
+                .map(ASMDataTable.ASMData::getClassName)
                 .filter(name -> name != null && !name.isBlank())
                 .distinct()
                 .sorted()
@@ -56,7 +48,7 @@ public final class YsmEventHandlerLoader {
     }
 
     private static void registerOne(
-            IEventBus eventBus,
+            EventBus eventBus,
             String handlerName,
             ClassLoader loader) {
         YsmEventHandlerRegistration.Outcome outcome;

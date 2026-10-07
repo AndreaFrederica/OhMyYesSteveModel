@@ -6,12 +6,13 @@ import com.elfmcys.ysm.model.service.ClientModelService;
 import com.elfmcys.ysm.client.texture.CustomTextureManager;
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import org.lwjgl.opengl.Display;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.relauncher.Side;
 
-@Mod.EventBusSubscriber(value = Dist.CLIENT)
+@Mod.EventBusSubscriber(value = Side.CLIENT)
 public class ClientTickEvent {
     private static int tickCount;
     private static int refreshRate = 60;
@@ -27,14 +28,15 @@ public class ClientTickEvent {
         tickCount++;
         CustomTextureManager.tick();
         ClientModelService.current().ifPresent(ClientModelService::tick);
-        refreshRate = Minecraft.getInstance().getWindow().getRefreshRate();
+        refreshRate = Display.getDisplayMode().getFrequency();
 
-        var player = Minecraft.getInstance().player;
+        var player = Minecraft.getMinecraft().player;
         if (player != null) {
-            player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+            var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+            if (capability != null) {
                 capability.handleRoamingVarsChanges();
                 ClientProtocolGateway.tick(player, capability);
-            });
+            }
         }
     }
 

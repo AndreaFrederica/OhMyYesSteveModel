@@ -7,23 +7,19 @@ import com.elfmcys.ysm.model.resource.client.ModelRenderTarget;
 import com.elfmcys.ysm.client.renderer.CustomPlayerRenderer;
 import com.elfmcys.ysm.config.ClientConfig;
 import com.elfmcys.ysm.event.api.SpecialPlayerRenderEvent;
-import com.elfmcys.ysm.geckolib3.geo.CustomTranslucentRenderType;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
+import com.elfmcys.ysm.mclib.utils.Interpolations;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
-import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.api.distmarker.Dist;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.client.event.RenderHandEvent;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.relauncher.Side;
 
-@Mod.EventBusSubscriber(value = Dist.CLIENT)
+@Mod.EventBusSubscriber(value = Side.CLIENT)
 public class RenderFirstPlayerBackground {
     /**
      * 因为 RenderHandEvent 可有几率会渲染多次，所以为了避免多次渲染，这样设计
@@ -31,13 +27,11 @@ public class RenderFirstPlayerBackground {
     private static boolean ALREADY_RENDERED = false;
 
     @SubscribeEvent
-    public static void onRenderLevelLase(RenderLevelStageEvent event) {
+    public static void onRenderLevelLase(RenderWorldLastEvent event) {
         if (!YesSteveModel.isAvailable()) {
             return;
         }
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_CUTOUT_BLOCKS) {
-            ALREADY_RENDERED = false;
-        }
+        ALREADY_RENDERED = false;
     }
 
     @SubscribeEvent
@@ -45,18 +39,19 @@ public class RenderFirstPlayerBackground {
         if (!YesSteveModel.isAvailable()) {
             return;
         }
-        if (ClientConfig.DISABLE_SELF_MODEL.get()) {
+        if (ClientConfig.DISABLE_SELF_MODEL) {
             return;
         }
-        if (ClientConfig.DISABLE_SELF_HANDS.get()) {
+        if (ClientConfig.DISABLE_SELF_HANDS) {
             return;
         }
-        AbstractClientPlayer player = Minecraft.getInstance().player;
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
         if (player == null || ALREADY_RENDERED) {
             return;
         }
         ALREADY_RENDERED = true;
-        player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
+        var cap = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        if (cap != null) {
             if (!cap.isInitializedAndEnabled()) {
                 return;
             }
@@ -73,35 +68,30 @@ public class RenderFirstPlayerBackground {
             }
              */
             CustomPlayerRenderer renderer = RegisterEntityRenderersEvent.getPlayerRenderer();
-            final PoseStack poseStack = event.getPoseStack();
-            MultiBufferSource multiBufferSource = event.getMultiBufferSource();
             CustomPlayerEntity customPlayer = cap;
             if (MinecraftForge.EVENT_BUS.post(new SpecialPlayerRenderEvent(player, customPlayer, modelId))) {
                 return;
             }
 
-            ResourceLocation textureLocation = cap.getTextureLocation();
-            var vertexConsumer = multiBufferSource.getBuffer(CustomTranslucentRenderType.create(textureLocation));
-
             if (renderer != null) {
-                poseStack.pushPose();
-                if (Minecraft.getInstance().options.bobView().get()) {
-                    bobView(poseStack, event.getPartialTick(), player);
+                GlStateManager.pushMatrix();
+                if (Minecraft.getMinecraft().gameSettings.viewBobbing) {
+                    bobView(event.getPartialTicks(), player);
                 }
-                poseStack.translate(0, -1.5, 0);
+                GlStateManager.translate(0, -1.5, 0);
                 // TODO
                 // NativeRenderer.renderModel(vertexConsumer, poseStack.last(), variant.armModel(), variant.armModel().getInitialState(), null, NativeRenderer.RENDER_MODE_BACKGROUND, event.getPackedLight(), OverlayTexture.NO_OVERLAY, 1, 1, 1, 1);
-                poseStack.popPose();
+                GlStateManager.popMatrix();
             }
-        });
+        }
     }
 
-    private static void bobView(PoseStack pMatrixStack, float pPartialTicks, Player player) {
-        float walk = player.walkDist - player.walkDistO;
-        float walk2 = -(player.walkDist + walk * pPartialTicks);
-        float lerp = Mth.lerp(pPartialTicks, player.oBob, player.bob);
-        pMatrixStack.translate(-Mth.sin(walk2 * (float) Math.PI) * lerp * 0.5F, Math.abs(Mth.cos(walk2 * (float) Math.PI) * lerp), 0.0D);
-        pMatrixStack.mulPose(Axis.ZN.rotationDegrees(Mth.sin(walk2 * (float) Math.PI) * lerp * 3.0F));
-        pMatrixStack.mulPose(Axis.XN.rotationDegrees(Math.abs(Mth.cos(walk2 * (float) Math.PI - 0.2F) * lerp) * 5.0F));
+    private static void bobView(float pPartialTicks, EntityPlayerSP player) {
+        float walk = player.distanceWalkedModified - player.prevDistanceWalkedModified;
+        float walk2 = -(player.distanceWalkedModified + walk * pPartialTicks);
+        float lerp = Interpolations.lerp(player.prevCameraYaw, player.cameraYaw, pPartialTicks);
+        GlStateManager.translate(-MathHelper.sin(walk2 * (float) Math.PI) * lerp * 0.5F, Math.abs(MathHelper.cos(walk2 * (float) Math.PI) * lerp), 0.0D);
+        GlStateManager.rotate(MathHelper.sin(walk2 * (float) Math.PI) * lerp * 3.0F, 0, 0, 1);
+        GlStateManager.rotate(Math.abs(MathHelper.cos(walk2 * (float) Math.PI - 0.2F) * lerp) * 5.0F, 1, 0, 0);
     }
 }

@@ -1,9 +1,9 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.util;
 
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
-@OnlyIn(Dist.CLIENT)
+@SideOnly(Side.CLIENT)
 public class TlmConverterHelper {
     /**
      * 转换成 TLM 下 Bone 的格式

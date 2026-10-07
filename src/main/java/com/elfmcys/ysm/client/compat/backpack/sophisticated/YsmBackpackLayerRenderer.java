@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.backpack.sophisticated;
 
+/*
 import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.client.model.locator.PlayerLocator;
 import com.elfmcys.ysm.geckolib3.geo.GeoLayerRenderer;
@@ -20,10 +21,12 @@ public class YsmBackpackLayerRenderer extends GeoLayerRenderer<CustomPlayerEntit
     YsmBackpackLayerRenderer() {
         this.model = getEmptyModel();
     }
+*/
 
     /**
      * 空 EntityModel，仅用于渲染背包时的占位符
      */
+    /*
     @SuppressWarnings("all")
     private static EntityModel<Player> getEmptyModel() {
         return new EntityModel<>() {
@@ -52,3 +55,4 @@ public class YsmBackpackLayerRenderer extends GeoLayerRenderer<CustomPlayerEntit
 
     }
 }
+*/

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.touhoulittlemaid.client.event;
 
+/*
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.capability.YsmMaidCapabilityProvider;
 import com.elfmcys.ysm.client.compat.touhoulittlemaid.client.gui.MaidModelScreen;
 import com.github.tartaricacid.touhoulittlemaid.compat.ysm.event.OpenYsmMaidScreenEvent;
@@ -18,3 +19,4 @@ public final class YsmMaidScreenEvent {
         }
     }
 }
+*/

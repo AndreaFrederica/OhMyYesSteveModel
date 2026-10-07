@@ -4,52 +4,94 @@ import com.elfmcys.ysm.client.entity.CustomPlayerEntity;
 import com.elfmcys.ysm.client.model.locator.PlayerLocator;
 import com.elfmcys.ysm.geckolib3.geo.GeoLayerRenderer;
 import com.elfmcys.ysm.geckolib3.geo.GeoRenderData;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
-import net.minecraft.client.model.ParrotModel;
-import net.minecraft.client.model.geom.ModelLayers;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.ParrotRenderer;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.animal.Parrot;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.client.model.ModelBase;
+import net.minecraft.client.model.ModelParrot;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.entity.Render;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.renderer.entity.RenderParrot;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.passive.EntityParrot;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.ResourceLocation;
 
+import java.util.UUID;
+
+// LayerEntityOnShoulder
 public class CustomParrotOnShoulderLayer extends GeoLayerRenderer<CustomPlayerEntity> {
-    private static final String ID = "id";
-    private static final String VARIANT = "Variant";
-    private final ParrotModel model;
+    private final EntityData leftData;
+    private final EntityData rightData;
 
-    public CustomParrotOnShoulderLayer(EntityRendererProvider.Context context) {
-        this.model = new ParrotModel(context.bakeLayer(ModelLayers.PARROT));
+    public CustomParrotOnShoulderLayer(RenderManager context) {
+        this.leftData = new EntityData(context);
+        this.rightData = new EntityData(context);
     }
 
     @Override
-    public void render(PoseStack poseStack, MultiBufferSource buffer, CustomPlayerEntity animatable, GeoRenderData renderData, int packedLight, int overlay) {
+    public void render(CustomPlayerEntity animatable, GeoRenderData renderData, double x, double y, double z) {
         var player = animatable.getEntity();
-        var anim = renderData.animationData;
-        renderData.modelState.visitLocatorGroup(PlayerLocator.get().leftShoulder, poseStack, locatorPose -> {
-            this.render(poseStack, buffer, packedLight, player,
-                        anim.limbSwing, anim.limbSwingAmount, anim.netHeadYaw, anim.headPitch, true);
+        renderData.modelState.visitLocatorGroup(PlayerLocator.get().leftShoulder, () -> {
+            render(player, player.getLeftShoulderEntity(), this.leftData, renderData);
         });
-        renderData.modelState.visitLocatorGroup(PlayerLocator.get().rightShoulder, poseStack, locatorPose -> {
-            this.render(poseStack, buffer, packedLight, player,
-                        anim.limbSwing, anim.limbSwingAmount, anim.netHeadYaw, anim.headPitch, false);
+        renderData.modelState.visitLocatorGroup(PlayerLocator.get().rightShoulder, () -> {
+            render(player, player.getRightShoulderEntity(), this.rightData, renderData);
         });
     }
 
-    private void render(PoseStack poseStack, MultiBufferSource buffer, int packedLight, Player player, float limbSwing, float limbSwingAmount, float netHeadYaw, float headPitch, boolean leftShoulder) {
-        CompoundTag shoulderTag = leftShoulder ? player.getShoulderEntityLeft() : player.getShoulderEntityRight();
-        EntityType.byString(shoulderTag.getString(ID)).filter(type -> type == EntityType.PARROT).ifPresent(type -> {
+    private static void render(EntityLivingBase living, NBTTagCompound shoulderTag, EntityData data, GeoRenderData renderData) {
+        data.update(shoulderTag);
+        if (data.renderer == null || data.texture == null || data.model == null) {
+            return;
+        }
 
-            poseStack.translate(0, 1.5, 0);
-            poseStack.mulPose(Axis.ZP.rotationDegrees(180));
-            Parrot.Variant variant = Parrot.Variant.byId(shoulderTag.getInt(VARIANT));
-            VertexConsumer bufferBuffer = buffer.getBuffer(this.model.renderType(ParrotRenderer.getVariantTexture(variant)));
-            this.model.renderOnShoulder(poseStack, bufferBuffer, packedLight, OverlayTexture.NO_OVERLAY, limbSwing, limbSwingAmount, netHeadYaw, headPitch, player.tickCount);
-        });
+        var anim = renderData.animationData;
+        float ageInTicks = anim.lerpedAge;
+        if (data.clazz == EntityParrot.class) {
+            ageInTicks = 0.0F;
+        }
+
+        GlStateManager.enableRescaleNormal();
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+
+        GlStateManager.translate(0, 1.5, 0);
+        GlStateManager.rotate(180, 0, 0, 1);
+        data.renderer.bindTexture(data.texture);
+        data.model.setLivingAnimations(living, anim.limbSwing, anim.limbSwingAmount, renderData.partialTicks);
+        data.model.setRotationAngles(anim.limbSwing, anim.limbSwingAmount, ageInTicks, anim.netHeadYaw, anim.headPitch, DEFAULT_SCALE, living);
+        data.model.render(living, anim.limbSwing, anim.limbSwingAmount, ageInTicks, anim.netHeadYaw, anim.headPitch, DEFAULT_SCALE);
+
+        GlStateManager.disableRescaleNormal();
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private static class EntityData {
+        private final RenderManager renderManager;
+        private UUID uuid;
+        private Class<? extends Entity> clazz;
+        private Render<? extends Entity> renderer;
+        private ResourceLocation texture;
+        private ModelBase model;
+
+        private EntityData(RenderManager context) {
+            this.renderManager = context;
+        }
+
+        private void update(NBTTagCompound shoulderTag) {
+            UUID uuid = shoulderTag.getUniqueId("UUID");
+            if (this.uuid != null && this.uuid.equals(uuid)) return;
+            this.uuid = uuid;
+
+            this.clazz = EntityList.getClassFromName(shoulderTag.getString("id"));
+            this.renderer = null;
+            this.texture = null;
+            this.model = null;
+            if (this.clazz == EntityParrot.class) {
+                this.renderer = new RenderParrot(this.renderManager);
+                this.texture = RenderParrot.PARROT_TEXTURES[shoulderTag.getInteger("Variant")];
+                this.model = new ModelParrot();
+            }
+        }
     }
 }

@@ -3,11 +3,12 @@ package com.elfmcys.ysm.model.resource.client.render;
 import com.elfmcys.ysm.model.resource.client.ModelResourceFailureGate;
 import com.elfmcys.ysm.model.resource.client.ModelResourceFailures;
 import com.elfmcys.ysm.client.texture.CustomPBRTextureSet;
+import com.elfmcys.ysm.buffer.NativeBuffer;
 import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.schema.file.PBRImageSources;
 import com.elfmcys.ysm.natives.image.ImageSource;
-import com.mojang.blaze3d.platform.NativeImage;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -20,9 +21,12 @@ final class PreparedTextureSet implements BakedModelCache.TexturePixelsSupplier,
     private final ModelResourceFailureGate normalFailure;
     private final ModelResourceFailureGate specularFailure;
     private final Decoder decoder;
-    private NativeImage uv;
-    private NativeImage normal;
-    private NativeImage specular;
+    private BufferedImage uv;
+    private BufferedImage normal;
+    private BufferedImage specular;
+    private NativeBuffer uvPixels;
+    private int uvWidth;
+    private int uvHeight;
     private boolean transferred;
 
     PreparedTextureSet(PBRImageSources sources, String resourcePrefix,
@@ -42,12 +46,16 @@ final class PreparedTextureSet implements BakedModelCache.TexturePixelsSupplier,
     }
 
     @Override
-    public NativeImage get() throws IOException {
+    public BakedModelCache.TexturePixels get() throws IOException {
         requireOwned();
-        if (uv == null) {
-            uv = decode(sources.uv(), uvFailure, "uv");
+        if (uvPixels == null) {
+            var image = decode(sources.uv(), uvFailure, "uv");
+            uvWidth = image.getWidth();
+            uvHeight = image.getHeight();
+            uvPixels = toPixels(image);
+            uv = image;
         }
-        return uv;
+        return new BakedModelCache.TexturePixels(uvPixels, uvWidth, uvHeight);
     }
 
     void prepare(BooleanSupplier cancelled) throws IOException {
@@ -75,12 +83,16 @@ final class PreparedTextureSet implements BakedModelCache.TexturePixelsSupplier,
         uv = null;
         normal = null;
         specular = null;
+        if (uvPixels != null) {
+            uvPixels.close();
+            uvPixels = null;
+        }
         transferred = true;
         return result;
     }
 
-    private NativeImage decode(ImageSource source, ModelResourceFailureGate failureGate,
-                               String component) throws IOException {
+    private BufferedImage decode(ImageSource source, ModelResourceFailureGate failureGate,
+                                 String component) throws IOException {
         var previous = failureGate.failure().orElse(null);
         if (previous != null) {
             throw AssetLoadException.content(
@@ -98,10 +110,32 @@ final class PreparedTextureSet implements BakedModelCache.TexturePixelsSupplier,
         }
     }
 
-    private static NativeImage decodeSource(ImageSource source) throws IOException {
+    private static BufferedImage decodeSource(ImageSource source) throws IOException {
         try (var image = source.open()) {
             return image.decode();
         }
+    }
+
+    /** 转成烘焙器需要的 RGBA 原生缓冲（ABGR int → RGBA byte），尺寸取自图像本身。 */
+    private static NativeBuffer toPixels(BufferedImage image) {
+        var width = image.getWidth();
+        var height = image.getHeight();
+        var argb = image.getRGB(0, 0, width, height, null, 0, width);
+        var pixels = NativeBuffer.allocate(width * height * 4);
+        var out = pixels.nio();
+        try {
+            for (var value : argb) {
+                out.put((byte) (value & 0xFF));
+                out.put((byte) ((value >>> 8) & 0xFF));
+                out.put((byte) ((value >>> 16) & 0xFF));
+                out.put((byte) (value >>> 24));
+            }
+            out.flip();
+        } catch (RuntimeException | Error error) {
+            pixels.close();
+            throw error;
+        }
+        return pixels;
     }
 
     private void requireOwned() {
@@ -118,22 +152,18 @@ final class PreparedTextureSet implements BakedModelCache.TexturePixelsSupplier,
 
     @Override
     public void close() {
-        close(uv);
-        close(normal);
-        close(specular);
+        // BufferedImage 是堆对象，无需显式释放；烘焙器用的原生缓冲在这里回收
         uv = null;
         normal = null;
         specular = null;
-    }
-
-    private static void close(NativeImage image) {
-        if (image != null) {
-            image.close();
+        if (uvPixels != null) {
+            uvPixels.close();
+            uvPixels = null;
         }
     }
 
     @FunctionalInterface
     interface Decoder {
-        NativeImage decode(ImageSource source) throws IOException;
+        BufferedImage decode(ImageSource source) throws IOException;
     }
 }

@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.realcamera;
 
+/*
 import com.xtracr.realcamera.RealCameraCore;
 
 public class RealCameraCompatInner {
@@ -7,3 +8,4 @@ public class RealCameraCompatInner {
         return RealCameraCore.isActive();
     }
 }
+*/

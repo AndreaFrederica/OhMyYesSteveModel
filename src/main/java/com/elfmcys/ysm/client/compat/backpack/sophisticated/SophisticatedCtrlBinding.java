@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.backpack.sophisticated;
 
+/*
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
 
 public class SophisticatedCtrlBinding {
@@ -8,3 +9,4 @@ public class SophisticatedCtrlBinding {
                 SophisticatedCompat.getBackpackItemStack(ctx.entity()) != null);
     }
 }
+*/

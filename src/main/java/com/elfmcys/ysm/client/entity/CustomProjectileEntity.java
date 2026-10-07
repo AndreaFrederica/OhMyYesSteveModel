@@ -9,15 +9,16 @@ import com.elfmcys.ysm.model.resource.client.ProjectileModelResources;
 import com.elfmcys.ysm.model.resource.client.ResourceLease;
 import com.elfmcys.ysm.model.service.ClientModelService;
 import com.elfmcys.ysm.proto.mixel.manifest.asset.RenderTargetKind;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class CustomProjectileEntity extends CustomEntity<Projectile> {
+public class CustomProjectileEntity extends CustomEntity<Entity> {
     private ProjectileModelResources projectileResources;
 
-    public CustomProjectileEntity(Projectile projectile) {
+    public CustomProjectileEntity(Entity projectile) {
         super(projectile, true);
     }
 
@@ -27,7 +28,7 @@ public class CustomProjectileEntity extends CustomEntity<Projectile> {
         return hash == null ? null : ClientModelService.instance()
                 .findRenderTarget(hash,
                         RenderTargetKind.RENDER_TARGET_KIND_PROJECTILE,
-                        entity.getType().builtInRegistryHolder().key().location()).orElse(null);
+                        EntityList.getKey(entity)).orElse(null);
     }
 
     @Override
@@ -43,7 +44,6 @@ public class CustomProjectileEntity extends CustomEntity<Projectile> {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     protected @Nullable ResourceHolder createResourceHolder(ResourceLease lease, boolean isFallback) {
         if (!(lease.poll() instanceof AcquireResult.Ready ready)) {
             return null;
@@ -62,7 +62,6 @@ public class CustomProjectileEntity extends CustomEntity<Projectile> {
      * 当前箭矢没有模型时，由于跳过渲染而不会检查模型更新，此时依赖于异步更新的机制检查。
      */
     @Override
-    @SuppressWarnings("deprecation")
     protected void onModelRenderTargetLoaded(ModelRenderTarget newModel) {
         super.onModelRenderTargetLoaded(newModel);
         projectileResources = newModel.projectileResources();

@@ -2,13 +2,13 @@ package com.elfmcys.ysm.client.texture;
 
 import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.natives.image.ImageSource;
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.platform.TextureUtil;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.elfmcys.ysm.util.RenderUtil;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.client.renderer.texture.TextureUtil;
+import net.minecraft.client.resources.IResourceManager;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.image.BufferedImage;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -29,12 +29,14 @@ public class CustomTexture extends AbstractTexture {
     }
 
     @Override
-    public void load(ResourceManager resourceManager) {
-        RenderSystem.assertOnRenderThreadOrInit();
+    public void loadTexture(IResourceManager resourceManager) {
+        RenderUtil.assertOnMinecraftThread();
         if (failure != null) {
             return;
         }
-        try (var pixels = decoder.decode(source)) {
+        BufferedImage pixels;
+        try {
+            pixels = decoder.decode(source);
             uploader.upload(this, pixels);
         } catch (Exception error) {
             failure = error;
@@ -42,17 +44,14 @@ public class CustomTexture extends AbstractTexture {
         }
     }
 
-    private static NativeImage decode(ImageSource source) throws Exception {
+    private static BufferedImage decode(ImageSource source) throws Exception {
         try (var image = source.open()) {
             return image.decode();
         }
     }
 
-    private static void upload(CustomTexture texture, NativeImage img) {
-        TextureUtil.prepareImage(texture.getId(), 0, img.getWidth(), img.getHeight());
-        img.upload(0, 0, 0, 0, 0,
-                img.getWidth(), img.getHeight(),
-                false, false, false, false);
+    private static void upload(CustomTexture texture, BufferedImage img) {
+        TextureUtil.uploadTextureImageAllocate(texture.getGlTextureId(), img, false, false);
     }
 
     public Optional<Throwable> failure() {
@@ -61,11 +60,11 @@ public class CustomTexture extends AbstractTexture {
 
     @FunctionalInterface
     interface Decoder {
-        NativeImage decode(ImageSource source) throws Exception;
+        BufferedImage decode(ImageSource source) throws Exception;
     }
 
     @FunctionalInterface
     interface Uploader {
-        void upload(CustomTexture texture, NativeImage image);
+        void upload(CustomTexture texture, BufferedImage image);
     }
 }

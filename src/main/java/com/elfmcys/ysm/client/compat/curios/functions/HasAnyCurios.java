@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat.curios.functions;
 
+/*
 import com.elfmcys.ysm.client.compat.curios.CuriosCompat;
 import com.elfmcys.ysm.client.compat.curios.MolangCache;
 import com.elfmcys.ysm.geckolib3.core.molang.context.IContext;
@@ -38,3 +39,4 @@ public class HasAnyCurios extends LivingEntityFunction {
         return size > 0;
     }
 }
+*/

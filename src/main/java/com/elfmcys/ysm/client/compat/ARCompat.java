@@ -1,5 +1,6 @@
 package com.elfmcys.ysm.client.compat;
 
+/*
 import net.minecraftforge.fml.ModList;
 
 public class ARCompat {
@@ -14,3 +15,4 @@ public class ARCompat {
         return INSTALLED;
     }
 }
+*/

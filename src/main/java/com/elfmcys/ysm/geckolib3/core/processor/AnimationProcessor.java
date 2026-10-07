@@ -20,15 +20,13 @@ import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceMap;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceMaps;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.levelgen.RandomSupport;
-import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
+import net.minecraft.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
@@ -43,7 +41,7 @@ public class AnimationProcessor<TEntity extends Entity> {
 
     private final MolangMemory molangMemory = new MolangMemory();
     private final SoundInstanceManager globalSoundManager = new SoundInstanceManager();
-    private final RandomSource random = new XoroshiroRandomSource(RandomSupport.generateUniqueSeed());
+    private final Random random = new Random();
     // molang 执行任务的生产和消费可能在不同线程上
     private final ConcurrentLinkedQueue<MolangExecutionTask> pendingMolangTask = new ConcurrentLinkedQueue<>();
 

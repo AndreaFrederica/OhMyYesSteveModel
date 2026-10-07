@@ -14,13 +14,13 @@ public final class ModelSelectionService {
 
     public static boolean selectDefault(ModelInfoCapability capability,
                                         ServerCatalog snapshot) {
-        var model = snapshot.findPath(ServerConfig.DEFAULT_MODEL_PATH.get())
+        var model = snapshot.findPath(ServerConfig.DEFAULT_MODEL_PATH)
                 .or(snapshot::defaultModel).orElse(null);
         if (model == null) {
             return false;
         }
         var view = model.view();
-        var configured = ServerConfig.DEFAULT_MODEL_TEXTURE.get();
+        var configured = ServerConfig.DEFAULT_MODEL_TEXTURE;
         var requested = view.getPlayer().getTextureNames().contains(configured)
                 ? configured : view.getMetadata().getSettings().defaultTexture().orElse("");
         var texture = view.getPlayer().getTextureNames().contains(requested)

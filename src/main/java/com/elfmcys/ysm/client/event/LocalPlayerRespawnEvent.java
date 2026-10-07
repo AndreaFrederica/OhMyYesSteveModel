@@ -4,15 +4,10 @@ import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider;
 import com.elfmcys.ysm.network.NetworkHandler;
 import com.elfmcys.ysm.network.forge.ClientProtocolGateway;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.client.entity.EntityPlayerSP;
 
-@Mod.EventBusSubscriber(value = Dist.CLIENT)
 public class LocalPlayerRespawnEvent {
-    @SubscribeEvent
-    public static void onFire(ClientPlayerNetworkEvent.Clone event) {
+    public static void onCloned(EntityPlayerSP oldPlayer, EntityPlayerSP newPlayer) {
         if (!YesSteveModel.isAvailable()) {
             return;
         }
@@ -21,11 +16,11 @@ public class LocalPlayerRespawnEvent {
             return;
         }
 
-        event.getOldPlayer().reviveCaps();
-        event.getOldPlayer().getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(oldCap ->
-                event.getNewPlayer().getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(newCap ->
-                        newCap.moveFrom(oldCap)));
-        event.getOldPlayer().invalidateCaps();
+        var oldCap = oldPlayer.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        var newCap = newPlayer.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        if (oldCap != null && newCap != null) {
+            newCap.moveFrom(oldCap);
+        }
         ClientProtocolGateway.localPlayerCloned();
     }
 }

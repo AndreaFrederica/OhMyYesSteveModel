@@ -4,37 +4,36 @@ import com.elfmcys.ysm.network.NetworkHandler;
 import com.elfmcys.ysm.network.dispatch.SendResult;
 import com.elfmcys.ysm.network.dispatch.TransportPort;
 import com.elfmcys.ysm.network.frame.OutboundFrame;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
+import net.minecraft.entity.player.EntityPlayerMP;
 
 import java.util.Objects;
 
 /** Netty-specific pressure and submission details kept behind TransportPort. */
 public final class ForgeTransportPort implements TransportPort {
-    private final ServerPlayer player;
+    private final EntityPlayerMP player;
 
-    public ForgeTransportPort(ServerPlayer player) {
+    public ForgeTransportPort(EntityPlayerMP player) {
         this.player = Objects.requireNonNull(player, "player");
     }
 
     @Override
     public boolean isOpen() {
-        return player.connection != null && player.connection.connection.isConnected();
+        return player.connection != null && player.connection.getNetworkManager().isChannelOpen();
     }
 
     @Override
     public boolean isWritable() {
-        return isOpen() && player.connection.connection.channel().isWritable();
+        return isOpen() && player.connection.getNetworkManager().channel().isWritable();
     }
 
     @Override
     public long highWatermarkBytes() {
-        return player.connection.connection.channel().config().getWriteBufferHighWaterMark();
+        return player.connection.getNetworkManager().channel().config().getWriteBufferHighWaterMark();
     }
 
     @Override
     public long pendingBytes() {
-        var outbound = player.connection.connection.channel().unsafe().outboundBuffer();
+        var outbound = player.connection.getNetworkManager().channel().unsafe().outboundBuffer();
         return outbound == null ? 0 : outbound.totalPendingWriteBytes();
     }
 
@@ -44,7 +43,7 @@ public final class ForgeTransportPort implements TransportPort {
             return SendResult.FAILED;
         }
         try {
-            NetworkHandler.sendFrame(PacketDistributor.PLAYER.with(() -> player), frame);
+            NetworkHandler.sendFrame(player, frame);
             return SendResult.SUCCESS;
         } catch (RuntimeException failure) {
             return SendResult.FAILED;

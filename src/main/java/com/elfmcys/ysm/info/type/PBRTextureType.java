@@ -1,6 +1,6 @@
 package com.elfmcys.ysm.info.type;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ResourceLocation;
 
 public enum PBRTextureType {
     NORMAL("_n"),

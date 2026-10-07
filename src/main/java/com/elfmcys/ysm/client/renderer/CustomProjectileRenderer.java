@@ -3,34 +3,34 @@ package com.elfmcys.ysm.client.renderer;
 import com.elfmcys.ysm.capability.ProjectileAnimatableCapabilityProvider;
 import com.elfmcys.ysm.client.entity.CustomProjectileEntity;
 import com.elfmcys.ysm.geckolib3.geo.GeoProjectilesRenderer;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.renderer.texture.TextureMap;
+import net.minecraft.entity.Entity;
+import net.minecraft.util.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 
-public class CustomProjectileRenderer extends GeoProjectilesRenderer<Projectile, CustomProjectileEntity> {
-    public CustomProjectileRenderer(EntityRendererProvider.Context ctx) {
-        super(ctx);
+public class CustomProjectileRenderer extends GeoProjectilesRenderer<Entity, CustomProjectileEntity> {
+    public CustomProjectileRenderer(RenderManager renderManager) {
+        super(renderManager);
     }
 
     @Override
-    public void render(Projectile entity, float yaw, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
-        if (Minecraft.getInstance().player == null || entity.isInvisibleTo(Minecraft.getInstance().player)) {
+    public void doRender(Entity entity, double x, double y, double z, float yaw, float partialTick) {
+        if (Minecraft.getMinecraft().player == null || entity.isInvisibleToPlayer(Minecraft.getMinecraft().player)) {
             return;
         }
-        entity.getCapability(ProjectileAnimatableCapabilityProvider.CAP).ifPresent(cap -> {
+        var cap = entity.getCapability(ProjectileAnimatableCapabilityProvider.CAP, null);
+        if (cap != null) {
             cap.checkModelUpdate();
-            render(cap, yaw, partialTick, poseStack, bufferSource, packedLight);
-        });
+            render(cap, x, y, z, yaw, partialTick);
+        }
     }
 
     @Override
     @NotNull
-    public ResourceLocation getTextureLocation(Projectile entity) {
-        return entity.getCapability(ProjectileAnimatableCapabilityProvider.CAP).map(CustomProjectileEntity::getTextureLocation).orElse(MissingTextureAtlasSprite.getLocation());
+    protected ResourceLocation getEntityTexture(Entity entity) {
+        var cap = entity.getCapability(ProjectileAnimatableCapabilityProvider.CAP, null);
+        return cap != null ? cap.getTextureLocation() : TextureMap.LOCATION_MISSING_TEXTURE;
     }
 }

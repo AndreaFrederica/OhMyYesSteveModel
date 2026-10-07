@@ -31,9 +31,8 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import org.jetbrains.annotations.Nullable;
 
 public final class PlayerStateHandler {
@@ -43,9 +42,9 @@ public final class PlayerStateHandler {
     }
 
     public static PlayerStateUpdate.Builder newFull(
-            ServerPlayer player) {
+            EntityPlayerMP player) {
         return PlayerStateUpdate.newBuilder()
-                .setSubject(serverEntityRef(player.getId()))
+                .setSubject(serverEntityRef(player.getEntityId()))
                 .setMode(StateWriteMode.STATE_WRITE_MODE_FULL);
     }
 
@@ -55,24 +54,24 @@ public final class PlayerStateHandler {
                 .setMode(StateWriteMode.STATE_WRITE_MODE_DELTA);
     }
 
-    public static void broadcast(ServerPlayer player, PlayerStateUpdate update) {
+    public static void broadcast(EntityPlayerMP player, PlayerStateUpdate update) {
         try {
             NetworkHandler.broadcastToVisiblePlayersAndSelf(update, player);
         } catch (RuntimeException failure) {
             YesSteveModel.LOGGER.warn(
                     "Failed to broadcast a player-state update for {}",
-                    player.getScoreboardName(), failure);
+                    player.getName(), failure);
         }
     }
 
     public static void sendToObserver(
-            PlayerStateUpdate update, Player observer) {
+            PlayerStateUpdate update, EntityPlayer observer) {
         try {
             NetworkHandler.sendToClientPlayer(update, observer);
         } catch (RuntimeException failure) {
             YesSteveModel.LOGGER.warn(
                     "Failed to send a player-state update to {}",
-                    observer.getScoreboardName(), failure);
+                    observer.getName(), failure);
         }
     }
 
@@ -102,13 +101,12 @@ public final class PlayerStateHandler {
                 if (!owner.acceptsPlayerStateReport(report)) {
                     return;
                 }
-                sender.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP)
-                        .ifPresent(capability -> applyReport(
-                                sender, capability, owner, report));
+                var capability = sender.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
+                if (capability != null) applyReport(sender, capability, owner, report);
             } catch (RuntimeException failure) {
                 YesSteveModel.LOGGER.warn(
                         "Failed to process a player-state report from {}",
-                        sender.getScoreboardName(), failure);
+                        sender.getName(), failure);
             }
         }));
         context.setPacketHandled(true);
@@ -127,15 +125,14 @@ public final class PlayerStateHandler {
         context.setPacketHandled(true);
     }
 
-    public static boolean sendAuthoritativeFull(ServerPlayer player, boolean broadcast) {
-        var capability = player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP)
-                .resolve().orElse(null);
+    public static boolean sendAuthoritativeFull(EntityPlayerMP player, boolean broadcast) {
+        var capability = player.getCapability(ModelInfoCapabilityProvider.MODEL_INFO_CAP, null);
         if (capability == null) {
             return false;
         }
         if (broadcast) {
             capability.getPropertiesTracker().tick(player, false,
-                    ServerConfig.LOW_BANDWIDTH_USAGE.get());
+                    ServerConfig.LOW_BANDWIDTH_USAGE);
             capability.consumeDirty();
         }
         var update = buildAuthoritativeFull(player, capability).orElse(null);
@@ -151,12 +148,12 @@ public final class PlayerStateHandler {
     }
 
     private static boolean validServerReportHeader(PlayerStateReport report,
-                                                   ServerPlayer sender) {
+                                                   EntityPlayerMP sender) {
         return !report.subject().hasPlayerId()
-                && report.subject().entityId() == sender.getId();
+                && report.subject().entityId() == sender.getEntityId();
     }
 
-    private static void applyReport(ServerPlayer sender, ModelInfoCapability capability,
+    private static void applyReport(EntityPlayerMP sender, ModelInfoCapability capability,
                                     ServerModelSession owner,
                                     PlayerStateReport report) {
         var full = report.mode() == StateWriteMode.STATE_WRITE_MODE_FULL;
@@ -226,7 +223,7 @@ public final class PlayerStateHandler {
             capability.consumeDirty();
             update = buildAuthoritativeFull(sender, capability).orElse(null);
         } else {
-            var updateBuilder = newDelta(sender.getId());
+            var updateBuilder = newDelta(sender.getEntityId());
             if (animation != null) {
                 updateBuilder.setAnimation(animation);
             }
@@ -292,11 +289,12 @@ public final class PlayerStateHandler {
 
     private static void applyClientUpdate(PlayerStateUpdate update) {
         var entityId = update.subject().entityId();
-        var level = Minecraft.getInstance().level;
-        if (level == null || !(level.getEntity(entityId) instanceof Player player)) {
+        var level = Minecraft.getMinecraft().world;
+        if (level == null || !(level.getEntityByID(entityId) instanceof EntityPlayer player)) {
             return;
         }
-        player.getCapability(PlayerAnimatableCapabilityProvider.CAP).ifPresent(capability -> {
+        var capability = player.getCapability(PlayerAnimatableCapabilityProvider.CAP, null);
+        if (capability != null) {
             var full = update.mode() == StateWriteMode.STATE_WRITE_MODE_FULL;
             var authoritativeModelHash = update.hasModel()
                     ? ModelReferenceCodec.read(update.modelUnsafe().model()) : null;
@@ -336,11 +334,11 @@ public final class PlayerStateHandler {
                     capability.updateRemoteRoamingVars(roaming.modelKey(), roaming.values());
                 }
             }
-            if (full && player == Minecraft.getInstance().player) {
+            if (full && player == Minecraft.getMinecraft().player) {
                 ClientProtocolGateway.acceptAuthoritativeFull(authoritativeModelHash,
                         selfFullRoamingKey(update, appliedModelHash));
             }
-        });
+        }
     }
 
     static Hash256 appliedPlayerModelHash(@Nullable Hash256 authoritativeModelHash,
@@ -380,7 +378,7 @@ public final class PlayerStateHandler {
     }
 
     private static Optional<PlayerStateUpdate> buildAuthoritativeFull(
-            ServerPlayer player, ModelInfoCapability capability) {
+            EntityPlayerMP player, ModelInfoCapability capability) {
         return ServerModelService.current().flatMap(ServerModelService::catalog)
                 .flatMap(snapshot -> ModelInfoSyncAssembler.build(
                         player, capability, snapshot));

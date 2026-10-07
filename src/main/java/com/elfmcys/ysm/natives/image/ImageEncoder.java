@@ -1,8 +1,10 @@
 package com.elfmcys.ysm.natives.image;
 
 import com.elfmcys.ysm.buffer.NativeBuffer;
+/* 1.12.2 没有 NativeImage，下方两个 NativeImage 重载已整体注释
 import com.elfmcys.ysm.mixin.client.NativeImageAccessor;
 import com.mojang.blaze3d.platform.NativeImage;
+*/
 
 import java.io.IOException;
 import java.lang.ref.Reference;
@@ -18,6 +20,7 @@ public class ImageEncoder {
         return encode(pixels.ptr(), pixels, width, height, true, 0, 0);
     }
 
+    /* 1.12.2 没有 NativeImage，无从取得其像素指针，调用方改用上面接收 NativeBuffer 的重载
     public static Image encodeLossy(NativeImage image, int maxWidth, int maxHeight) throws IOException {
         if (image.format() != NativeImage.Format.RGBA) {
             throw new UnsupportedOperationException("Image format not supported");
@@ -37,6 +40,7 @@ public class ImageEncoder {
         return encode(accessor.ysm$pixels(), image, image.getWidth(), image.getHeight(),
                 true, 0, 0);
     }
+    */
 
     private static Image encode(long pixels, Object pixelsOwner, int width, int height,
                                 boolean lossless, int maxWidth, int maxHeight) throws IOException {

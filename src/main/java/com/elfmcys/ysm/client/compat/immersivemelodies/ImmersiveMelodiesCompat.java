@@ -1,29 +1,34 @@
 package com.elfmcys.ysm.client.compat.immersivemelodies;
 
 import com.elfmcys.ysm.client.animation.molang.CtrlBinding;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.fml.ModList;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraftforge.fml.common.Loader;
 
 public class ImmersiveMelodiesCompat {
-    private static final String IMMERSIVE_MELODIES = "immersive_melodies";
+    private static final String IMMERSIVE_MELODIES = "immersive_favella";
     private static boolean IS_LOADED = false;
 
     public static void init() {
-        IS_LOADED = ModList.get().isLoaded(IMMERSIVE_MELODIES);
+        IS_LOADED = Loader.isModLoaded(IMMERSIVE_MELODIES);
     }
 
-    public static void updateMelodyProgress(LivingEntity entity, ImmersiveMelodiesCompat.ImmersiveMelodiesData imData) {
+    public static void updateMelodyProgress(EntityLivingBase entity, ImmersiveMelodiesCompat.ImmersiveMelodiesData imData) {
+        /*
         if (IS_LOADED) {
             ImmersiveMelodiesCompatInner.updateMelodyProgress(entity, imData);
         }
+        */
     }
 
     public static void addBinding(CtrlBinding binding) {
+        /*
         if (IS_LOADED) {
             ImmersiveMelodiesCompatInner.addInnerBinding(binding);
         } else {
             addEmptyBinding(binding);
         }
+        */
+        addEmptyBinding(binding);
     }
 
     /**
