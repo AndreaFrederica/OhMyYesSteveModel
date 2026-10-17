@@ -24,11 +24,10 @@ enum ysm_physics_feature {
   YSM_PHYSICS_HOST_ENVIRONMENT = 256
 };
 
-/* ABI 6: body=20 floats, joint=37, soft config=34, state=13; host environment added.
- * Poses use
- * position + normalized XYZW; matrices/vertex IDs use source space.
- * Batches
- * preflight every entry. Allocation/simulation failure poisons a world.
+/* ABI 6: body=20 floats, joint=37, soft config=34, state=13; host environment
+ * added. Poses use position + normalized XYZW; matrices/vertex IDs use source
+ * space. Batches preflight every entry. Allocation/simulation failure poisons a
+ * world.
  *
  * Empty batches are allowed. destroy accepts NULL, then invalidates the handle.
  */
@@ -99,9 +98,13 @@ YSM_PHYSICS_API int32_t ysm_physics_set_gravity(ysm_physics_world *,
                                                 const float *gravity,
                                                 int32_t count);
 YSM_PHYSICS_API int32_t ysm_physics_step(ysm_physics_world *);
-/* Header 51 floats, terrain hulls 24 each, fluids 10 each. Separate collision objects do not occupy body IDs.
- * All entries validated before mutation; failure during allocation poisons the world. */
-YSM_PHYSICS_API int32_t ysm_physics_environment(ysm_physics_world *,const float *values,int32_t count,int32_t boxes,int32_t fluids);
+/* Header 51 floats, terrain hulls 24 each, fluids 10 each. Separate collision
+ * objects do not occupy body IDs. All entries validated before mutation;
+ * failure during allocation poisons the world. */
+YSM_PHYSICS_API int32_t ysm_physics_environment(ysm_physics_world *,
+                                                const float *values,
+                                                int32_t count, int32_t boxes,
+                                                int32_t fluids);
 YSM_PHYSICS_API int32_t ysm_physics_clear_environment(ysm_physics_world *);
 YSM_PHYSICS_API int32_t ysm_physics_body_count(const ysm_physics_world *);
 YSM_PHYSICS_API int32_t ysm_physics_read_bodies(const ysm_physics_world *,

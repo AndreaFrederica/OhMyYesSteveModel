@@ -20,7 +20,7 @@ struct Body {
   btVector3 inertia{0, 0, 0};
   int group{1}, mask{0xffff};
 };
-using KinematicPairFilter=YsmHostPairFilter;
+using KinematicPairFilter = YsmHostPairFilter;
 struct ysm_physics_world {
   btRigidBody fixed{0, nullptr, nullptr};
   std::unique_ptr<btDefaultCollisionConfiguration> config;
@@ -538,7 +538,7 @@ extern "C" int32_t ysm_physics_kinematic_filter(ysm_physics_world *w,
   if (!w || enabled < 0 || enabled > 1 || !w->bodies.empty() ||
       !w->soft.empty())
     return -1;
-  w->kinematicFilter.excludeMixed=enabled!=0;
+  w->kinematicFilter.excludeMixed = enabled != 0;
   return 0;
 } catch (...) {
   if (w)
@@ -563,21 +563,41 @@ extern "C" int32_t ysm_physics_set_gravity(ysm_physics_world *w, const float *g,
     w->failed = true;
   return -3;
 }
-extern "C" int32_t ysm_physics_environment(ysm_physics_world* w,const float* values,int32_t count,int32_t boxes,int32_t fluids) try {
-  if(w && w->failed)return -3;
-  if(!w || !YsmHostEnvironment::valid(values,count,boxes,fluids))return -1;
-  w->host.update(*w->world,boxes,fluids,values);return 0;
-} catch (...) {if(w)w->failed=true;return -3;}
-extern "C" int32_t ysm_physics_clear_environment(ysm_physics_world* w) try {
-  if(w && w->failed)return -3;if(!w)return -1;w->host.clear(*w->world);return 0;
-} catch (...) {if(w)w->failed=true;return -3;}
+extern "C" int32_t ysm_physics_environment(ysm_physics_world *w,
+                                           const float *values, int32_t count,
+                                           int32_t boxes, int32_t fluids) try {
+  if (w && w->failed)
+    return -3;
+  if (!w || !YsmHostEnvironment::valid(values, count, boxes, fluids))
+    return -1;
+  w->host.update(*w->world, boxes, fluids, values);
+  return 0;
+} catch (...) {
+  if (w)
+    w->failed = true;
+  return -3;
+}
+extern "C" int32_t ysm_physics_clear_environment(ysm_physics_world *w) try {
+  if (w && w->failed)
+    return -3;
+  if (!w)
+    return -1;
+  w->host.clear(*w->world);
+  return 0;
+} catch (...) {
+  if (w)
+    w->failed = true;
+  return -3;
+}
 extern "C" int32_t ysm_physics_step(ysm_physics_world *w) try {
   if (w && w->failed)
     return -3;
   if (!w)
     return -1;
-  for(auto& b:w->bodies)w->host.apply(b.body.get(),w->step);
-  for(auto& body:w->soft)w->host.apply(body.get(),w->step);
+  for (auto &b : w->bodies)
+    w->host.apply(b.body.get(), w->step);
+  for (auto &body : w->soft)
+    w->host.apply(body.get(), w->step);
   w->host.finishStep();
   for (const auto &b : w->bodies)
     if (!validState(b.body.get()) || !finite(b.body->getTotalForce()) ||

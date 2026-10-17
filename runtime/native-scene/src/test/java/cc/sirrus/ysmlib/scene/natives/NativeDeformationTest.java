@@ -17,6 +17,22 @@ class NativeDeformationTest {
   static void compare(Map<String,MeshAsset.Attribute> a,Map<String,MeshAsset.Attribute> b){
     assertEquals(a.keySet(),b.keySet());for(var name:a.keySet()){var x=a.get(name);var y=b.get(name);assertEquals(x.components(),y.components());
       for(int i=0;i<x.values().size();i++)assertEquals(x.values().get(i),y.values().get(i),2e-5,"attribute="+name+" scalar="+i);}}
+  @Test void layeredAnimationFaceOwnershipAndBoneOverridesMatchManagedDeformation() throws Exception {
+    try(var input=getClass().getResourceAsStream("/mmd-oracle/morph.pmx")) {
+      var model=new PmxReader().read(new ByteData(input.readAllBytes()),ReadLimits.DEFAULT);
+      var track=new AnimationClip.Track(AnimationClip.Property.MORPH_WEIGHTS,0,"","",new AnimationCurve(new double[]{0,1},new FloatData(0,.8f),1,false,AnimationCurve.Interpolation.LINEAR,FloatData.EMPTY,FloatData.EMPTY,FloatData.EMPTY));
+      var layers=new MmdAnimationLayers(model);layers.clip(0,new AnimationClip("map face",List.of(track),30));layers.play(0);
+      var settings=MmdPlayback.Settings.preview().withPhysics(false);var physics=new cc.sirrus.ysmlib.scene.physics.wasm.WasmPhysicsProvider();
+      try(var java=MmdPlayer.packed(model,layers.freeze(),physics,settings,Map.of(),new JavaDeformationProvider());var nativePlayer=MmdPlayer.packed(model,layers.freeze(),physics,settings,Map.of(),nativeProvider)) {
+        for(int frame=0;frame<30;frame++) {
+          var morph=frame<10?Map.of(0,.9f):Map.<Integer,Float>of();java.morphWeights(morph);nativePlayer.morphWeights(morph);
+          var bones=frame%2==0?Map.of(0,new Pose(Vec3.ZERO,Rotation.axisAngle(new Vec3(0,1,0),.15))):Map.<Integer,Pose>of();java.bonePoses(bones);nativePlayer.bonePoses(bones);
+          double time=frame<20?frame/30d:(29-frame)/30d;var expected=java.seek(time);var actual=nativePlayer.seek(time);assertEquals(expected.pose(),actual.pose());
+          for(int i=0;i<expected.primitives().size();i++)compare(expected.primitives().get(i),actual.primitives().get(i));
+        }
+      }
+    }
+  }
   @Test void linearSdefQdefMorphTangentAndRetainedFrames(){
     var modes=List.of(MeshAsset.Deform.LINEAR,MeshAsset.Deform.SDEF,MeshAsset.Deform.QDEF);
     var skin=new MeshAsset.Skinning(new IntData(0,2,4,8),new IntData(0,1,0,1,0,1,0,1),new FloatData(.3f,.7f,.4f,.6f,.2f,.3f,.1f,.4f),modes,
