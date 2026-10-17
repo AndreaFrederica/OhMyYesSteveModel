@@ -23,7 +23,8 @@ public final class SceneSkeleton {
       if(scene!=null) {
         var nodes=scene.nodes();int[] parents=new int[nodes.size()];Arrays.fill(parents,-1);
         for(int i=0;i<nodes.size();i++) { var children=nodes.get(i).children();for(int j=0;j<children.size();j++) parents[children.get(j)]=i; }
-        for(int i=0;i<nodes.size();i++) out.add(new Bone(i,nodes.get(i).name(),"",parents[i],Vec3.ZERO,false));
+        var global=new SceneRig(scene).restGlobal();
+        for(int i=0;i<nodes.size();i++) out.add(new Bone(i,nodes.get(i).name(),"",parents[i],SceneRig.position(global.get(i)),false));
       }
     }
     return List.copyOf(out);
@@ -58,6 +59,17 @@ public final class SceneSkeleton {
       if(found.size()==1 && used.add(found.get(0).index())) result.put(names[0],bind(bones,found.get(0).index()));
     }
     return Map.copyOf(result);
+  }
+  /** VRM's authored semantic identities take precedence over spelling heuristics. */
+  public static Map<String,SceneModelProfile.BoneBinding> suggest(ScenePackageAssets assets) {
+    var bones=of(assets);var result=new LinkedHashMap<String,SceneModelProfile.BoneBinding>();
+    if(assets.model() instanceof ScenePackageAssets.Vrm vrm) {
+      for(var e:vrm.value().humanBones().entrySet()) {
+        String role=SceneModelProfile.ROLES.contains(e.getKey())?e.getKey():"bone:"+e.getKey();result.put(role,bind(bones,e.getValue()));
+      }
+    }
+    var used=new HashSet<Integer>();result.values().forEach(b->used.add(b.index()));
+    suggest(bones).forEach((role,b)->{if(!result.containsKey(role)&&used.add(b.index()))result.put(role,b);});return Map.copyOf(result);
   }
   public static String normalize(String name) { return Normalizer.normalize(name,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]",""); }
 }

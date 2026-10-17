@@ -9,18 +9,21 @@ import static cc.sirrus.ysmlib.scene.vrm.VrmJson.*;
 public final class VrmMaterialEvaluator implements VrmMaterials {
   private final VrmDocument document;
   private final List<VrmExpressions.MaterialState> bases;
+  private List<VrmExpressions.MaterialState> previousStates=List.of();
+  private List<Material> previousMaterials=List.of();
   public VrmMaterialEvaluator(VrmDocument document) {
     this.document=Objects.requireNonNull(document);
     bases=new VrmExpressionEvaluator(document).evaluate(Map.of()).materials();
   }
-  public Frame evaluate(List<VrmExpressions.MaterialState> expressions,double seconds) {
+  public synchronized Frame evaluate(List<VrmExpressions.MaterialState> expressions,double seconds) {
     if(!Double.isFinite(seconds) || seconds<0) throw new IllegalArgumentException("Invalid material time");
     var input=expressions==null?bases:expressions;if(input.size()!=document.scene().materials().size()) throw new IllegalArgumentException("Material state count mismatch");
     var output=new ArrayList<Material>();for(int m=0;m<input.size();m++) {
       var source=document.scene().materials().get(m);var old=document.legacyMaterials().isEmpty()?null:document.legacyMaterials().get(m);
       boolean legacy=old!=null && !old.shader().equals("VRM_USE_GLTFSHADER");var state=input.get(m);
+      if(m<previousStates.size()&&state.equals(previousStates.get(m))){var cached=previousMaterials.get(m);output.add(cached.seconds()==seconds?cached:new Material(cached.index(),cached.shaderName(),cached.shader(),cached.parameterSpace(),cached.parameters(),cached.textures(),cached.keywords(),cached.renderState(),seconds,cached.compatibility()));continue;}
       output.add(legacy?legacy(m,old,state,seconds):modern(m,source,state,seconds));
-    }return new Frame(output);
+    }var frame=new Frame(output);previousStates=List.copyOf(input);previousMaterials=frame.materials();return frame;
   }
   private Material modern(int m,SceneAsset.Material source,VrmExpressions.MaterialState state,double seconds) {
     var ext=extensions(source.metadata());boolean toon=ext.has("VRMC_materials_mtoon");var t=object(ext,"VRMC_materials_mtoon");if(toon) version(t,"VRMC_materials_mtoon");

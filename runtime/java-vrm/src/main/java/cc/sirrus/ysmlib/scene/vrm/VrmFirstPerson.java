@@ -44,12 +44,23 @@ public final class VrmFirstPerson {
   }
 
   private static MeshAsset.Primitive filter(MeshAsset.Primitive source,SceneAsset.Skin skin,boolean[] hidden) {
+    return filter(source,skin,hidden,0);
+  }
+  /** Author exclusions can only remove geometry from the native first-person view. */
+  public VrmViewGeometry exclude(VrmViewGeometry original,SceneAsset scene,Set<Integer> roots,float threshold) {
+    if(roots.isEmpty())return original;boolean[] hidden=new boolean[scene.nodes().size()];var pending=new ArrayDeque<>(roots);
+    while(!pending.isEmpty()){int n=pending.remove();if(n<0||n>=hidden.length)throw new IllegalArgumentException("Hidden VRM bone out of range");if(hidden[n])continue;hidden[n]=true;for(int i=0;i<scene.nodes().get(n).children().size();i++)pending.add(scene.nodes().get(n).children().get(i));}
+    var views=new ArrayList<NodeView>();for(var view:original.nodes()){var node=scene.nodes().get(view.node());var first=new ArrayList<Draw>();for(var draw:view.firstPerson()){
+      if(node.skin()<0){if(!hidden[view.node()])first.add(draw);}else{var filtered=filter(draw.geometry(),scene.skins().get(node.skin()),hidden,threshold);if(filtered!=null)first.add(filtered==draw.geometry()?draw:new Draw(draw.sourcePrimitive(),filtered));}
+    }views.add(new NodeView(view.node(),first,view.thirdPerson()));}return new VrmViewGeometry(views);
+  }
+  private static MeshAsset.Primitive filter(MeshAsset.Primitive source,SceneAsset.Skin skin,boolean[] hidden,float threshold) {
     var influences=source.skinning();if(influences==null) throw new IllegalArgumentException("Skinned first-person primitive has no weights");
     boolean[] erased=new boolean[source.vertexCount()];
-    for(int v=0;v<erased.length;v++) for(int i=influences.offsets().get(v);i<influences.offsets().get(v+1);i++) {
+    for(int v=0;v<erased.length;v++){double affectedWeight=0,total=0;for(int i=influences.offsets().get(v);i<influences.offsets().get(v+1);i++) {
       int joint=influences.joints().get(i);if(joint>=skin.joints().size()) throw new IllegalArgumentException("First-person vertex joint exceeds skin");
-      if(influences.weights().get(i)>0 && hidden[skin.joints().get(joint)]) erased[v]=true;
-    }
+      float weight=influences.weights().get(i);total+=weight;if(weight>0 && hidden[skin.joints().get(joint)])affectedWeight+=weight;
+    }erased[v]=affectedWeight>0&&(threshold==0||affectedWeight/total>=threshold);}
     var indices=source.indices();boolean affected=false;
     for(int i=0;i<indices.size();i++) if(erased[indices.get(i)]) { affected=true;break; }
     if(!affected) return source;

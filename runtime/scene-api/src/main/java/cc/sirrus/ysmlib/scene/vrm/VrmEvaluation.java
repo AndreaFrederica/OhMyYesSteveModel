@@ -19,4 +19,6 @@ public interface VrmEvaluation {
     public Frame { localRotations=List.copyOf(localRotations);materials=List.copyOf(materials);expressions=Map.copyOf(expressions); }
   }
   Frame evaluate(AnimationClip animation,double seconds,Input input);
+  /** Compose semantic inputs on a retargeted avatar pose, retaining format expression rules. */
+  default Frame evaluatePose(ScenePose pose,List<Rotation> rotations,Input input){throw new UnsupportedOperationException("Retargeted input composition unavailable");}
 }

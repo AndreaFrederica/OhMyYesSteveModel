@@ -108,22 +108,32 @@ public final class VrmReader {
   static void readSprings(JsonObject s,SceneAsset scene,List<Collider> colliders,List<ColliderGroup> groups,List<Spring> springs) {
     version(s,"VRMC_springBone");if(!colliders.isEmpty() || !groups.isEmpty()) throw new IllegalArgumentException("Mixed VRM 0 and VRM 1 spring profiles");
     for(var value:array(s,"colliders")) {
-      var c=value.getAsJsonObject();var shapes=object(c,"shape");if(shapes.has("sphere")==shapes.has("capsule")) throw new IllegalArgumentException("Expected one collider shape");
-      boolean capsule=shapes.has("capsule");var shape=object(shapes,capsule?"capsule":"sphere");
+      var c=value.getAsJsonObject();var shapes=object(c,"shape");var extensions=object(c,"extensions");boolean extended=extensions.has("VRMC_springBone_extended_collider");
+      if(extended){var e=object(extensions,"VRMC_springBone_extended_collider");version(e,"VRMC_springBone_extended_collider");if(e.has("shape"))shapes=object(e,"shape");else extended=false;}
+      int shapeCount=(shapes.has("sphere")?1:0)+(shapes.has("capsule")?1:0)+(extended&&shapes.has("plane")?1:0);if(shapeCount!=1)throw new IllegalArgumentException("Expected one collider shape");
+      boolean capsule=shapes.has("capsule"),plane=extended&&shapes.has("plane");var shape=object(shapes,plane?"plane":capsule?"capsule":"sphere");
       colliders.add(new Collider(index(integer(c,"node",-1),scene.nodes().size(),"collider node"),vec3(shape,"offset",Vec3.ZERO),capsule?vec3(shape,"tail",Vec3.ZERO):null,
-          range(number(shape,"radius",0),0,Float.MAX_VALUE,"radius")));
+          plane?0:range(number(shape,"radius",0),0,Float.MAX_VALUE,"radius"),extended&&!plane&&bool(shape,"inside",false),plane?vec3(shape,"normal",new Vec3(0,0,1)):null));
     }
     for(var value:array(s,"colliderGroups")) { var g=value.getAsJsonObject();groups.add(new ColliderGroup(string(g,"name",""),indices(array(g,"colliders"),colliders.size(),"collider"))); }
     for(var value:array(s,"springs")) {
-      var s0=value.getAsJsonObject();var joints=new ArrayList<Joint>();for(var j:array(s0,"joints")) joints.add(joint(j.getAsJsonObject(),scene));
+      var s0=value.getAsJsonObject();var joints=new ArrayList<Joint>();var sourceJoints=array(s0,"joints");for(int j=0;j<sourceJoints.size();j++) joints.add(joint(sourceJoints.get(j).getAsJsonObject(),scene,j+1<sourceJoints.size()));
       if(joints.isEmpty()) throw new IllegalArgumentException("Spring has no joints");
       springs.add(new Spring(string(s0,"name",""),optionalIndex(integer(s0,"center",-1),scene.nodes().size(),"spring center"),joints,indices(array(s0,"colliderGroups"),groups.size(),"collider group")));
     }
   }
-  private static Joint joint(JsonObject j,SceneAsset scene) {
+  private static Joint joint(JsonObject j,SceneAsset scene,boolean head) {
     var dir=vec3(j,"gravityDir",new Vec3(0,-1,0));
     return new Joint(index(integer(j,"node",-1),scene.nodes().size(),"spring joint"),range(number(j,"hitRadius",0),0,Float.MAX_VALUE,"hitRadius"),
-        range(number(j,"stiffness",1),0,Float.MAX_VALUE,"stiffness"),range(number(j,"gravityPower",0),0,Float.MAX_VALUE,"gravityPower"),dir,range(number(j,"dragForce",.5f),0,1,"dragForce"));
+        range(number(j,"stiffness",1),0,Float.MAX_VALUE,"stiffness"),range(number(j,"gravityPower",0),0,Float.MAX_VALUE,"gravityPower"),dir,range(number(j,"dragForce",.5f),0,1,"dragForce"),head?limit(j):null);
+  }
+  private static Limit limit(JsonObject joint) {
+    var extensions=object(joint,"extensions");if(!extensions.has("VRMC_springBone_limit"))return null;
+    var e=object(extensions,"VRMC_springBone_limit");version(e,"VRMC_springBone_limit");var limits=object(e,"limit");
+    var names=List.of("cone","hinge","spherical").stream().filter(limits::has).toList();if(names.size()!=1)throw new IllegalArgumentException("Expected one spring limit");
+    String name=names.get(0);var shape=object(limits,name);var q=vector(shape,"rotation",4,0,0,0,1);double norm=0;for(int i=0;i<4;i++)norm+=q.get(i)*q.get(i);if(Math.abs(norm-1)>1e-4)throw new IllegalArgumentException("Limit rotation must be unit quaternion");
+    float angle=range(number(shape.get(name.equals("spherical")?"pitch":"angle")),0,Float.MAX_VALUE,"limit angle");float yaw=name.equals("spherical")?range(number(shape.get("yaw")),0,Float.MAX_VALUE,"limit yaw"):0;
+    return new Limit(LimitType.valueOf(name.toUpperCase(Locale.ROOT)),angle,yaw,Rotation.normalized(q.get(0),q.get(1),q.get(2),q.get(3)));
   }
   private static FirstPerson firstPerson(JsonObject root,SceneAsset scene,Map<String,Integer> bones) {
     var out=new ArrayList<MeshAnnotation>();var seen=new HashSet<Integer>();for(var value:array(object(root,"firstPerson"),"meshAnnotations")) {

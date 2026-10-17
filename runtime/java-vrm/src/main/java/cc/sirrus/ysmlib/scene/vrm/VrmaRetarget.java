@@ -50,6 +50,9 @@ public final class VrmaRetarget implements VrmaEvaluation {
   }
   public CompatibilityReport compatibility() { return report; }
   public VrmEvaluation.Frame evaluate(int animationIndex,double seconds) {
+    var sample=sample(animationIndex,seconds);return avatarEvaluator.evaluatePose(sample.pose(),sample.rotations(),sample.input());
+  }
+  public VrmaEvaluation.Sample sample(int animationIndex,double seconds) {
     VrmJson.index(animationIndex,animation.animations().size(),"animation");var clip=animation.animations().get(animationIndex);var source=sourceEvaluator.evaluate(clip,seconds);
     Rotation[] sourceLocal=sourceRestLocal.clone();for(var track:clip.tracks()) if(track.property()==AnimationClip.Property.ROTATION) {
       float[] q=CurveSampler.sample(track.curve(),seconds);sourceLocal[track.targetIndex()]=Rotation.normalized(q[0],q[1],q[2],q[3]);
@@ -76,7 +79,7 @@ public final class VrmaRetarget implements VrmaEvaluation {
     }
     VrmEvaluation.Angles gaze=animation.lookAtNode()==-1?null:angles(sourceLocal[animation.lookAtNode()]);
     var pose=new ScenePose(seconds,Arrays.asList(matrices),Arrays.asList(global),targetRest.morphWeights(),source.extensionChannels());
-    return avatarEvaluator.evaluatePose(pose,Arrays.asList(local),new VrmEvaluation.Input(expressions,Map.of(),gaze));
+    return new VrmaEvaluation.Sample(pose,Arrays.asList(local),new VrmEvaluation.Input(expressions,Map.of(),gaze));
   }
   static VrmEvaluation.Angles angles(Rotation q) {
     Matrix4 m=new Transform(Vec3.ZERO,q,Vec3.ONE).matrix();double x=Math.asin(Math.max(-1,Math.min(1,-m.get(2,1))));

@@ -23,7 +23,7 @@ public final class VrmEvaluator implements VrmEvaluation {
     }
     return evaluatePose(pose,rotations,input);
   }
-  Frame evaluatePose(ScenePose pose,List<Rotation> rotations,Input input) {
+  public Frame evaluatePose(ScenePose pose,List<Rotation> rotations,Input input) {
     var look=gaze.evaluate(pose,rotations,input.gaze());var weights=new LinkedHashMap<>(input.expressions());weights.putAll(look.expressions());
     var expression=expressions.evaluate(weights,input.categories());
     var morphs=new ArrayList<FloatData>();for(var w:pose.morphWeights()) morphs.add(new FloatData(w.copy()));

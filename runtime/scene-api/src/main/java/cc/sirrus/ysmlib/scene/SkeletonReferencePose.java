@@ -7,10 +7,25 @@ public final class SkeletonReferencePose {
     private SkeletonReferencePose() {}
 
     public static SceneModelProfile arms(Map<String,Vec3> sourcePositions,List<SceneSkeleton.Bone> target,SceneModelProfile profile) {
+        return arms(sourcePositions,target,profile,true);
+    }
+    /** Automatic defaults may leave missing or zero-length chains unchanged; explicit calibration is strict. */
+    public static SceneModelProfile arms(Map<String,Vec3> sourcePositions,List<SceneSkeleton.Bone> target,SceneModelProfile profile,boolean strict) {
         SceneSkeleton.validate(target,profile.bones());
         var result=new LinkedHashMap<>(profile.bones());
         for(String side:List.of("left","right")) {
             String upper=side+"UpperArm",lower=side+"LowerArm",hand=side+"Hand";
+            if(!strict){
+                boolean usable=true;
+                for(var pair:List.of(List.of(upper,lower),List.of(lower,hand))){
+                    var a=profile.bones().get(pair.get(0));var b=profile.bones().get(pair.get(1));
+                    var sa=sourcePositions.get(profile.retarget().sourceBones().get(pair.get(0)));var sb=sourcePositions.get(profile.retarget().sourceBones().get(pair.get(1)));
+                    if(a==null||b==null||a.index()<0||b.index()<0||a.weight()==0||b.weight()==0||sa==null||sb==null){usable=false;break;}
+                    var d=target.get(b.index()).position().subtract(target.get(a.index()).position());var sd=sb.subtract(sa);
+                    if(dot(d,d)<1e-14||dot(sd,sd)<1e-14){usable=false;break;}
+                }
+                if(!usable)continue;
+            }
             Rotation forearm=null;
             for(var pair:List.of(List.of(upper,lower),List.of(lower,hand))) {
                 var a=require(profile,pair.get(0));var b=require(profile,pair.get(1));

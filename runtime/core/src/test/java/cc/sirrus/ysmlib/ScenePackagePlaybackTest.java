@@ -111,5 +111,15 @@ class ScenePackagePlaybackTest {
     }
     assertThrows(IllegalStateException.class,()->player.seek(0));
   }
+  @Test void fbxSidecarUsesSharedPhysicsProviderForRigidNodes() throws Exception {
+    var model=resource("/ufbx/maya_blend_inbetween_7500_ascii.fbx");
+    var body=new cc.sirrus.ysmlib.scene.fbx.FbxPhysicsProfile.Body("root",0,new cc.sirrus.ysmlib.scene.physics.PhysicsSpec.Body(
+        cc.sirrus.ysmlib.scene.physics.PhysicsSpec.Shape.BOX,new Vec3(.1f,.1f,.1f),Pose.IDENTITY,
+        cc.sirrus.ysmlib.scene.physics.PhysicsSpec.Motion.KINEMATIC,0,0,0,0,.5f,.01f,1,1));
+    var sidecar=new cc.sirrus.ysmlib.scene.java.FbxPhysicsProfileCodec().write(new cc.sirrus.ysmlib.scene.fbx.FbxPhysicsProfile(List.of(body),List.of()));
+    var files=new LinkedHashMap<String,ByteData>();files.put("avatar.fbx",model);files.put(cc.sirrus.ysmlib.scene.fbx.FbxPhysicsProfile.PACKAGE_PATH,sidecar);
+    var asset=asset(ScenePackage.Format.FBX,"avatar.fbx",List.of(),files);var physics=ScenePackagePlayback.Settings.preview().withPhysics(true);
+    try(var player=scenes.playback(asset,ScenePackagePlayback.Selection.REST,physics,limits)){var frame=player.seek(0);assertFalse(frame.thirdPerson().draws().isEmpty());player.physicsInput(null);}
+  }
   private static int indices(GeometryFrame frame) { return frame.draws().stream().flatMap(d->d.geometry().primitives().stream()).mapToInt(p->p.indices().size()).sum(); }
 }

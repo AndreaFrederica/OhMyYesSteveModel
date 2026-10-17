@@ -8,6 +8,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import static cc.sirrus.ysmlib.scene.vrm.VrmFixtures.*;
 
 class VrmFirstPersonTest {
+  @Test void projectedViewsShareDeformedAttributesAndKeepSourcePrimitiveIdentity() {
+    var d=document(MeshAsset.Topology.TRIANGLES,9,Set.of(1),List.of(),1);var pose=new cc.sirrus.ysmlib.scene.java.SceneEvaluator(d.scene()).evaluate(null,0);
+    var complete=new cc.sirrus.ysmlib.scene.java.SceneGeometryCompiler(d.scene(),-1).compile(pose);var masks=new VrmFirstPerson().compile(d);var views=new VrmGeometryViews(masks).project(complete);
+    for(var draw:views.firstPerson().draws()){
+      var source=complete.draws().stream().filter(x->x.node()==draw.node()).findFirst().orElseThrow();
+      for(int i=0;i<draw.geometry().primitives().size();i++)assertSame(source.geometry().primitives().get(draw.sourcePrimitive(i)).attributes().get("POSITION").values(),draw.geometry().primitives().get(i).attributes().get("POSITION").values());
+    }
+    var custom=new VrmFirstPerson().exclude(masks,d.scene(),Set.of(0),.5f);
+    assertTrue(custom.nodes().stream().allMatch(n->n.firstPerson().isEmpty()));
+    for(int n=0;n<masks.nodes().size();n++)assertEquals(masks.nodes().get(n).thirdPerson(),custom.nodes().get(n).thirdPerson());
+  }
   @Test void allInfluencesAndInstanceSkinMappingsDetermineVisibilityWithoutChangingSource() {
     var d=document(MeshAsset.Topology.TRIANGLES,9,Set.of(1),List.of(),1);
     var views=new VrmFirstPerson().compile(d);var source=d.scene().meshes().get(0).primitives().get(0);

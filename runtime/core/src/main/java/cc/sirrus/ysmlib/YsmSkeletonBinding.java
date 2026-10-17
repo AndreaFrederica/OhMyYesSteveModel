@@ -11,11 +11,15 @@ public final class YsmSkeletonBinding {
     private final SkeletonRetargeter retargeter;
     private final Set<Integer> required;
     private final Map<Integer,Boolean> ik;
+    private final boolean reflectZ;
+    // The host adds Y180 for canonical +Z scene avatars; native YSM bones face -Z.
+    private final boolean backwardFacing;
+    private final SceneRig targetNodes;
 
     public YsmSkeletonBinding(List<Bone> source,ScenePackageAssets target,SceneModelProfile profile) {
-        if(!(target.model() instanceof ScenePackageAssets.Pmx || target.model() instanceof ScenePackageAssets.Pmd))
-            throw new IllegalArgumentException("YSM skeleton binding currently requires an MMD target");
         bones=List.copyOf(source);
+        reflectZ=!(target.model() instanceof ScenePackageAssets.Vrm || target.model() instanceof ScenePackageAssets.Gltf);
+        backwardFacing=target.model() instanceof ScenePackageAssets.Vrm v&&v.value().version()==cc.sirrus.ysmlib.scene.vrm.VrmDocument.Version.VRM_1;
         var sourceRig=new ArrayList<SkeletonRetargeter.Bone>();
         for(int i=0;i<bones.size();i++) {
             var b=bones.get(i);
@@ -24,8 +28,11 @@ public final class YsmSkeletonBinding {
         }
         var skeleton=SceneSkeleton.of(target);SceneSkeleton.validate(skeleton,profile.bones());
         var targetRig=new ArrayList<SkeletonRetargeter.Bone>();
-        for(var b:skeleton)targetRig.add(new SkeletonRetargeter.Bone(b.name(),b.parent(),
-            new Pose(b.parent()<0?b.position():b.position().subtract(skeleton.get(b.parent()).position()),Rotation.IDENTITY)));
+        var scene=SceneFeatureBindings.scene(target);var nodeRig=scene==null?null:new SceneRig(scene);
+        targetNodes=nodeRig;
+        for(var b:skeleton)targetRig.add(new SkeletonRetargeter.Bone(b.name(),b.parent(),nodeRig==null?
+            new Pose(b.parent()<0?b.position():b.position().subtract(skeleton.get(b.parent()).position()),Rotation.IDENTITY):
+            new Pose(SceneRig.position(scene.nodes().get(b.index()).localMatrix()),nodeRig.restRotations().get(b.index()))));
         retargeter=new SkeletonRetargeter(sourceRig,targetRig,profile);
         var needed=new HashSet<Integer>();var driven=new HashSet<Integer>();
         for(var entry:profile.retarget().sourceBones().entrySet()) {
@@ -43,7 +50,7 @@ public final class YsmSkeletonBinding {
                 var chain=pmx.value().bones().get(i).ik();
                 if(chain!=null&&!driven.contains(i)&&(driven.contains(chain.target())||chain.links().stream().anyMatch(l->driven.contains(l.bone()))))switches.put(i,false);
             }
-        } else for(var chain:((ScenePackageAssets.Pmd)target.model()).value().ik()) {
+        } else if (target.model() instanceof ScenePackageAssets.Pmd pmd) for(var chain:pmd.value().ik()) {
             boolean touched=driven.contains(chain.target());
             for(int i=0;i<chain.links().size();i++)touched|=driven.contains(chain.links().get(i));
             if(!driven.contains(chain.controller())&&touched)switches.put(chain.controller(),false);
@@ -60,37 +67,39 @@ public final class YsmSkeletonBinding {
             if(!required.contains(i)){local.add(local(i,Vec3.ZERO,bone.restRotation()));continue;}
             for(int k=0;k<9;k++)if(!Float.isFinite(attributes[o+k]))throw new IllegalArgumentException("Non-finite YSM bone: "+bone.name());
             if(Math.abs(attributes[o+6]-1)>1e-5 || Math.abs(attributes[o+7]-1)>1e-5 || Math.abs(attributes[o+8]-1)>1e-5)
-                throw new UnsupportedOperationException("MMD rigid skeleton cannot represent YSM scale channel: "+bone.name());
+                throw new UnsupportedOperationException("Rigid pose retargeting cannot represent YSM scale channel: "+bone.name());
             // Cube visibility/color are separate material/geometry channels, not rigid skeleton transforms.
             local.add(local(i,new Vec3(-attributes[o+3],attributes[o+4],attributes[o+5]),
                 new Vec3(attributes[o],attributes[o+1],attributes[o+2])));
         }
-        return retargeter.apply(local);
+        var deltas=retargeter.apply(local);return targetNodes==null?deltas:targetNodes.scaledDeltas(deltas);
     }
     public Map<Integer,Boolean> ikOverrides(){return ik;}
     public static SceneModelProfile calibrateArms(List<Bone> source,ScenePackageAssets target,SceneModelProfile profile) {
-        if(!(target.model() instanceof ScenePackageAssets.Pmx || target.model() instanceof ScenePackageAssets.Pmd))
-            throw new IllegalArgumentException("Arm reference calibration currently requires an MMD target");
         var positions=new LinkedHashMap<String,Vec3>();var global=new ArrayList<Pose>();
         for(int i=0;i<source.size();i++) {
             var b=source.get(i);if(b.parent() < -1 || b.parent()>=i)throw new IllegalArgumentException("YSM rig must be parent-first");
-            var pose=local(source,i,Vec3.ZERO,b.restRotation());if(b.parent()>=0)pose=global.get(b.parent()).multiply(pose);
+            var pose=local(source,i,Vec3.ZERO,b.restRotation(),!(target.model() instanceof ScenePackageAssets.Vrm || target.model() instanceof ScenePackageAssets.Gltf));if(b.parent()>=0)pose=global.get(b.parent()).multiply(pose);
             global.add(pose);if(positions.put(b.name(),pose.position())!=null)throw new IllegalArgumentException("Ambiguous YSM bone: "+b.name());
         }
+        if(target.model() instanceof ScenePackageAssets.Vrm v&&v.value().version()==cc.sirrus.ysmlib.scene.vrm.VrmDocument.Version.VRM_1)positions.replaceAll((name,p)->new Vec3(-p.x(),p.y(),-p.z()));
         return SkeletonReferencePose.arms(positions,SceneSkeleton.of(target),profile);
     }
     public Map<Integer,Pose> referencePose() {
         var rest=new ArrayList<Pose>();for(int i=0;i<bones.size();i++)rest.add(local(i,Vec3.ZERO,bones.get(i).restRotation()));
-        return retargeter.apply(rest);
+        var deltas=retargeter.apply(rest);return targetNodes==null?deltas:targetNodes.scaledDeltas(deltas);
     }
-    private Pose local(int index,Vec3 offset,Vec3 angles) {return local(bones,index,offset,angles);}
-    private static Pose local(List<Bone> bones,int index,Vec3 offset,Vec3 angles) {
+    private Pose local(int index,Vec3 offset,Vec3 angles) {
+        var pose=local(bones,index,offset,angles,reflectZ);if(!backwardFacing)return pose;
+        var p=pose.position();var q=pose.rotation();return new Pose(new Vec3(-p.x(),p.y(),-p.z()),Rotation.normalized(-q.x(),q.y(),-q.z(),q.w()));
+    }
+    private static Pose local(List<Bone> bones,int index,Vec3 offset,Vec3 angles,boolean reflectZ) {
         var bone=bones.get(index);var parent=bone.parent()<0?Vec3.ZERO:bones.get(bone.parent()).pivot();
         var p=bone.pivot().subtract(parent).add(offset);
         var r=Rotation.axisAngle(new Vec3(0,0,1),angles.z())
             .multiply(Rotation.axisAngle(new Vec3(0,1,0),angles.y()))
             .multiply(Rotation.axisAngle(new Vec3(1,0,0),angles.x()));
         // Match the host's MMD source-to-world Z reflection; use YSM pixels until translationScale.
-        return new Pose(new Vec3(p.x(),p.y(),-p.z()),Rotation.normalized(-r.x(),-r.y(),r.z(),r.w()));
+        return reflectZ?new Pose(new Vec3(p.x(),p.y(),-p.z()),Rotation.normalized(-r.x(),-r.y(),r.z(),r.w())):new Pose(p,r);
     }
 }

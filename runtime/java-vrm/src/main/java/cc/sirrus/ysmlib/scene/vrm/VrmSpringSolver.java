@@ -7,9 +7,10 @@ import static cc.sirrus.ysmlib.scene.vrm.VrmDocument.*;
 
 /** VRM Verlet solver. Its entire evolving state is tail history and local rotations, so snapshots are exact. */
 public final class VrmSpringSolver implements VrmSpringSimulation {
-  private record Segment(int node,int tail,int center,Joint settings,IntData colliders,Vec3 restTail,Rotation restRotation,int[] tailPath) {}
+  private record Segment(int node,int tail,int center,Joint settings,int[] colliders,Vec3 restTail,Rotation restRotation,int[] tailPath,VrmSpringLimit limit) {}
   private record State(Vec3 previous,Vec3 current,Rotation rotation) {}
-  private record Saved(Object owner,List<State> states) implements Snapshot { private Saved { states=List.copyOf(states); } }
+  private record Saved(Object owner,List<State> states,boolean resetHost) implements Snapshot { private Saved { states=List.copyOf(states); } }
+  private record WorldCollider(Vec3 point,Vec3 tail,Vec3 normal) {}
   private final Object identity=new Object();
   private final VrmDocument document;
   private final int[] parents,order,segmentByNode;
@@ -41,7 +42,8 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
     Vec3 tip;if(tail!=-1) tip=rest.globalMatrices().get(node).inverse().transformPoint(VrmMath.position(rest.globalMatrices().get(tail)));
     else { var position=VrmMath.position(rest.localMatrices().get(node));tip=position.dot(position)<1e-20?Vec3.ZERO:position.normalized().multiply(.07f); }
     var path=new ArrayList<Integer>();for(int n=tail;n!=-1 && n!=node;n=parents[n]) path.add(n);Collections.reverse(path);
-    return new Segment(node,tail,center,params,new IntData(indices.stream().mapToInt(Integer::intValue).toArray()),tip,VrmMath.restRotation(document.scene().nodes().get(node)),path.stream().mapToInt(Integer::intValue).toArray());
+    var rotation=VrmMath.restRotation(document.scene().nodes().get(node));
+    return new Segment(node,tail,center,params,indices.stream().mapToInt(Integer::intValue).toArray(),tip,rotation,path.stream().mapToInt(Integer::intValue).toArray(),params.limit()==null||tip.dot(tip)<1e-20?null:new VrmSpringLimit(params.limit(),tip,rotation));
   }
   private int[] dependencyOrder() {
     int count=parents.length;var edges=new ArrayList<List<Integer>>(count*2);int[] degree=new int[count*2];for(int i=0;i<count*2;i++) edges.add(new ArrayList<>());
@@ -49,7 +51,7 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
     for(var s:segments) {
       if(parents[s.node()]!=-1) edge(edges,degree,parents[s.node()]+count,s.node());
       if(s.center()!=-1) edge(edges,degree,s.center()+count,s.node());
-      for(int c:s.colliders().copy()) edge(edges,degree,document.colliders().get(c).node()+count,s.node());
+      for(int c:s.colliders()) edge(edges,degree,document.colliders().get(c).node()+count,s.node());
     }
     var queue=new ArrayDeque<Integer>();for(int i=0;i<count*2;i++) if(degree[i]==0) queue.add(i);int[] order=new int[count*2];int at=0;
     while(!queue.isEmpty()) { int n=queue.remove();order[at++]=n;for(int target:edges.get(n)) if(--degree[target]==0) queue.add(target); }
@@ -76,8 +78,9 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
   private NodeConstraintEvaluation.Frame evaluate(ScenePose pose,List<Rotation> rotations,double dt) {
     validate(pose,rotations);int count=parents.length;Matrix4[] local=pose.localMatrices().toArray(Matrix4[]::new),global=new Matrix4[count];
     Rotation[] resultRotations=rotations.toArray(Rotation[]::new);State[] next=states.clone();
+    Rotation[] globalRotations=new Rotation[count];Matrix4[] inverses=new Matrix4[count];WorldCollider[] colliders=new WorldCollider[document.colliders().size()];
     for(int entry:order) {
-      if(entry>=count) { int n=entry-count,p=parents[n];global[n]=p==-1?local[n]:global[p].multiply(local[n]);continue; }
+      if(entry>=count) { int n=entry-count,p=parents[n];global[n]=p==-1?local[n]:global[p].multiply(local[n]);globalRotations[n]=p==-1?resultRotations[n]:globalRotations[p].multiply(resultRotations[n]);continue; }
       int n=entry,index=segmentByNode[n];if(index==-1) continue;var s=segments.get(index);var previous=states[index];
       Rotation result=previous.rotation();
       if(dt!=0 && s.restTail().dot(s.restTail())>1e-20) {
@@ -85,10 +88,12 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
         Matrix4 initial=VrmMath.rotate(local[n],rotations.get(n),s.restRotation());
         Matrix4 baseline=parent.multiply(initial),current=parent.multiply(VrmMath.rotate(local[n],rotations.get(n),previous.rotation()));
         Matrix4 center=s.center()==-1?Matrix4.IDENTITY:global[s.center()];Vec3 head=VrmMath.position(current);
+        Matrix4 centerInverse=s.center()==-1?Matrix4.IDENTITY:inverses[s.center()];if(centerInverse==null)inverses[s.center()]=centerInverse=center.inverse();
+        Rotation parentRotation=parents[n]==-1?Rotation.IDENTITY:globalRotations[parents[n]];
         Vec3 relativeTip=s.restTail();if(s.tail()!=-1) {
           Matrix4 relative=Matrix4.IDENTITY;for(int t:s.tailPath()) relative=relative.multiply(local[t]);relativeTip=VrmMath.position(relative);
         }
-        float length=(float)Math.sqrt(current.transformDirection(relativeTip).dot(current.transformDirection(relativeTip)));
+        var worldTip=current.transformDirection(relativeTip);float length=(float)Math.sqrt(worldTip.dot(worldTip));
         Vec3 axis=baseline.transformDirection(s.restTail()).normalized();var p=s.settings();
         Vec3 inertial=previous.current().add(previous.current().subtract(previous.previous()).multiply(1-p.dragForce()));
         Vec3 gravity=p.gravityDir();
@@ -101,25 +106,33 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
           tail=tail.add(environment.accelerationAt(position,velocity,dt).multiply((float)(dt*dt)));
         }
         tail=lengthConstraint(head,tail,length,axis);
-        for(int c:s.colliders().copy()) {
+        if(s.limit()!=null)tail=s.limit().constrain(head,tail,length,parentRotation);
+        for(int c:s.colliders()) {
           var collider=document.colliders().get(c);Matrix4 world=global[collider.node()];
           // VRM 0 collider offsets were serialized in Unity coordinates. Source values remain unchanged in VrmDocument.
-          Vec3 offset=collider.offset();if(document.version()==Version.VRM_0) offset=new Vec3(offset.x(),offset.y(),-offset.z());
-          Vec3 point=world.transformPoint(offset);
+          var transformed=colliders[c];if(transformed==null){
+            Vec3 offset=collider.offset();if(document.version()==Version.VRM_0)offset=new Vec3(offset.x(),offset.y(),-offset.z());
+            Vec3 normal=null;if(collider.planeNormal()!=null){var inverse=world.inverse();var v=collider.planeNormal();normal=new Vec3((float)SceneRig.column(inverse,0).dot(v),(float)SceneRig.column(inverse,1).dot(v),(float)SceneRig.column(inverse,2).dot(v)).normalized();}
+            colliders[c]=transformed=new WorldCollider(world.transformPoint(offset),collider.capsule()?world.transformPoint(collider.tail()):null,normal);
+          }
+          Vec3 point=transformed.point();
           if(collider.capsule()) {
-            Vec3 segment=world.transformPoint(collider.tail()).subtract(point);double norm=segment.dot(segment);
+            Vec3 segment=transformed.tail().subtract(point);double norm=segment.dot(segment);
             if(norm>1e-20) point=point.add(segment.multiply((float)Math.max(0,Math.min(1,tail.subtract(point).dot(segment)/norm))));
           }
-          Vec3 delta=tail.subtract(point);double distance=Math.sqrt(delta.dot(delta)),radius=collider.radius()+p.hitRadius();
-          if(distance<radius) {
+          Vec3 delta=tail.subtract(point);double distance=Math.sqrt(delta.dot(delta)),radius=collider.radius()+p.hitRadius();boolean hit=false;
+          if(transformed.normal()!=null){double depth=delta.dot(transformed.normal())-p.hitRadius();if(depth<0){tail=tail.add(transformed.normal().multiply((float)-depth));hit=true;}}
+          else if(collider.inside()){double allowed=Math.max(0,collider.radius()-p.hitRadius());if(distance>allowed){tail=point.add(delta.multiply((float)(allowed/distance)));hit=true;}}
+          else if(distance<radius) {
             Vec3 direction=distance<1e-12?collisionFallback(head,point,axis):delta.multiply((float)(1/distance));
-            tail=lengthConstraint(head,point.add(direction.multiply((float)radius)),length,axis);
+            tail=point.add(direction.multiply((float)radius));hit=true;
           }
+          if(hit){tail=lengthConstraint(head,tail,length,axis);if(s.limit()!=null)tail=s.limit().constrain(head,tail,length,parentRotation);}
         }
-        if(environment!=null)for(int contact=0;contact<4;contact++)
-          tail=lengthConstraint(head,environment.collideTip(tail,p.hitRadius()),length,axis);
+        if(environment!=null)for(int contact=0;contact<4;contact++){
+          tail=lengthConstraint(head,environment.collideTip(tail,p.hitRadius()),length,axis);if(s.limit()!=null)tail=s.limit().constrain(head,tail,length,parentRotation);}
         result=s.restRotation().multiply(VrmMath.fromTo(s.restTail(),baseline.inverse().transformPoint(tail)));
-        next[index]=new State(previous.current(),center.inverse().transformPoint(tail),result);
+        next[index]=new State(previous.current(),centerInverse.transformPoint(tail),result);
       }
       local[n]=VrmMath.rotate(local[n],rotations.get(n),result);resultRotations[n]=result;
     }
@@ -134,8 +147,8 @@ public final class VrmSpringSolver implements VrmSpringSimulation {
     // Coincident center has no geometric normal; choose a stable perpendicular to avoid NaNs.
     return axis.cross(Math.abs(axis.x())<.8?new Vec3(1,0,0):new Vec3(0,1,0)).normalized();
   }
-  public Snapshot snapshot() { return new Saved(identity,Arrays.asList(states.clone())); }
+  public Snapshot snapshot() { return new Saved(identity,Arrays.asList(states.clone()),resetHost); }
   public void restore(Snapshot snapshot) {
-    if(!(snapshot instanceof Saved saved) || saved.owner()!=identity) throw new IllegalArgumentException("Snapshot belongs to another SpringBone instance");states=saved.states().toArray(State[]::new);
+    if(!(snapshot instanceof Saved saved) || saved.owner()!=identity) throw new IllegalArgumentException("Snapshot belongs to another SpringBone instance");states=saved.states().toArray(State[]::new);resetHost=saved.resetHost();
   }
 }

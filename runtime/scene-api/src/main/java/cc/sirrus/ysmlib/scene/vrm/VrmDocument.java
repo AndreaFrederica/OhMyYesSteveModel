@@ -29,9 +29,19 @@ public record VrmDocument(GltfDocument gltf,Version version,Map<String,Integer> 
     }
   }
   public record Constraint(int node,int source,ConstraintType type,Vec3 axis,float weight) {}
-  public record Collider(int node,Vec3 offset,Vec3 tail,float radius) { public boolean capsule() { return tail!=null; } }
+  public record Collider(int node,Vec3 offset,Vec3 tail,float radius,boolean inside,Vec3 planeNormal) {
+    public Collider(int node,Vec3 offset,Vec3 tail,float radius){this(node,offset,tail,radius,false,null);}
+    public Collider { Objects.requireNonNull(offset);if(node<0||!Float.isFinite(radius)||radius<0)throw new IllegalArgumentException("Invalid collider");if(planeNormal!=null&&(inside||tail!=null||Math.abs(planeNormal.dot(planeNormal)-1)>1e-4))throw new IllegalArgumentException("Invalid plane collider"); }
+    public boolean capsule() { return tail!=null; }
+  }
   public record ColliderGroup(String name,IntData colliders) {}
-  public record Joint(int node,float hitRadius,float stiffness,float gravityPower,Vec3 gravityDir,float dragForce) {}
+  public enum LimitType { CONE,HINGE,SPHERICAL }
+  public record Limit(LimitType type,float angle,float yaw,Rotation rotation) {
+    public Limit {Objects.requireNonNull(type);Objects.requireNonNull(rotation);if(!Float.isFinite(angle)||angle<0||!Float.isFinite(yaw)||yaw<0)throw new IllegalArgumentException("Invalid spring limit");}
+  }
+  public record Joint(int node,float hitRadius,float stiffness,float gravityPower,Vec3 gravityDir,float dragForce,Limit limit) {
+    public Joint(int node,float hitRadius,float stiffness,float gravityPower,Vec3 gravityDir,float dragForce){this(node,hitRadius,stiffness,gravityPower,gravityDir,dragForce,null);}
+  }
   public record Spring(String name,int center,List<Joint> joints,IntData colliderGroups) {
     public Spring { joints=List.copyOf(joints); }
   }

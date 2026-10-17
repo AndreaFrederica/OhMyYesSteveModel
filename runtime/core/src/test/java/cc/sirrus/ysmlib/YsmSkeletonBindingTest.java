@@ -7,6 +7,19 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class YsmSkeletonBindingTest {
+    @Test void referenceSocketCancelsCalibrationOnlyForDrivenBones()throws Exception {
+        var asset=model();var binding=SceneSkeleton.bind(SceneSkeleton.of(asset),0).withReference(20,180,30);
+        var socket=new SceneModelProfile.HandSocket(true,"leftHand",.1,.2,.3,0,0,0,1);
+        var p=SceneModelProfile.defaults(.08,20,0).withBones(Map.of("leftHand",binding));var f=p.features();
+        p=p.withFeatures(new SceneModelFeatures(f.expressions(),f.animations(),f.itemRules(),f.layers(),SceneModelFeatures.SocketSpace.RETARGET_REFERENCE,f.procedural(),f.firstPerson()));
+        try(var player=YsmRuntime.scenes().playback(asset,ScenePackagePlayback.Selection.REST,ScenePackagePlayback.Settings.previewUi().withPhysics(false),ReadLimits.DEFAULT)) {
+            var motion=SceneModelProfile.euler(5,40,-10);player.bonePoses(Map.of(0,new Pose(Vec3.ZERO,motion.multiply(binding.referenceRotation()))));var frame=player.seek(0);
+            var matrix=SceneHandSockets.resolve(frame,p,socket).orElseThrow();var c=SceneHandSockets.coordinates(frame.thirdPerson().coordinates());var expected=c.multiply(new Transform(Vec3.ZERO,motion,Vec3.ONE).matrix()).multiply(c.inverse());
+            for(var v:List.of(new Vec3(1,0,0),new Vec3(0,1,0),new Vec3(0,0,1))){var a=matrix.transformDirection(v);var e=expected.transformDirection(v);assertEquals(e.x(),a.x(),1e-5);assertEquals(e.y(),a.y(),1e-5);assertEquals(e.z(),a.z(),1e-5);}
+            var sourceFrame=new ScenePackagePlayback.Frame(frame.seconds(),frame.thirdPerson(),frame.firstPerson(),frame.details());
+            assertNotEquals(matrix,SceneHandSockets.resolve(sourceFrame,p,socket).orElseThrow());
+        }
+    }
     ScenePackageAssets model()throws Exception {
         ByteData data;
         try(var input=getClass().getResourceAsStream("/mmd-oracle/skin.pmx")){data=new ByteData(Objects.requireNonNull(input).readAllBytes());}
@@ -29,6 +42,9 @@ class YsmSkeletonBindingTest {
             var x=matrix.transformDirection(new Vec3(1,0,0));var y=matrix.transformDirection(new Vec3(0,1,0));var z=matrix.transformDirection(new Vec3(0,0,1));
             assertEquals(2,x.y(),1e-5);assertEquals(-2,y.x(),1e-5);assertEquals(2,z.z(),1e-5,"Left-handed source must not mirror item Z");
             assertTrue(SceneHandSockets.resolve(frame,profile,false).isEmpty());
+            var disabled=profile.withHeldItems(new SceneModelProfile.HeldItems(false,profile.heldItems().firstPerson(),socket,profile.heldItems().right()));
+            assertTrue(SceneHandSockets.resolve(frame,disabled,true).isEmpty());
+            assertEquals(SceneHandSockets.resolveBone(frame,profile,"leftHand"),SceneHandSockets.resolveBone(frame,disabled,"leftHand"),"Camera origin is independent of held-item visibility");
             var restored=YsmRuntime.scenes().readModelProfile(YsmRuntime.scenes().writeModelProfile(profile));assertEquals(profile,restored);
         }
     }
