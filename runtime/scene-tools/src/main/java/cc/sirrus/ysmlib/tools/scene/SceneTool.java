@@ -24,7 +24,7 @@ public final class SceneTool {
                 case "source-bind"->Set.of("out","config","role","source");
                 case "action"->Set.of("out","config","name","path","clip","loop");
                 case "transition"->Set.of("out","config","from","to","path","clip");
-                case "render"->Set.of("out","config","clip","seconds","action","rig");default->throw new IllegalArgumentException("Unknown command: "+cmd);};
+                case "render"->Set.of("out","config","clip","seconds","action","rig","textured");default->throw new IllegalArgumentException("Unknown command: "+cmd);};
             for(String key:options.keySet())if(!allowed.contains(key))throw new IllegalArgumentException("Unknown option: --"+key);
             var session=SceneAuthoring.open(modelPath(args[1]),err::println);
             if(options.containsKey("config"))session.profile(readProfile(Path.of(options.get("config"))));
@@ -51,7 +51,9 @@ public final class SceneTool {
                             var binding=new cc.sirrus.ysmlib.YsmSkeletonBinding(readRig(Path.of(options.get("rig"))),session.assets(),session.profile());
                             player.bonePoses(binding.referencePose());player.ikOverrides(binding.ikOverrides());
                         }
-                        var frame=player.seek(number(options,"seconds",0));var rendered=ScenePreview.render(frame,session.profile(),session.bones(),640,640,0,-8,1,-1);var data=new ByteArrayOutputStream();ImageIO.write(rendered.image(),"PNG",data);SceneAuthoring.atomicWrite(Path.of(required(options,"out")),data.toByteArray(),null,false);}}
+                        var frame=player.seek(number(options,"seconds",0));boolean textured=bool(options.getOrDefault("textured","false"));var rendered=textured?
+                            ScenePreview.renderTextured(frame,session.profile(),session.bones(),session.assets(),640,640,0,-8,1,-1,session.referenceBounds(session.profile())):
+                            ScenePreview.render(frame,session.profile(),session.bones(),640,640,0,-8,1,-1);var data=new ByteArrayOutputStream();ImageIO.write(rendered.image(),"PNG",data);SceneAuthoring.atomicWrite(Path.of(required(options,"out")),data.toByteArray(),null,false);}}
             }
             if(save)session.save(Path.of(options.getOrDefault("out",SceneAuthoring.sidecar(session.source()).toString())));
             var report=new LinkedHashMap<String,Object>();report.put("ok",true);report.put("command",cmd);report.put("source",session.source().toString());report.put("sourceModified",false);report.put("physics",false);
@@ -103,6 +105,7 @@ public final class SceneTool {
         validate MODEL [--config profile.json]
         render MODEL --out preview.png [--clip 0 --seconds 0]
         render MODEL --out walk.png --action walk --seconds 0.5
+        render MODEL --out textured.png --textured true   Base-color/UV diagnostic render (FBX)
         pack MODEL --out model.yscene                 Optional lossless packaging, not FBX-to-PMX
         gui [MODEL]                                  Desktop sidecar editor with geometry preview
 

@@ -2,6 +2,8 @@ package cc.sirrus.ysmlib;
 
 import cc.sirrus.ysmlib.scene.*;
 import cc.sirrus.ysmlib.scene.fbx.FbxEvaluation;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 import cc.sirrus.ysmlib.scene.io.ReadLimits;
 import java.io.IOException;
 import java.nio.file.*;
@@ -13,6 +15,10 @@ public final class SceneAuthoring {
     private SceneAuthoring() {}
     public static final ReadLimits LIMITS=new ReadLimits(256*1024*1024,100_000_000,1024*1024);
     private static final Set<String> RESOURCES=Set.of("png","jpg","jpeg","bmp","tga","webp","avif","ztx","sph","spa","bin","vmd","vpd","vrma","txt","md","license");
+    private static final int RESOURCE_MAPPING_SCHEMA_VERSION=1;
+    private static final int MAX_RESOURCE_MAPPING_BYTES=256*1024;
+    private static final String FBX_RESOURCE_SUFFIX=".resources.json";
+    private static final String FBX_RESOURCE_PACKAGE_PATH="_omysm/fbx-resources.json";
     public static Path sidecar(Path source) {return source.resolveSibling(source.getFileName()+SceneModelProfile.SUFFIX);}
     public static String extension(Path source) {
         String n=source.getFileName().toString().toLowerCase(Locale.ROOT);int i=n.lastIndexOf('.');return i<0?"":n.substring(i+1);
@@ -28,13 +34,28 @@ public final class SceneAuthoring {
         };
         Path root=source.getParent();String owner=source.getFileName().toString();
         var files=new LinkedHashMap<String,ByteData>();files.put(owner,read(source,limits.maxBytes()));long total=files.get(owner).size();
+        var fbxResources=format==ScenePackage.Format.FBX?readFbxResourceSidecar(source):Map.<String,String>of();
+        var mappingPath=source.resolveSibling(source.getFileName()+FBX_RESOURCE_SUFFIX);
+        if(Files.isRegularFile(mappingPath,LinkOption.NOFOLLOW_LINKS)) {
+            var mapping=read(mappingPath,limits.maxBytes());
+            if(mapping.size()>MAX_RESOURCE_MAPPING_BYTES)throw new IOException("FBX resource mapping exceeds 256 KiB: "+mappingPath);
+            files.put(FBX_RESOURCE_PACKAGE_PATH,mapping);total+=mapping.size();
+            progress.accept("Reading dependency: "+FBX_RESOURCE_PACKAGE_PATH+" ("+mapping.size()+" bytes)");
+        }
         int visited=0;
         progress.accept("Collecting sibling dependencies (bounded to model directory)");
         try(var walk=Files.walk(root)) {
             var it=walk.iterator();while(it.hasNext()) {
                 Path path=it.next();if(++visited>100_000)throw new IOException("Directory exceeds 100000 entries; move the model into a dedicated directory");
-                if(!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS)||path.equals(source)||!RESOURCES.contains(extension(path)))continue;
+                if(!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS)||path.equals(source)||path.getFileName().toString().endsWith(FBX_RESOURCE_SUFFIX)||!RESOURCES.contains(extension(path)))continue;
                 String ext=extension(path);
+                // FBX/Unity export folders often contain hundreds of editor
+                // sidecars (PSA, MAT, PROPS and importer metadata). They are
+                // not runtime dependencies of the FBX scene and used to be
+                // copied into the in-memory package before texture resolution.
+                // Keep FBX collection bounded to image resources; explicit
+                // .resources.json mappings can still add any target on demand.
+                if(format==ScenePackage.Format.FBX && !Set.of("png","jpg","jpeg","bmp","tga","webp","avif").contains(ext))continue;
                 if((ext.equals("vmd")||ext.equals("vpd")) && format!=ScenePackage.Format.PMX && format!=ScenePackage.Format.PMD)continue;
                 if(ext.equals("vrma")&&format!=ScenePackage.Format.VRM)continue;
                 String relative=ScenePackage.checkedPath(root.relativize(path).toString().replace('\\','/'));
@@ -53,7 +74,18 @@ public final class SceneAuthoring {
             for(var tex:YsmRuntime.scenes().readFbx(files.get(owner),limits).textures())if(tex.type()==0)refs.add(tex.relativePath().isEmpty()?tex.absolutePath():tex.relativePath());
         }
         for(String ref:new LinkedHashSet<>(refs)) {
-            if(ref.isBlank())continue;String normalized=ref.replace('\\','/');if(files.containsKey(normalized))continue;
+            if(ref.isBlank())continue;String normalized=ref.replace('\\','/');
+            var mapped=fbxResources.get(resourceKey(normalized));
+            if(mapped!=null) {
+                Path target=resolveFbxResourceTarget(root,mapped);
+                String packageTarget=ScenePackage.checkedPath(root.relativize(target).toString().replace('\\','/'));
+                if(!files.containsKey(packageTarget)) {
+                    long size=Files.size(target);if(size>limits.maxBytes()-total)throw new IOException("Dependency budget exceeded at "+packageTarget);
+                    files.put(packageTarget,read(target,limits.maxBytes()-total));total+=size;
+                }
+                relocations.add(new ScenePackage.Relocation(owner,ref,packageTarget));progress.accept("Mapped texture: "+ref+" -> "+packageTarget);continue;
+            }
+            if(files.containsKey(normalized))continue;
             String leaf=normalized.substring(normalized.lastIndexOf('/')+1);
             var matches=files.keySet().stream().filter(p->p.substring(p.lastIndexOf('/')+1).equalsIgnoreCase(leaf)).toList();
             if(matches.size()>1)throw new IOException("Ambiguous texture reference "+ref+": "+matches);
@@ -65,9 +97,37 @@ public final class SceneAuthoring {
         return new ScenePackage(new ScenePackage.Source("model",owner,format),new ScenePackage.Settings(
             format==ScenePackage.Format.PMX||format==ScenePackage.Format.PMD?.08:1,-1,FbxEvaluation.SkinSpace.BIND_WORLD),motions,relocations,files);
     }
+    private static Map<String,String> readFbxResourceSidecar(Path source) throws IOException {
+        Path path=source.resolveSibling(source.getFileName()+FBX_RESOURCE_SUFFIX);if(!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS))return Map.of();
+        byte[] raw=read(path,MAX_RESOURCE_MAPPING_BYTES).copy();
+        try {
+            var root=JsonParser.parseString(new String(raw,java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+            for(var key:root.keySet())if(!key.equals("schemaVersion")&&!key.equals("resources"))throw new IOException("Unknown FBX resource mapping field: "+key);
+            if(!root.has("schemaVersion")||root.get("schemaVersion").getAsInt()!=RESOURCE_MAPPING_SCHEMA_VERSION)throw new IOException("Unsupported FBX resource mapping schema: "+path);
+            var resources=root.get("resources");if(resources==null||!resources.isJsonObject())throw new IOException("FBX resource mapping requires resources object: "+path);
+            var result=new LinkedHashMap<String,String>();for(var entry:resources.getAsJsonObject().entrySet()) {
+                if(!entry.getValue().isJsonPrimitive()||!entry.getValue().getAsJsonPrimitive().isString())throw new IOException("FBX resource mapping target must be a string: "+entry.getKey());
+                var from=cleanTextureReference(entry.getKey());var target=cleanFbxResourceTarget(entry.getValue().getAsString());
+                if(from.isBlank()||target.isBlank())throw new IOException("FBX resource mapping paths must not be empty: "+path);
+                var previous=result.put(resourceKey(from),target);if(previous!=null&&!previous.equals(target))throw new IOException("Duplicate FBX resource mapping: "+entry.getKey());
+            }
+            for(var target:result.values())resolveFbxResourceTarget(source.getParent(),target);
+            return result;
+        } catch(JsonParseException|IllegalStateException|UnsupportedOperationException|NumberFormatException e) {throw new IOException("Invalid FBX resource mapping: "+path,e);}
+    }
+    private static Path resolveFbxResourceTarget(Path root,String value) throws IOException {
+        var target=cleanFbxResourceTarget(value);var absoluteRoot=root.toAbsolutePath().normalize();var path=absoluteRoot.resolve(target).normalize();
+        if(!path.startsWith(absoluteRoot)||!Files.isRegularFile(path,LinkOption.NOFOLLOW_LINKS))throw new IOException("Missing FBX resource mapping target: "+value);return path;
+    }
+    private static String cleanFbxResourceTarget(String value) throws IOException {
+        if(value==null)return "";var target=value.trim().replace('\\','/');if(target.isEmpty()||target.startsWith("/")||target.matches("^[A-Za-z]:.*")||target.indexOf('\0')>=0)throw new IOException("FBX resource mapping target must be relative: "+value);
+        for(var part:target.split("/"))if(part.isEmpty()||part.equals(".")||part.equals(".."))throw new IOException("Invalid FBX resource mapping target: "+value);return target;
+    }
+    private static String cleanTextureReference(String value) {if(value==null)return "";var text=value.trim();if(text.length()>=2&&((text.startsWith("\"")&&text.endsWith("\""))||(text.startsWith("'")&&text.endsWith("'"))))text=text.substring(1,text.length()-1);int query=text.indexOf('?');if(query>=0)text=text.substring(0,query);return text.replace('\\','/');}
+    private static String resourceKey(String value) {return cleanTextureReference(value).toLowerCase(Locale.ROOT);}
     private static ByteData read(Path path,long budget) throws IOException {
         if(Files.isSymbolicLink(path)||!Files.isRegularFile(path)||Files.size(path)>budget)throw new IOException("Invalid file or byte budget exceeded: "+path);
-        try(var in=Files.newInputStream(path)){byte[] data=in.readNBytes((int)Math.min(Integer.MAX_VALUE,budget+1));if(data.length>budget)throw new IOException("File grew beyond budget: "+path);return new ByteData(data);}
+        try(var in=Files.newInputStream(path)){byte[] data=in.readNBytes((int)Math.min(Integer.MAX_VALUE,budget+1));if(data.length>budget)throw new IOException("File grew beyond budget: "+path);return ByteData.owned(data);}
     }
     public static Session open(Path source,Consumer<String> progress) throws IOException {return open(source,LIMITS,progress);}
     public static Session open(Path input,ReadLimits limits,Consumer<String> progress) throws IOException {
@@ -85,7 +145,7 @@ public final class SceneAuthoring {
         double[] referenceBounds;
         try(var player=YsmRuntime.scenes().playback(assets,ScenePackagePlayback.Selection.REST,ScenePackagePlayback.Settings.previewUi().withPhysics(false),limits)) {
             var frame=player.seek(0);double[] bounds=bounds(frame.thirdPerson(),null);referenceBounds=bounds;
-            if(profile==null)profile=SceneModelProfile.defaults(pack.settings().metersPerUnit(),Math.max(1e-6,bounds[4]-bounds[1]),bounds[1]).withBones(SceneSkeleton.suggest(bones));
+            if(profile==null)profile=SceneProfiles.defaults(assets,Math.max(1e-6,bounds[4]-bounds[1]),bounds[1]);
         }
         var session=new Session(source,assets,profile,expected,limits,stamp,length,referenceBounds);session.validate(profile);progress.accept("Ready: "+bones.size()+" bones, physics OFF");return session;
     }
@@ -136,7 +196,7 @@ public final class SceneAuthoring {
             value.validateAnimations(assets.source(),clips);
         }
         public void profile(SceneModelProfile value){validate(value);profile=value;}
-        public SceneModelProfile suggest(){var map=new LinkedHashMap<>(SceneSkeleton.suggest(bones()));map.putAll(profile.bones());var used=new HashSet<Integer>();
+        public SceneModelProfile suggest(){var map=new LinkedHashMap<>(SceneSkeleton.suggest(assets));map.putAll(profile.bones());var used=new HashSet<Integer>();
             profile.bones().values().forEach(b->{if(b.index()>=0)used.add(b.index());});map.entrySet().removeIf(e->!profile.bones().containsKey(e.getKey())&&used.contains(e.getValue().index()));return profile.withBones(map);}
         public SceneModelProfile bind(String role,int index,double pitch,double yaw,double roll,double weight){var map=new LinkedHashMap<>(profile.bones());var b=index<0?new SceneModelProfile.BoneBinding(-1,"","",0,0,0,1):SceneSkeleton.bind(bones(),index);var old=profile.bones().get(role);if(old!=null&&old.index()==index)b=old;map.put(role,b.withAxes(pitch,yaw,roll,weight));return profile.withBones(map);}
         public ScenePackagePlayback playback(ScenePackagePlayback.Selection selection) throws IOException {return YsmRuntime.scenes().playback(assets,selection,ScenePackagePlayback.Settings.previewUi().withPhysics(false).withModelProfile(profile),limits);}

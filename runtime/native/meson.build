@@ -55,6 +55,25 @@ skinning_core = static_library('ysmlib_skinning_core', 'src/skinning.cpp', cpp_a
                               dependencies: dependency('threads'), gnu_symbol_visibility: 'hidden', pic: true)
 shared_library('ysmlib_skinning', 'src/skinning_jni.cpp', link_with: skinning_core,
                include_directories: jni_includes, gnu_symbol_visibility: 'hidden', install: true)
+
+# Native FBX uses the same hash-pinned ufbx bridge as the WASM audit path. The
+# JNI wrapper keeps one bounded, hash-compared source scene resident for a
+# playback session. Source loading is separate from typed frame evaluation;
+# close/replacement releases the scene and its scratch allocations.
+ufbx_dir = meson.current_build_dir() / 'ufbx-source'
+run_command('python', meson.current_source_dir() / 'tools/fetch_ufbx.py', ufbx_dir, check: true)
+fbx_engine_dir = meson.current_build_dir() / 'fbx-engine'
+ufbx_includes = include_directories('.')
+fbx_bridge = static_library('ysmlib_fbx_bridge',
+                            fbx_engine_dir / 'fbx_bridge.c',
+                            ufbx_dir / 'ufbx.c',
+                            c_args: ['-DUFBX_NO_STDIO', '-DUFBX_NO_THREADS'],
+                            include_directories: ufbx_includes,
+                            gnu_symbol_visibility: 'hidden', pic: true)
+shared_library('ysmlib_fbx', 'src/fbx_jni.cpp', link_with: fbx_bridge,
+               include_directories: [jni_includes, ufbx_includes],
+               dependencies: meson.get_compiler('c').find_library('m', required: host_machine.system() != 'windows'),
+               gnu_symbol_visibility: 'hidden', install: true)
 skinning_abi_test = executable('skinning_abi_conformance', 'src/skinning_abi_test.c', link_with: skinning_core, link_language: 'cpp')
 test('skinning-c-abi', skinning_abi_test)
 

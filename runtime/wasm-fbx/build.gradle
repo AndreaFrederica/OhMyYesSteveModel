@@ -1,5 +1,6 @@
 dependencies {
     api project(':ysm-runtime-scene-api')
+    testImplementation project(':ysm-runtime-wasm-physics')
     implementation 'com.dylibso.chicory:runtime:1.7.5'
     implementation 'com.dylibso.chicory:compiler:1.7.5'
     implementation 'com.dylibso.chicory:wasi:1.7.5'
@@ -8,6 +9,12 @@ dependencies {
 
 test {
     maxHeapSize = '2g'
-    systemProperty 'ysm.runtime.javaOnly', 'true'
-    systemProperty 'ysm.runtime.fbxLibrary', 'deliberately-missing-native-fbx'
+    if (!project.hasProperty('fbxNativeTest')) {
+        systemProperty 'ysm.runtime.javaOnly', 'true'
+        systemProperty 'ysm.runtime.fbxLibrary', 'deliberately-missing-native-fbx'
+    } else {
+        systemProperty 'ysm.runtime.fbxNativeRequired', 'true'
+        def nativeLibrary = System.getProperty('ysm.runtime.fbxLibrary')
+        if (nativeLibrary != null) systemProperty 'ysm.runtime.fbxLibrary', nativeLibrary
+    }
 }

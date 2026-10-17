@@ -5,8 +5,10 @@ import cc.sirrus.ysmlib.scene.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.io.ByteArrayInputStream;
 import java.util.*;
 import java.util.List;
+import javax.imageio.ImageIO;
 
 /** Small bounded CPU geometry preview. Intentionally does not claim game material rendering. */
 public final class ScenePreview {
@@ -19,11 +21,22 @@ public final class ScenePreview {
     }
     public static Result render(ScenePackagePlayback.Frame frame,SceneModelProfile profile,List<SceneSkeleton.Bone> skeleton,
                                 int width,int height,double yaw,double pitch,double zoom,int selected,double[] referenceBounds) {
+        return renderInternal(frame,profile,skeleton,width,height,yaw,pitch,zoom,selected,referenceBounds,null,false);
+    }
+    /** Render with resolved source base-color images for headless material/UV diagnostics. */
+    public static Result renderTextured(ScenePackagePlayback.Frame frame,SceneModelProfile profile,List<SceneSkeleton.Bone> skeleton,
+                                        ScenePackageAssets assets,int width,int height,double yaw,double pitch,double zoom,int selected,double[] referenceBounds) {
+        return renderInternal(frame,profile,skeleton,width,height,yaw,pitch,zoom,selected,referenceBounds,assets,true);
+    }
+    private static Result renderInternal(ScenePackagePlayback.Frame frame,SceneModelProfile profile,List<SceneSkeleton.Bone> skeleton,
+                                int width,int height,double yaw,double pitch,double zoom,int selected,double[] referenceBounds,
+                                ScenePackageAssets assets,boolean textured) {
         if(width<32||height<32||width>2048||height>2048||!Double.isFinite(zoom)||zoom<=0)throw new IllegalArgumentException("Invalid preview size/zoom");
         var geometry=frame.thirdPerson();double[] bounds=referenceBounds==null?SceneAuthoring.bounds(geometry,profile):referenceBounds;
         var camera=new Camera(bounds,width,height,yaw,pitch,zoom);
         var image=new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);int[] pixels=((DataBufferInt)image.getRaster().getDataBuffer()).getData();Arrays.fill(pixels,0x252c36);
         float[] depth=new float[pixels.length];Arrays.fill(depth,Float.POSITIVE_INFINITY);int triangles=0;
+        var textureImages=textured?loadBaseColorImages(assets):Map.<Integer,BufferedImage>of();
         for(var draw:geometry.draws())if(draw.visible())for(var primitive:draw.geometry().primitives()) {
             var positions=primitive.attributes().get("POSITION").values();int count=primitive.vertexCount();double[] points=new double[count*3];
             for(int i=0;i<count;i++) {
@@ -32,10 +45,11 @@ public final class ScenePreview {
             }
             int n=primitive.indices().size()==0?count:primitive.indices().size();int material=primitive.material();
             int base=Color.HSBtoRGB((float)((Math.max(0,material)*.137+.53)%1),.22f,.87f)&0xffffff;
+            BufferedImage texture=textureImages.get(material);var uv=primitive.attributes().get("TEXCOORD_0");
             switch(primitive.topology()) {
-                case TRIANGLES->{for(int i=0;i+2<n;i+=3){triangle(points,index(primitive,i),index(primitive,i+1),index(primitive,i+2),width,height,pixels,depth,base);triangles++;}}
-                case TRIANGLE_STRIP->{for(int i=2;i<n;i++){triangle(points,index(primitive,i-2),index(primitive,i-1),index(primitive,i),width,height,pixels,depth,base);triangles++;}}
-                case TRIANGLE_FAN->{for(int i=2;i<n;i++){triangle(points,index(primitive,0),index(primitive,i-1),index(primitive,i),width,height,pixels,depth,base);triangles++;}}
+                case TRIANGLES->{for(int i=0;i+2<n;i+=3){triangle(points,uv,texture,index(primitive,i),index(primitive,i+1),index(primitive,i+2),width,height,pixels,depth,base);triangles++;}}
+                case TRIANGLE_STRIP->{for(int i=2;i<n;i++){triangle(points,uv,texture,index(primitive,i-2),index(primitive,i-1),index(primitive,i),width,height,pixels,depth,base);triangles++;}}
+                case TRIANGLE_FAN->{for(int i=2;i<n;i++){triangle(points,uv,texture,index(primitive,0),index(primitive,i-1),index(primitive,i),width,height,pixels,depth,base);triangles++;}}
                 case POINTS->{for(int i=0;i<n;i++){int k=index(primitive,i)*3,x=(int)points[k],y=(int)points[k+1];if(x>=0&&x<width&&y>=0&&y<height&&points[k+2]<depth[y*width+x]){pixels[y*width+x]=base;depth[y*width+x]=(float)points[k+2];}}}
                 case LINES,LINE_STRIP,LINE_LOOP->{var g=image.createGraphics();g.setColor(new Color(base));int step=primitive.topology()==MeshAsset.Topology.LINES?2:1;for(int i=0;i+1<n;i+=step)line(g,points,index(primitive,i),index(primitive,i+1));if(primitive.topology()==MeshAsset.Topology.LINE_LOOP&&n>1)line(g,points,index(primitive,n-1),index(primitive,0));g.dispose();}
             }
@@ -57,7 +71,7 @@ public final class ScenePreview {
     }
     private static int index(MeshAsset.Primitive p,int i){return p.indices().size()==0?i:p.indices().get(i);}
     private static void line(Graphics2D g,double[] p,int a,int b){g.drawLine((int)p[a*3],(int)p[a*3+1],(int)p[b*3],(int)p[b*3+1]);}
-    private static void triangle(double[] p,int ai,int bi,int ci,int width,int height,int[] pixels,float[] depth,int base){
+    private static void triangle(double[] p,MeshAsset.Attribute uv,BufferedImage texture,int ai,int bi,int ci,int width,int height,int[] pixels,float[] depth,int base){
         int a=ai*3,b=bi*3,c=ci*3;double ax=p[a],ay=p[a+1],bx=p[b],by=p[b+1],cx=p[c],cy=p[c+1];
         double area=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);if(Math.abs(area)<1e-8)return;
         int minX=Math.max(0,(int)Math.floor(Math.min(ax,Math.min(bx,cx)))),maxX=Math.min(width-1,(int)Math.ceil(Math.max(ax,Math.max(bx,cx))));
@@ -70,8 +84,32 @@ public final class ScenePreview {
             double u=((bx-x-.5)*(cy-y-.5)-(by-y-.5)*(cx-x-.5))/area;
             double v=((cx-x-.5)*(ay-y-.5)-(cy-y-.5)*(ax-x-.5))/area,w=1-u-v;
             if(u<0||v<0||w<0)continue;float z=(float)(u*p[a+2]+v*p[b+2]+w*p[c+2]);int i=y*width+x;
-            if(z<depth[i]){depth[i]=z;pixels[i]=color;}
+            if(z<depth[i]){
+                if(texture!=null && uv!=null && uv.components()>=2) {
+                    double ua=u*uv.values().get(ai*uv.components())+v*uv.values().get(bi*uv.components())+w*uv.values().get(ci*uv.components());
+                    double va=u*uv.values().get(ai*uv.components()+1)+v*uv.values().get(bi*uv.components()+1)+w*uv.values().get(ci*uv.components()+1);
+                    int tx=Math.max(0,Math.min(texture.getWidth()-1,(int)Math.floor(wrap(ua)*texture.getWidth())));
+                    int ty=Math.max(0,Math.min(texture.getHeight()-1,(int)Math.floor((1-wrap(va))*texture.getHeight())));
+                    int sample=texture.getRGB(tx,ty);if(((sample>>>24)&255)<8)continue;
+                    int sr=(sample>>16)&255,sg=(sample>>8)&255,sb=sample&255;
+                    pixels[i]=((int)(sr*light)<<16)|((int)(sg*light)<<8)|(int)(sb*light);
+                } else pixels[i]=color;
+                depth[i]=z;
+            }
         }
+    }
+    private static double wrap(double value){double x=value-Math.floor(value);return x<0?x+1:x;}
+    private static Map<Integer,BufferedImage> loadBaseColorImages(ScenePackageAssets assets) {
+        if(assets==null || !(assets.model() instanceof ScenePackageAssets.Fbx fbx)) return Map.of();
+        var images=new LinkedHashMap<Integer,BufferedImage>();var materials=fbx.value().details().materials();
+        for(int i=0;i<materials.size();i++) {
+            var m=materials.get(i);int texture=-1;var base=m.pbr().get("base_color");
+            if(base!=null&&base.textureEnabled()&&base.texture()>=0) texture=base.texture();
+            if(texture<0) for(var t:m.textures()) if(t.property().equalsIgnoreCase("DiffuseColor")||t.shaderProperty().equalsIgnoreCase("DiffuseColor")){texture=t.texture();break;}
+            var source=fbx.assets().images().get(texture);if(source==null)continue;
+            try {var image=ImageIO.read(new ByteArrayInputStream(source.bytes().copy()));if(image!=null)images.put(i,image);} catch(Exception ignored) { }
+        }
+        return Map.copyOf(images);
     }
     private static final class Camera {
         final double x,y,z,scale,cy,sy,cp,sp;final int width,height;

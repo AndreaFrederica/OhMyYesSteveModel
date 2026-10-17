@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import com.google.gson.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class FbxDocumentTest {
@@ -115,6 +116,99 @@ class FbxDocumentTest {
           assertEquals(expected.size(),actual.size());
           for(int i=0;i<actual.size();i++) assertEquals(expected.get(i).getAsDouble(),actual.get(i),2e-6,"Blender frame "+ref.get("frame")+" component "+i);
         }
+      }
+    }
+  }
+  @Test void nativeReaderAndEvaluatorMatchWasmForARealAnimatedMesh() throws Exception {
+    boolean nativeAvailable=FbxNativeReactor.available();
+    if(Boolean.getBoolean("ysm.runtime.fbxNativeRequired")) assertTrue(nativeAvailable,FbxNativeReactor.unavailableReason());
+    else org.junit.jupiter.api.Assumptions.assumeTrue(nativeAvailable, "native FBX library not installed: "+FbxNativeReactor.unavailableReason());
+    var source=new FbxReader().read(sample("maya_transformed_skin_7700_ascii.fbx"),ReadLimits.DEFAULT);
+    try(var javaPlayer=new FbxPlayer(source,ReadLimits.DEFAULT);
+        var nativePlayer=FbxNativePlayer.tryCreate(source,ReadLimits.DEFAULT,FbxEvaluation.Settings.DEFAULT)) {
+      assertNotNull(nativePlayer);
+      try(nativePlayer) {
+        var expected=javaPlayer.evaluate(-1,.2).draws().get(0);
+        var actual=nativePlayer.evaluate(-1,.2).draws().get(0);
+        assertEquals(expected.positions().size(),actual.positions().size());
+        for(int i=0;i<expected.positions().size();i++) assertEquals(expected.positions().get(i),actual.positions().get(i),2e-5);
+      }
+    }
+    var uvSource=new FbxReader().read(sample("maya_uv_set_tangent_w_7700_ascii.fbx"),ReadLimits.DEFAULT);
+    try(var javaPlayer=new FbxPlayer(uvSource,ReadLimits.DEFAULT);
+        var nativePlayer=FbxNativePlayer.tryCreate(uvSource,ReadLimits.DEFAULT,FbxEvaluation.Settings.DEFAULT)) {
+      assertNotNull(nativePlayer);
+      try(nativePlayer) {
+        var expected=javaPlayer.evaluate(-1,.0);var actual=nativePlayer.evaluate(-1,.0);
+        assertEquals(expected.draws().size(),actual.draws().size());
+        for(int i=0;i<expected.draws().size();i++) {
+          var a=expected.draws().get(i);var b=actual.draws().get(i);
+          assertEquals(a.positions().size(),b.positions().size());assertEquals(a.normals().size(),b.normals().size());
+          for(int k=0;k<a.positions().size();k++) assertEquals(a.positions().get(k),b.positions().get(k),2e-5);
+          for(int k=0;k<a.normals().size();k++) assertEquals(a.normals().get(k),b.normals().get(k),2e-5);
+          assertEquals(a.uvDirections().size(),b.uvDirections().size());
+          for(int u=0;u<a.uvDirections().size();u++) {
+            var at=a.uvDirections().get(u);var bt=b.uvDirections().get(u);assertEquals(at.tangents().size(),bt.tangents().size());assertEquals(at.bitangents().size(),bt.bitangents().size());
+            for(int k=0;k<at.tangents().size();k++) assertEquals(at.tangents().get(k),bt.tangents().get(k),2e-5);
+            for(int k=0;k<at.bitangents().size();k++) assertEquals(at.bitangents().get(k),bt.bitangents().get(k),2e-5);
+          }
+        }
+      }
+    }
+  }
+  @Test void nativeSnapshotsCanBeParsedConcurrently() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeTrue(FbxNativeReactor.available(), FbxNativeReactor.unavailableReason());
+    var inputs=List.of(sample("maya_transformed_skin_7700_ascii.fbx"),sample("maya_uv_set_tangent_w_7700_ascii.fbx"));
+    var pool=Executors.newFixedThreadPool(4);
+    try {
+      var jobs=new ArrayList<Future<FbxDocument>>();
+      for(int i=0;i<12;i++) {
+        var input=inputs.get(i%inputs.size());
+        jobs.add(pool.submit(() -> new FbxReader().read(input,ReadLimits.DEFAULT)));
+      }
+      for(var job:jobs) {
+        var document=job.get(30,TimeUnit.SECONDS);
+        assertFalse(document.meshes().isEmpty());
+      }
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+  @Test void nativeLinearPhysicsOverrideWritesResidentGeometryWithoutJson() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeTrue(FbxNativeReactor.available(), FbxNativeReactor.unavailableReason());
+    var source=read("maya_transformed_skin_7700_ascii.fbx");
+    assertTrue(source.skins().stream().allMatch(s->s.method()==0||s.method()==1));
+    var evaluation=FbxNativePlayer.tryCreate(source,ReadLimits.DEFAULT,FbxEvaluation.Settings.DEFAULT);assertNotNull(evaluation);
+    try(var player=(FbxNativePlayer)evaluation) {
+      var base=player.evaluate(-1,.2);var poses=new LinkedHashMap<Integer,Pose>();
+      for(int i=0;i<base.nodes().size();i++) { var p=FbxPhysicsBinding.nodePose(base.nodes().get(i));poses.put(i,new Pose(p.position().add(new Vec3(.01f,0,0)),p.rotation())); }
+      var physical=player.evaluatePhysics(-1,.2,poses);assertNotNull(physical);
+      var before=base.draws().get(0).positions();var after=physical.draws().get(0).positions();assertEquals(before.size(),after.size());
+      boolean moved=false;for(int i=0;i<after.size();i++) { assertTrue(Double.isFinite(after.get(i)));if(Math.abs(after.get(i)-before.get(i))>1e-6)moved=true; }
+      assertTrue(moved,"native physics override did not change any evaluated vertex");
+      var expected=FbxPhysicsGeometry.apply(source,base,new FbxGeometry().compile(source,base),poses);
+      var actual=new FbxGeometry().compile(source,physical);
+      var expectedPositions=expected.draws().get(0).geometry().primitives().get(0).attributes().get("POSITION").values();
+      var actualPositions=actual.draws().get(0).geometry().primitives().get(0).attributes().get("POSITION").values();
+      assertEquals(expectedPositions.size(),actualPositions.size());for(int i=0;i<actualPositions.size();i++) assertEquals(expectedPositions.get(i),actualPositions.get(i),2e-4f,"physics vertex "+i);
+    }
+  }
+  @Test void nativeDualQuaternionPhysicsOverrideKeepsDccSkinningStable() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeTrue(FbxNativeReactor.available(), FbxNativeReactor.unavailableReason());
+    for(String name:List.of("maya_dual_quaternion_7500_ascii.fbx","maya_dual_quaternion_scale_7500_ascii.fbx","maya_dq_weights_7500_ascii.fbx")) {
+      var source=read(name);var evaluation=FbxNativePlayer.tryCreate(source,ReadLimits.DEFAULT,FbxEvaluation.Settings.DEFAULT);assertNotNull(evaluation,name);
+      try(var player=(FbxNativePlayer)evaluation) {
+        var base=player.evaluate(-1,.25);var poses=new LinkedHashMap<Integer,Pose>();
+        for(int i=0;i<base.nodes().size();i++) { var pose=FbxPhysicsBinding.nodePose(base.nodes().get(i));poses.put(i,pose); }
+        var physical=player.evaluatePhysics(-1,.25,poses);assertNotNull(physical,name);
+        assertEquals(base.draws().size(),physical.draws().size(),name);
+        for(int d=0;d<base.draws().size();d++) {
+          var a=base.draws().get(d).positions();var b=physical.draws().get(d).positions();assertEquals(a.size(),b.size(),name);
+          for(int i=0;i<a.size();i++) assertEquals(a.get(i),b.get(i),3e-4,name+" vertex "+i);
+        }
+        var movedPoses=new LinkedHashMap<Integer,Pose>();for(int i=0;i<base.nodes().size();i++) { var pose=FbxPhysicsBinding.nodePose(base.nodes().get(i));movedPoses.put(i,new Pose(pose.position().add(new Vec3(.003f,0,0)),pose.rotation())); }
+        var moved=player.evaluatePhysics(-1,.25,movedPoses);assertNotNull(moved,name+" moved");
+        for(var draw:moved.draws()) for(int i=0;i<draw.positions().size();i++) assertTrue(Double.isFinite(draw.positions().get(i)),name+" moved finite");
       }
     }
   }

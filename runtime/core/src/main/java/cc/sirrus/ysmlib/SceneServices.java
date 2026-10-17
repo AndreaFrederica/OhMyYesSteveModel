@@ -23,11 +23,15 @@ final class SceneServices implements SceneProvider {
   public String profile() { return "ysmlib-java-scene-1"; }
   public SceneModelProfile readModelProfile(ByteData source) { return new SceneModelProfileCodec().read(source); }
   public ByteData writeModelProfile(SceneModelProfile source) { return new SceneModelProfileCodec().write(source); }
+  public FbxMappingProfile readFbxMapping(ByteData source) { return new FbxMappingProfileCodec().read(source); }
   public MeshAsset.Primitive prepareGltfSurface(MeshAsset.Primitive source,int normalTexCoord,ReadLimits limits) {
     return new GltfSurfaceGeometry().prepare(source,normalTexCoord,limits);
   }
   public SceneImage readImage(ByteData source,String formatHint,ReadLimits limits) throws IOException {
     return new cc.sirrus.ysmlib.image.java.SceneImageDecoder().read(source,formatHint,limits);
+  }
+  public String imageCacheVariant(ByteData source,String formatHint,ReadLimits limits) throws IOException {
+    return new cc.sirrus.ysmlib.image.java.SceneImageDecoder().cacheVariant(source,formatHint,limits);
   }
   public FloatData texturePixels(SceneImage source,SceneImageUsage usage,ReadLimits limits) throws IOException {
     return new cc.sirrus.ysmlib.image.java.SceneImageSamples().prepare(source,usage,limits);
@@ -50,7 +54,10 @@ final class SceneServices implements SceneProvider {
   }
   public <T> AnimationPreview<T> preview(AnimationPreview.Range range,AnimationPreview.Source<T> source) { return new PreviewTimeline<>(range,source); }
   public FbxDocument readFbx(ByteData source,ReadLimits limits) throws AssetFormatException { return new FbxReader().read(source,limits); }
-  public FbxEvaluation evaluator(FbxDocument source,ReadLimits limits,FbxEvaluation.Settings settings) throws AssetFormatException { return new FbxPlayer(source,limits,settings); }
+  public FbxEvaluation evaluator(FbxDocument source,ReadLimits limits,FbxEvaluation.Settings settings) throws AssetFormatException {
+    var nativePlayer=FbxNativePlayer.tryCreate(source,limits,settings);
+    return nativePlayer!=null?new FbxResilientPlayer(source,limits,settings,nativePlayer):new FbxPlayer(source,limits,settings);
+  }
   public GeometryFrame geometry(FbxDocument source,FbxEvaluation.Frame frame) { return new FbxGeometry().compile(source,frame); }
   public SceneGeometry geometry(SceneAsset source,int sceneIndex) { return geometry(source,sceneIndex,ReadLimits.DEFAULT); }
   public SceneGeometry geometry(SceneAsset source,int sceneIndex,ReadLimits limits) {
@@ -108,4 +115,5 @@ final class SceneServices implements SceneProvider {
   public Map<String,MeshAsset.Attribute> deform(MeshAsset.Primitive mesh,List<Matrix4> palette,FloatData weights,NormalPolicy policy) {
     return new Deformer().deform(mesh,palette,weights,switch(policy) { case INVERSE_TRANSPOSE->Deformer.NormalMode.INVERSE_TRANSPOSE;case MMD_WEIGHTED_ROTATION->Deformer.NormalMode.MMD_WEIGHTED_ROTATION; });
   }
+  public SceneDeformation compileDeformation(MeshAsset.Primitive mesh){var compiled=new CompiledSceneDeformer(mesh);return compiled::deform;}
 }

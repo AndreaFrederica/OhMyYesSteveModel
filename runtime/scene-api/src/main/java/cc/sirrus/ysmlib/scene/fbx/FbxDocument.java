@@ -32,9 +32,28 @@ public record FbxDocument(ByteData source,Info info,List<Element> elements,List<
   public record Cluster(int element,int bone,DoubleData geometryToBone,DoubleData meshToBone,DoubleData bindWorld,String linkMode,IntData rawVertices,DoubleData rawWeights) {}
   public record SkinVertex(int begin,int count,double dualQuaternionWeight) {}
   public record SkinWeight(int cluster,double weight) {}
+  /**
+   * Compact immutable views for the very large FBX influence tables.  FBX
+   * stores three values per control vertex and two values per influence; an
+   * object per entry costs considerably more than the source data and is
+   * never needed by the evaluator.  The views create the small record only
+   * when a caller actually asks for one through the List API.
+   */
+  static final class SkinVertexList extends AbstractList<SkinVertex> implements RandomAccess {
+    private final int[] begins,counts;private final double[] dualWeights;
+    SkinVertexList(int[] begins,int[] counts,double[] dualWeights) { this.begins=begins;this.counts=counts;this.dualWeights=dualWeights; }
+    @Override public SkinVertex get(int index) { Objects.checkIndex(index,begins.length);return new SkinVertex(begins[index],counts[index],dualWeights[index]); }
+    @Override public int size() { return begins.length; }
+  }
+  static final class SkinWeightList extends AbstractList<SkinWeight> implements RandomAccess {
+    private final int[] clusters;private final double[] weights;
+    SkinWeightList(int[] clusters,double[] weights) { this.clusters=clusters;this.weights=weights; }
+    @Override public SkinWeight get(int index) { Objects.checkIndex(index,clusters.length);return new SkinWeight(clusters[index],weights[index]); }
+    @Override public int size() { return clusters.length; }
+  }
   /** Method uses ufbx's fixed ABI order: linear, rigid, dual quaternion, blended dual quaternion/linear. */
   public record Skin(int element,int method,List<Cluster> clusters,List<SkinVertex> vertices,List<SkinWeight> weights) {
-    public Skin { clusters=List.copyOf(clusters);vertices=List.copyOf(vertices);weights=List.copyOf(weights); }
+    public Skin { clusters=List.copyOf(clusters);vertices=vertices instanceof SkinVertexList?vertices:List.copyOf(vertices);weights=weights instanceof SkinWeightList?weights:List.copyOf(weights); }
   }
   public record Animation(int element,double begin,double end,IntData layers) {}
   public record AnimatedProperty(int element,String name,DoubleData defaults,IntData curves) {}

@@ -16,8 +16,13 @@ public interface SceneProvider {
   String profile();
   SceneModelProfile readModelProfile(ByteData source);
   ByteData writeModelProfile(SceneModelProfile source);
+  FbxMappingProfile readFbxMapping(ByteData source);
   /** Decode source samples without color conversion. TGA requires its format hint because it has no magic. */
   SceneImage readImage(ByteData source,String formatHint,ReadLimits limits) throws IOException;
+  /** Stable output variant selected by the same bounded decoder used by {@link #readImage}. */
+  default String imageCacheVariant(ByteData source,String formatHint,ReadLimits limits) throws IOException {
+    return limits.toString();
+  }
   /** Samples in the material's chosen working space, suitable for filtering. Does not allocate any GPU resource. */
   FloatData texturePixels(SceneImage source,SceneImageUsage usage,ReadLimits limits) throws IOException;
   ScenePackage readPackage(ByteData source,ReadLimits limits) throws IOException;
@@ -75,4 +80,5 @@ public interface SceneProvider {
   AnimationFrame sample(AnimationClip clip,double seconds);
   SceneEvaluation evaluator(SceneAsset scene);
   Map<String,MeshAsset.Attribute> deform(MeshAsset.Primitive mesh,List<Matrix4> palette,FloatData morphWeights,NormalPolicy normalPolicy);
+  default SceneDeformation compileDeformation(MeshAsset.Primitive mesh){return (palette,weights)->deform(mesh,palette,weights,NormalPolicy.INVERSE_TRANSPOSE);}
 }

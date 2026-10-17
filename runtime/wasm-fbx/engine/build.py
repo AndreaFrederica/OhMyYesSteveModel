@@ -48,7 +48,8 @@ def main():
     output = ROOT / 'src/main/resources/cc/sirrus/ysmlib/fbx/ufbx.wasm'
     output.parent.mkdir(parents=True, exist_ok=True)
     symbols = ['malloc','free','ysm_fbx_abi','ysm_fbx_load','ysm_fbx_destroy','ysm_fbx_evaluate',
-               'ysm_fbx_snapshot','ysm_fbx_output','ysm_fbx_output_size','ysm_fbx_error']
+               'ysm_fbx_snapshot','ysm_fbx_output','ysm_fbx_output_size','ysm_fbx_error',
+               'ysm_fbx_geometry_counts','ysm_fbx_geometry_write']
     subprocess.run([str(sdk / 'bin/clang.exe'), '-O2', '-std=c11', '-mno-simd128', '-fno-strict-aliasing',
         '-DUFBX_NO_STDIO', '-DUFBX_NO_THREADS', '-I'+str(source), str(ROOT / 'engine/fbx_bridge.c'), str(source / 'ufbx.c'),
         '-nostartfiles', str(sdk / 'share/wasi-sysroot/lib/wasm32-wasip1/crt1-reactor.o'),

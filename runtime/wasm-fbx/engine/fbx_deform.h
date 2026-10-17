@@ -1,3 +1,65 @@
+/*
+ * FBX has no defined composition rule for two FbxSkin objects attached to
+ * one geometry.  Unity/VRChat reduce a mesh to one bind-pose/weight table.
+ * Keep the native path lossless by accepting only semantic duplicates.  The
+ * cluster order is allowed to differ; weights are compared through the
+ * corresponding cluster mapping.  Non-equivalent skins remain an explicit
+ * unsupported case instead of being silently added together.
+ */
+static bool fbx_close(double a,double b) {
+    return isfinite(a)&&isfinite(b)&&fabs(a-b)<=1e-9*(1.0+fmax(fabs(a),fabs(b)));
+}
+static bool fbx_matrix_equal(const ufbx_matrix *a,const ufbx_matrix *b) {
+    for(int i=0;i<12;i++) if(!fbx_close((double)a->v[i],(double)b->v[i])) return false;
+    return true;
+}
+static bool fbx_cluster_equal(const ufbx_skin_cluster *a,const ufbx_skin_cluster *b) {
+    if(a->bone_node!=b->bone_node || !fbx_matrix_equal(&a->geometry_to_bone,&b->geometry_to_bone) ||
+       !fbx_matrix_equal(&a->mesh_node_to_bone,&b->mesh_node_to_bone) || !fbx_matrix_equal(&a->bind_to_world,&b->bind_to_world)) return false;
+    ufbx_string am=ufbx_find_string(&a->props,"Mode",(ufbx_string){"",0});
+    ufbx_string bm=ufbx_find_string(&b->props,"Mode",(ufbx_string){"",0});
+    return am.length==bm.length && (!am.length || memcmp(am.data,bm.data,am.length)==0);
+}
+static bool fbx_vertex_weights_equal(const ufbx_skin_deformer *a,const ufbx_skin_deformer *b,size_t vertex,const size_t *map) {
+    if(vertex>=a->vertices.count || vertex>=b->vertices.count) return vertex>=a->vertices.count&&vertex>=b->vertices.count;
+    ufbx_skin_vertex av=a->vertices.data[vertex],bv=b->vertices.data[vertex];
+    if(!fbx_close(av.dq_weight,bv.dq_weight)) return false;
+    /* Compact tables are normally identical apart from cluster order.  Match
+       by mapped cluster and sum duplicates so exporters that split one
+       influence into repeated entries remain equivalent. */
+    for(size_t ci=0;ci<a->clusters.count;ci++) {
+        double aw=0,bw=0;
+        for(size_t j=0;j<av.num_weights;j++) { size_t k=(size_t)av.weight_begin+j;if(k<a->weights.count&&a->weights.data[k].cluster_index==ci) aw+=a->weights.data[k].weight; }
+        size_t target=map[ci];
+        for(size_t j=0;j<bv.num_weights;j++) { size_t k=(size_t)bv.weight_begin+j;if(k<b->weights.count&&b->weights.data[k].cluster_index==target) bw+=b->weights.data[k].weight; }
+        if(!fbx_close(aw,bw)) return false;
+    }
+    return true;
+}
+static bool fbx_skin_equivalent(const ufbx_skin_deformer *a,const ufbx_skin_deformer *b) {
+    if(a->skinning_method!=b->skinning_method || a->clusters.count!=b->clusters.count || a->vertices.count!=b->vertices.count) return false;
+    size_t count=a->clusters.count;
+    if(count>memory_limit/(sizeof(size_t)+sizeof(bool))) return false;
+    size_t *map=count?malloc(count*sizeof(size_t)):NULL;bool *used=count?calloc(count,sizeof(bool)):NULL;
+    if(count&&(!map||!used)) { free(map);free(used);return false; }
+    for(size_t i=0;i<count;i++) {
+        size_t found=count;
+        for(size_t j=0;j<count;j++) if(!used[j]&&fbx_cluster_equal(a->clusters.data[i],b->clusters.data[j])) { found=j;break; }
+        if(found==count) { free(map);free(used);return false; }
+        map[i]=found;used[found]=true;
+    }
+    bool equal=true;
+    for(size_t v=0;v<a->vertices.count&&equal;v++) equal=fbx_vertex_weights_equal(a,b,v,map);
+    free(map);free(used);return equal;
+}
+
+static bool fbx_mesh_skin_supported(ufbx_mesh *m) {
+    if(m->skin_deformers.count<2) return true;
+    ufbx_skin_deformer *base=m->skin_deformers.data[0];
+    for(size_t i=1;i<m->skin_deformers.count;i++) if(!fbx_skin_equivalent(base,m->skin_deformers.data[i])) return false;
+    return true;
+}
+
 /* Per-instance geometry output. Source normals and every weight are retained. */
 static ufbx_vec3 normal_transform(const ufbx_matrix *m,ufbx_vec3 n) {
     if(ufbx_matrix_determinant(m)==0.0) { error("FBX singular deformation cannot transform authored normals");return n; }
@@ -12,7 +74,7 @@ static void draws(ufbx_scene *s,bool follow_mesh) {
     for(size_t ni=0;ni<s->nodes.count&&!failed;ni++) {
         ufbx_node *node=s->nodes.data[ni];ufbx_mesh *m=node->mesh;if(!m) continue;
         // Reject unresolved semantics, including optional paths, before producing a plausible wrong mesh.
-        if(m->skin_deformers.count>1) { error("FBX multiple skin deformers require an explicit ordered adapter");break; }
+        if(!skin_semantics_supported) { error("FBX multiple non-equivalent skin deformers require explicit source/profile selection");break; }
         if(m->cache_deformers.count || m->subdivision_render_levels) { error("FBX geometry cache/subdivision evaluation unavailable");break; }
         size_t n=m->num_vertices;
         if(n>memory_limit/(sizeof(ufbx_vec3)*2+sizeof(ufbx_matrix))) { error("FBX deformation memory budget exceeded");break; }
@@ -43,9 +105,9 @@ static void draws(ufbx_scene *s,bool follow_mesh) {
             else { ufbx_matrix inverse=ufbx_matrix_invert(&bind->bone_to_world);mesh_correction=ufbx_matrix_mul(&node->geometry_to_world,&inverse); }
         }
         if(skin) for(size_t ci=0;ci<skin->clusters.count;ci++) {
-            ufbx_skin_cluster *cluster=skin->clusters.data[ci];ufbx_dom_node *dom=cluster->element.dom_node;
-            ufbx_dom_node *mode=dom?ufbx_dom_find(dom,"Mode"):NULL;
-            if(mode&&mode->values.count&&mode->values.data[0].value_str.length&&strcmp(mode->values.data[0].value_str.data,"Normalize")) error("FBX non-normalized cluster mode requires a dedicated adapter");
+            ufbx_skin_cluster *cluster=skin->clusters.data[ci];
+            ufbx_string mode=ufbx_find_string(&cluster->element.props,"Mode",(ufbx_string){"",0});
+            if(mode.length&&strcmp(mode.data,"Normalize")) error("FBX non-normalized cluster mode requires a dedicated adapter");
             if(skin->skinning_method==UFBX_SKINNING_METHOD_DUAL_QUATERNION || skin->skinning_method==UFBX_SKINNING_METHOD_BLENDED_DQ_LINEAR) {
                 ufbx_matrix reconstructed=ufbx_transform_to_matrix(&cluster->geometry_to_world_transform);
                 for(int k=0;k<12;k++) if(fabs(reconstructed.v[k]-cluster->geometry_to_world.v[k])>1e-8*(1.0+fabs(cluster->geometry_to_world.v[k]))) error("FBX DQ transform contains shear that cannot be discarded");
