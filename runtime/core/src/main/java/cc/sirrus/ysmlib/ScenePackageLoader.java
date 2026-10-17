@@ -4,6 +4,7 @@ import cc.sirrus.ysmlib.scene.*;
 import cc.sirrus.ysmlib.scene.io.*;
 import cc.sirrus.ysmlib.scene.java.PackageAssetResolver;
 import cc.sirrus.ysmlib.scene.mmd.*;
+import cc.sirrus.ysmlib.scene.fbx.FbxMappingProfile;
 import java.io.IOException;
 import java.util.*;
 
@@ -42,7 +43,23 @@ final class ScenePackageLoader {
     ScenePackageAssets.Document result=switch(format) {
       case GLTF -> new ScenePackageAssets.Gltf(services.readGltf(bytes,uri,limits));
       case VRM -> new ScenePackageAssets.Vrm(services.readVrm(bytes,uri,limits));
-      case FBX -> { var fbx=services.readFbx(bytes,limits);yield new ScenePackageAssets.Fbx(fbx,services.dependencies(fbx,file,limits)); }
+      case FBX -> {
+        var fbx=services.readFbx(bytes,limits);
+        var mapping=source.files().get(FbxMappingProfile.PACKAGE_PATH);
+        var profile=mapping==null?FbxMappingProfile.empty():services.readFbxMapping(mapping);
+        fbx=profile.apply(fbx);
+        var resolved=services.dependencies(fbx,file,limits);
+        if(profile.materialByElement().isEmpty()) yield new ScenePackageAssets.Fbx(fbx,resolved);
+        var images=new LinkedHashMap<Integer,cc.sirrus.ysmlib.scene.fbx.FbxAssets.Image>(resolved.images());
+        int next=fbx.textures().size();
+        for(var override:profile.materialByElement().values()) for(var reference:List.of(override.baseColor(),override.normal(),override.emissive())) {
+          if(reference.isBlank()) continue;
+          var target=file.resolve(reference);
+          int index=-1;for(var entry:images.entrySet()) if(entry.getValue().reference().equals(reference)){index=entry.getKey();break;}
+          if(index<0) images.put(next++,new cc.sirrus.ysmlib.scene.fbx.FbxAssets.Image(reference,false,target));
+        }
+        yield new ScenePackageAssets.Fbx(fbx,new cc.sirrus.ysmlib.scene.fbx.FbxAssets(images,profile.materialByElement()));
+      }
       case PMX -> {
         var pmx=services.readPmx(bytes,limits);
         for(String texture:pmx.textures()) if(!texture.isEmpty()) file.resolve(texture);

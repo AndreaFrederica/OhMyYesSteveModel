@@ -50,7 +50,7 @@ public final class SceneTextureGpuVerification {
             VrmMaterialGpuVerification.verify();
             SceneDisplayGpuVerification.verify();
             SceneLightmapGpuVerification.verify();
-            System.out.println("Production scene texture upload: RGBA32F precision, linear mipmap, sampler, unpack/PBO/binding restoration and release passed");
+            System.out.println("Production scene texture upload: RGBA16F bounded quantization, linear mipmap, sampler, unpack/PBO/binding restoration and release passed");
             System.out.println("Production scene mesh buffer: indexed TRIANGLES/STRIP, arbitrary UV semantic, frame replacement and VAO/restart restoration passed");
         } finally {
             if (window != 0) GLFW.glfwDestroyWindow(window);
@@ -171,13 +171,13 @@ public final class SceneTextureGpuVerification {
             equal(2, GL11C.glGetInteger(GL11C.GL_UNPACK_SKIP_PIXELS), "unpack pixel skip");
             equal(1, GL11C.glGetInteger(GL11C.GL_UNPACK_SWAP_BYTES), "unpack byte swap");
             GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, texture.getId());
-            equal(GL30C.GL_RGBA32F, GL11C.glGetTexLevelParameteri(GL11C.GL_TEXTURE_2D, 0, GL11C.GL_TEXTURE_INTERNAL_FORMAT), "float precision");
+            equal(GL30C.GL_RGBA16F, GL11C.glGetTexLevelParameteri(GL11C.GL_TEXTURE_2D, 0, GL11C.GL_TEXTURE_INTERNAL_FORMAT), "half-float storage");
             equal(33648, GL11C.glGetTexParameteri(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_WRAP_S), "S sampler");
             equal(33071, GL11C.glGetTexParameteri(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_WRAP_T), "T sampler");
             var read = MemoryUtil.memAllocFloat(16);
             try {
                 GL11C.glGetTexImage(GL11C.GL_TEXTURE_2D, 0, GL11C.GL_RGBA, GL11C.GL_FLOAT, read);
-                for (int i = 0; i < 16; i++) near(pixels.rgba().get(i), read.get(i), "base sample " + i);
+                for (int i = 0; i < 16; i++) nearHalf(pixels.rgba().get(i), read.get(i), "base sample " + i);
                 GL11C.glGetTexImage(GL11C.GL_TEXTURE_2D, 1, GL11C.GL_RGBA, GL11C.GL_FLOAT, read);
                 near(.5f, read.get(0), "linear mipmap black/white");
                 near(1, read.get(2), "unclamped mipmap color");
@@ -200,5 +200,12 @@ public final class SceneTextureGpuVerification {
     }
     private static void near(float expected, float actual, String label) {
         if (!Float.isFinite(actual) || Math.abs(expected - actual) > 1e-7f) throw new AssertionError(label + ": " + actual + " != " + expected);
+    }
+    private static void nearHalf(float expected, float actual, String label) {
+        // GL permits implementation-dependent rounding; bound it to one binary16 step.
+        // Keep all exactly representable mipmap/raster assertions at their original tolerance.
+        float step = Math.max(Math.scalb(1f, -24), Math.scalb(1f, Math.getExponent(Math.abs(expected)) - 10));
+        if (!Float.isFinite(actual) || Math.abs(expected - actual) > step)
+            throw new AssertionError(label + ": " + actual + " != " + expected + " (binary16 step " + step + ")");
     }
 }

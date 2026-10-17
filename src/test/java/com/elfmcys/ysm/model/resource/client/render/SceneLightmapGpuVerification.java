@@ -88,7 +88,7 @@ final class SceneLightmapGpuVerification {
                 parameters.put("VRMC_materials_mtoon/outlineLightingMixFactor",new FloatData(1));
                 parameters.put("_Color",parameters.get("baseColor"));parameters.put("_EmissionColor",new FloatData(.05f,.08f,.1f,1));
                 parameters.put("_OutlineColor",new FloatData(.2f,.4f,.6f,1));parameters.put("_OutlineWidth",new FloatData(.01f));
-                parameters.put("_OutlineLightingMix",new FloatData(1));
+                parameters.put("_OutlineLightingMix",new FloatData(1)); parameters.put("_OutlineColorMode",new FloatData(1));
                 var state=new VrmMaterials.RenderState("BLEND",.5f,false,VrmMaterials.Cull.NONE,1,0,false,0,0,-1,"worldCoordinates",VrmMaterials.Cull.FRONT);
                 var material=new VrmMaterials.Material(0,"fixture",variant,variant==VrmMaterials.Shader.MTOON_1?VrmMaterials.ParameterSpace.GLTF_LINEAR:VrmMaterials.ParameterSpace.LEGACY_SHADER,parameters,
                         Map.of(),Map.of(),state,0,new CompatibilityReport(List.of(),List.of()));
@@ -99,7 +99,10 @@ final class SceneLightmapGpuVerification {
                     exercise(variant+" surface/emission",map,true,unlit,EMISSION,lightmap->{
                         try(var scope=shader.prepare(material,bindings,ignored->0,vrmView(lightmap)).bind()) { mesh.draw(); }
                     });
-                    exercise(variant+" lit outline",map,true,false,new float[3],lightmap->{
+                    // MToon 1 outlines include shaded emission; legacy MToon excludes it.
+                    // Legacy unlit shaders have no native outline pass.
+                    if (!unlit) exercise(variant+" lit outline",map,true,false,
+                            variant==VrmMaterials.Shader.MTOON_1 ? new float[]{EMISSION[0]*.2f,EMISSION[1]*.4f,EMISSION[2]*.6f} : new float[3],lightmap->{
                         try(var scope=shader.prepare(material,bindings,ignored->0,vrmView(lightmap)).bind(true)) { mesh.draw(); }
                     });
                 }

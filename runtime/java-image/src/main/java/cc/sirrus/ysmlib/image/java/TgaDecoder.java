@@ -8,6 +8,44 @@ import java.util.*;
 
 /** TGA raster interpretation, independent of ImageIO's gray color conversion and origin limits. */
 final class TgaDecoder {
+  /**
+   * TGA output may be reduced before it is retained, but decoding still walks
+   * the source raster (including RLE packets). Keep malformed inputs from
+   * turning that walk into an unbounded CPU operation.
+   */
+  private static final long MAX_SOURCE_PIXELS=256_000_000L;
+
+  String cacheVariant(ByteData source,ReadLimits limits) throws IOException {
+    var cursor=new Cursor(source,source.size());
+    cursor.u8();int mapType=cursor.u8(),imageType=cursor.u8();
+    cursor.u16();int mapCount=cursor.u16(),mapBits=cursor.u8();
+    cursor.u16();cursor.u16();int width=cursor.u16(),height=cursor.u16();
+    int depth=cursor.u8(),descriptor=cursor.u8(),kind=imageType&7;
+    if(mapType>1 || !Set.of(1,2,3,9,10,11).contains(imageType) || descriptor>>>6==3)
+      throw new IOException("Unsupported TGA image type, color map or interleave mode");
+    long sourcePixels=(long)width*height;
+    if(sourcePixels<1 || sourcePixels>MAX_SOURCE_PIXELS)
+      throw new IOException("TGA source raster exceeds decode scan budget: "+width+"x"+height);
+    if((kind==1 && (mapType!=1 || (depth!=8 && depth!=16)))
+        || (kind==2 && !Set.of(15,16,24,32).contains(depth))
+        || (kind==3 && depth!=8 && depth!=16)) throw new IOException("Unsupported TGA pixel layout");
+    if(mapType==1 && (mapCount==0 || !Set.of(15,16,24,32).contains(mapBits)
+        || mapFirst(source)+mapCount>65536)) throw new IOException("Invalid TGA palette layout");
+    if(mapCount>limits.maxElements() || (long)mapCount*16>limits.maxBytes())
+      throw new IOException("TGA palette exceeds budget");
+    int colorDepth=kind==1?mapBits:depth;
+    boolean compact=(colorDepth>=24 || kind==3);
+    int sample=1;
+    while(sample<1024) {
+      int candidateWidth=(width+sample-1)/sample,candidateHeight=(height+sample-1)/sample;
+      if(SceneImageDecoder.fitsBudget(source,candidateWidth,candidateHeight,limits,compact?4:16,0L)) break;
+      sample<<=1;
+    }
+    int outputWidth=(width+sample-1)/sample,outputHeight=(height+sample-1)/sample;
+    SceneImageDecoder.budget(source,outputWidth,outputHeight,limits,compact?4:16,0L);
+    return "TGA:"+sample+":"+outputWidth+"x"+outputHeight+":"+(compact?"unorm8":"float")+":"+colorDepth;
+  }
+
   SceneImage read(ByteData source,ReadLimits limits) throws IOException {
     var cursor=new Cursor(source,source.size());
     int idLength=cursor.u8(),mapType=cursor.u8(),imageType=cursor.u8();
@@ -16,16 +54,30 @@ final class TgaDecoder {
     int depth=cursor.u8(),descriptor=cursor.u8(),kind=imageType&7,attributeBits=descriptor&15;
     if(mapType>1 || !Set.of(1,2,3,9,10,11).contains(imageType) || descriptor>>>6==3)
       throw new IOException("Unsupported TGA image type, color map or interleave mode");
-    SceneImageDecoder.budget(source,width,height,limits);
+    long sourcePixels=(long)width*height;
+    if(sourcePixels<1 || sourcePixels>MAX_SOURCE_PIXELS)
+      throw new IOException("TGA source raster exceeds decode scan budget: "+width+"x"+height);
     if((kind==1 && (mapType!=1 || (depth!=8 && depth!=16)))
         || (kind==2 && !Set.of(15,16,24,32).contains(depth))
         || (kind==3 && depth!=8 && depth!=16)) throw new IOException("Unsupported TGA pixel layout");
     if(mapType==1 && (mapCount==0 || !Set.of(15,16,24,32).contains(mapBits)
         || mapFirst+mapCount>65536)) throw new IOException("Invalid TGA palette layout");
-    if(mapCount>limits.maxElements() || (long)width*height*48+2L*source.size()+(long)mapCount*16>limits.maxBytes())
-      throw new IOException("TGA palette/raster exceeds budget");
+    if(mapCount>limits.maxElements() || (long)mapCount*16>limits.maxBytes())
+      throw new IOException("TGA palette exceeds budget");
     int colorDepth=kind==1?mapBits:depth;
     int physicalAlpha=kind==3?(depth==16?8:0):(colorDepth==32?8:colorDepth==16?1:0);
+    boolean compact=(colorDepth>=24 || kind==3);
+    // TGA decoding reads directly from the immutable ByteData and retains only
+    // the normalized float output. Choose a power-of-two reduction before
+    // allocating that output, just like the ImageIO path does for PNG/BMP.
+    int sample=1;
+    while(sample<1024) {
+      int candidateWidth=(width+sample-1)/sample,candidateHeight=(height+sample-1)/sample;
+      if(SceneImageDecoder.fitsBudget(source,candidateWidth,candidateHeight,limits,compact?4:16,0L)) break;
+      sample<<=1;
+    }
+    int outputWidth=(width+sample-1)/sample,outputHeight=(height+sample-1)/sample;
+    SceneImageDecoder.budget(source,outputWidth,outputHeight,limits,compact?4:16,0L);
     if(attributeBits!=0 && attributeBits!=physicalAlpha) throw new IOException("TGA attribute bits do not match pixels");
     var metadata=new LinkedHashMap<String,String>();
     metadata.put("samples","source-normalized");metadata.put("tga.xOrigin",Integer.toString(xOrigin));
@@ -84,10 +136,11 @@ final class TgaDecoder {
     if(mapType==1) for(int i=0;i<mapCount;i++) {
       color(cursor,mapBits,false,alpha,color);System.arraycopy(color,0,palette,i*4,4);
     }
-    float[] rgba=new float[width*height*4];
+    float[] rgba=compact?null:new float[outputWidth*outputHeight*4];
+    byte[] packed=compact?new byte[outputWidth*outputHeight*4]:null;
     int[] rows=new int[height];int step=1<<(descriptor>>>6),rowIndex=0;
     for(int phase=0;phase<step;phase++) for(int y=phase;y<height;y+=step) rows[rowIndex++]=y;
-    int pixel=0,total=width*height;
+    int pixel=0,total=Math.toIntExact(sourcePixels);
     while(pixel<total) {
       int packet=imageType>=8?cursor.u8():0;
       int count=imageType>=8?(packet&127)+1:1;boolean repeated=imageType>=8 && (packet&128)!=0;
@@ -103,12 +156,25 @@ final class TgaDecoder {
         int x=pixel%width,y=rows[pixel/width];
         if((descriptor&16)!=0) x=width-1-x;
         if((descriptor&32)==0) y=height-1-y;
-        System.arraycopy(color,0,rgba,(y*width+x)*4,4);
+        if(x%sample==0 && y%sample==0) {
+          int destination=((y/sample)*outputWidth+x/sample)*4;
+          if(compact) {
+            packed[destination]=quantize8(color[0]);packed[destination+1]=quantize8(color[1]);
+            packed[destination+2]=quantize8(color[2]);packed[destination+3]=quantize8(color[3]);
+          } else System.arraycopy(color,0,rgba,destination,4);
+        }
       }
     }
     int rgbBits=kind==3?8:colorDepth<24?5:8;
-    return new SceneImage(SceneImage.Format.TGA,width,height,new FloatData(rgba),
-        new IntData(rgbBits,rgbBits,rgbBits,alpha==SceneImage.Alpha.OPAQUE?0:physicalAlpha),alpha,metadata,source);
+    if(sample>1) { metadata.put("sourceWidth",Integer.toString(width));metadata.put("sourceHeight",Integer.toString(height));metadata.put("downsampleFactor",Integer.toString(sample)); }
+    var storage=compact?FloatData.ownedNormalized8(packed):FloatData.owned(rgba);
+    var bits=compact?new IntData(8,8,8,alpha==SceneImage.Alpha.OPAQUE?0:physicalAlpha):
+        new IntData(rgbBits,rgbBits,rgbBits,alpha==SceneImage.Alpha.OPAQUE?0:physicalAlpha);
+    return new SceneImage(SceneImage.Format.TGA,outputWidth,outputHeight,storage,bits,alpha,metadata,source);
+  }
+
+  private static byte quantize8(float value) {
+    return (byte)Math.max(0,Math.min(255,Math.round(value*255f)));
   }
 
   private static void color(Cursor cursor,int depth,boolean gray,SceneImage.Alpha alpha,float[] out) throws IOException {
@@ -137,6 +203,7 @@ final class TgaDecoder {
     return (int)offset;
   }
   private static int u16(ByteData source,int offset) { return source.unsigned(offset)|(source.unsigned(offset+1)<<8); }
+  private static int mapFirst(ByteData source) { return u16(source,3); }
   private static long unsigned32(ByteData source,int offset) { return Integer.toUnsignedLong(u16(source,offset)|(u16(source,offset+2)<<16)); }
   private static byte[] slice(ByteData source,int start,int count) { var data=new byte[count];source.view().position(start).get(data);return data; }
   private static final class Cursor {

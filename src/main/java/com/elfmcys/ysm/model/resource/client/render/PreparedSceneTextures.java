@@ -47,39 +47,58 @@ public final class PreparedSceneTextures {
                                                 ReadLimits limits, BooleanSupplier cancelled,cc.sirrus.ysmlib.SceneDiskCache.Session cache) throws IOException {
         var output = new LinkedHashMap<Key, Pixels>();
         var samples = new IdentityHashMap<SceneImage, Map<SceneImageUsage, FloatData>>();
+        // Source images remain owned by ScenePackageImages while prepared
+        // material samples are built. Count each distinct source payload once;
+        // a source-numeric usage may reuse it without allocating another CPU
+        // raster, while a converted usage adds its own result below.
         long bytes = 0;
         long pixels = 0;
+        var retained = Collections.newSetFromMap(new IdentityHashMap<SceneImage,Boolean>());
+        for (var image : source.images().values()) if (retained.add(image)) {
+            bytes = Math.addExact(bytes, image.rgba().storageBytes());
+            pixels = Math.addExact(pixels, (long) image.width() * image.height());
+        }
+        if (bytes > limits.maxBytes() || pixels > limits.maxElements())
+            throw new IOException("Decoded scene image budget exceeded");
         long gpuBytes = 0;
         for (var key : requests) {
             requireActive(cancelled);
             if (output.containsKey(key)) continue;
             if (output.size() >= limits.maxElements()) throw new IOException("Scene texture binding budget exceeded");
             var image = source.require(key.image());
-            int mipWidth = image.width(), mipHeight = image.height();
-            do {
-                // Scene textures are uploaded as RGBA16F. RGBA32F doubled
-                // the GPU footprint without improving the source formats used
-                // by MMD/VRM/glTF, and made a valid multi-mip set exceed the
-                // model budget before hardware LOD could be used.
-                gpuBytes += (long) mipWidth * mipHeight * 8;
-                if (gpuBytes > limits.maxBytes()) throw new IOException("Scene texture storage budget exceeded");
-                if (!key.sampler().mipmaps() || mipWidth == 1 && mipHeight == 1) break;
-                mipWidth = Math.max(1, mipWidth / 2);
-                mipHeight = Math.max(1, mipHeight / 2);
-            } while (true);
             var interpretations = samples.computeIfAbsent(image, ignored -> new HashMap<>());
             var data = interpretations.get(key.usage());
             if (data == null) {
                 long remainingBytes = limits.maxBytes() - bytes;
                 long remainingPixels = limits.maxElements() - pixels;
                 if (remainingBytes < 1 || remainingPixels < 1) throw new IOException("Scene material sample budget exceeded");
-                var remaining=new ReadLimits((int) remainingBytes, (int) remainingPixels,
-                                (int) Math.min(remainingBytes, limits.maxStringBytes()));
+                // The source image is already included in bytes/pixels. Give
+                // the provider that source allowance back while it decides
+                // whether a usage can pass through or needs a converted copy.
+                long providerBytes=Math.addExact(remainingBytes,image.rgba().storageBytes());
+                long providerPixels=Math.addExact(remainingPixels,(long)image.width()*image.height());
+                var remaining=new ReadLimits((int)Math.min(Integer.MAX_VALUE,providerBytes),
+                        (int)Math.min(Integer.MAX_VALUE,providerPixels),
+                        (int)Math.min(providerBytes,limits.maxStringBytes()));
                 data = cache==null?YsmRuntime.scenes().texturePixels(image,key.usage(),remaining):cache.texturePixels(image,key.usage(),remaining);
-                bytes += data.storageBytes();
-                pixels += (long) image.width() * image.height();
+                if (data != image.rgba()) {
+                    bytes = Math.addExact(bytes, data.storageBytes());
+                    pixels = Math.addExact(pixels, (long) image.width() * image.height());
+                }
                 interpretations.put(key.usage(), data);
             }
+            int bytesPerPixel=data.isNormalized8()?4:8;
+            int mipWidth = image.width(), mipHeight = image.height();
+            do {
+                // MMD SOURCE_NUMERIC RGBA8 samples can stay normalized bytes
+                // all the way to GL_RGBA8. Float-working textures retain the
+                // half-float accounting used by color-converted scene inputs.
+                gpuBytes += (long) mipWidth * mipHeight * bytesPerPixel;
+                if (gpuBytes > limits.maxBytes()) throw new IOException("Scene texture storage budget exceeded");
+                if (!key.sampler().mipmaps() || mipWidth == 1 && mipHeight == 1) break;
+                mipWidth = Math.max(1, mipWidth / 2);
+                mipHeight = Math.max(1, mipHeight / 2);
+            } while (true);
             output.put(key, new Pixels(image.width(), image.height(), data, key.sampler()));
         }
         requireActive(cancelled);

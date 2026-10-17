@@ -14,7 +14,12 @@ public final class GeneralSceneCache {
         if(cache==null || configured!=budget) {
             budget=configured;
             String version=net.minecraftforge.fml.ModList.get().getModContainerById("ysm").orElseThrow().getModInfo().getVersion().toString();
-            cache=new SceneDiskCache(AssetPaths.gameCacheRoot().resolve("scene"),"oh-my-ysm/"+version+"/surface-1",
+            // The image representation changed from eager float RGBA to compact
+            // UNORM8 with budget-aware downsampling.  Keep old cache entries out
+            // of the new cumulative image/material budget; otherwise a cached
+            // 4K float image can consume the budget before the next texture is
+            // decoded and make an unrelated MMD texture look corrupt.
+            cache=new SceneDiskCache(AssetPaths.gameCacheRoot().resolve("scene"),"oh-my-ysm/"+version+"/surface-3",
                     (long)budget*1024*1024,Math.min((long)budget,1024)*1024*1024);
         }
         return cache;

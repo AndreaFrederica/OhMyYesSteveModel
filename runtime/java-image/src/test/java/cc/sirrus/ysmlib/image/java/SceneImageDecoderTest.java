@@ -40,10 +40,11 @@ class SceneImageDecoderTest {
     // File scan lines 0,2,4,1,3; origin at top. Sixteenth descriptor bit is a real horizontal origin.
     var b=tga(2,1,5,24,0x60);b.put(new byte[]{0,0,10,0,0,30,0,0,50,0,0,20,0,0,40});
     var decoded=decode(b);
+    assertTrue(decoded.rgba().isNormalized8());
     for(int y=0;y<5;y++) assertEquals((y+1)*10/255f,decoded.sample(0,y,0),1e-7);
     b=tga(1,2,1,16,0x20);b.put(1,(byte)1);b.putShort(3,(short)300);b.putShort(5,(short)2);b.put(7,(byte)24);
     b.put(new byte[]{0,0,(byte)255,0,(byte)255,0});b.putShort((short)301).putShort((short)300);
-    decoded=decode(b);assertEquals(1,decoded.sample(0,0,1));assertEquals(1,decoded.sample(1,0,0));
+    decoded=decode(b);assertTrue(decoded.rgba().isNormalized8());assertEquals(1,decoded.sample(0,0,1));assertEquals(1,decoded.sample(1,0,0));
     b=tga(2,1,1,16,0x21);b.putShort((short)0x8421);decoded=decode(b);
     assertEquals(1f/31,decoded.sample(0,0,0),1e-7);assertEquals(new IntData(5,5,5,1),decoded.componentBits());
   }
@@ -85,6 +86,26 @@ class SceneImageDecoderTest {
     assertEquals(32,decoded.width());assertEquals(32,decoded.height());
     assertEquals("2",decoded.metadata().get("downsampleFactor"));
     assertEquals("64",decoded.metadata().get("sourceWidth"));
+  }
+  @Test void bmpRasterValidationAllowsBoundedSourceSubsampling() throws Exception {
+    var sourceImage=new BufferedImage(512,512,BufferedImage.TYPE_3BYTE_BGR);
+    var bytes=new ByteArrayOutputStream();assertTrue(ImageIO.write(sourceImage,"bmp",bytes));
+    // The compact decoder accounts for its source copy and destination raster;
+    // the full 512x512 RGBA8 result fits this budget without needless resize.
+    var decoded=decoder.read(new ByteData(bytes.toByteArray()),"",new ReadLimits(4_500_000,1_000_000,1024));
+    assertEquals(512,decoded.width());assertEquals(512,decoded.height());
+    assertNull(decoded.metadata().get("downsampleFactor"));
+  }
+  @Test void tgaDecoderDownsamplesBeforeAllocatingFloatRaster() throws Exception {
+    int width=512,height=512;
+    var bytes=ByteBuffer.allocate(18+width*height*3).order(ByteOrder.LITTLE_ENDIAN);
+    bytes.put(2,(byte)2);
+    bytes.putShort(12,(short)width);bytes.putShort(14,(short)height);bytes.put(16,(byte)24);bytes.put(17,(byte)0);
+    bytes.position(18);bytes.put(new byte[width*height*3]);
+    var decoded=decoder.read(new ByteData(Arrays.copyOf(bytes.array(),bytes.position())),"tga",
+        new ReadLimits(5_000_000,1_000_000,1024));
+    assertEquals(512,decoded.width());assertEquals(512,decoded.height());
+    assertNull(decoded.metadata().get("downsampleFactor"));
   }
   private SceneImage decode(ByteBuffer b) throws Exception { return decoder.read(new ByteData(Arrays.copyOf(b.array(),b.position())),"tga",ReadLimits.DEFAULT); }
   private static ByteBuffer tga(int type,int width,int height,int bits,int descriptor) {

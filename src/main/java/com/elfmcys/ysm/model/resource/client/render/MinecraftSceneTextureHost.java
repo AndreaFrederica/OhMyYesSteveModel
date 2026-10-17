@@ -10,7 +10,7 @@ import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryUtil;
 import java.io.IOException;
 
-/** Render-owner upload of float samples already in the material's working space; no parsing or color conversion here. */
+/** Render-owner upload of already prepared material samples; no parsing or color conversion here. */
 public final class MinecraftSceneTextureHost implements SceneTexturePublication.Host<ResourceLocation> {
     public static final MinecraftSceneTextureHost INSTANCE = new MinecraftSceneTextureHost();
     private long nextId;
@@ -65,9 +65,15 @@ public final class MinecraftSceneTextureHost implements SceneTexturePublication.
             int skipRows = GL11C.glGetInteger(GL11C.GL_UNPACK_SKIP_ROWS);
             int skipPixels = GL11C.glGetInteger(GL11C.GL_UNPACK_SKIP_PIXELS);
             int swapBytes = GL11C.glGetInteger(GL11C.GL_UNPACK_SWAP_BYTES);
-            var data = MemoryUtil.memAllocFloat(upload.rgba().size());
+            boolean compact = upload.rgba().isNormalized8();
+            var data = MemoryUtil.memAlloc(Math.multiplyExact(upload.rgba().size(), compact ? 1 : Float.BYTES));
             try {
-                data.put(upload.rgba().view()).flip();
+                if (compact) {
+                    data.put(upload.rgba().copyNormalized8()).flip();
+                } else {
+                    data.asFloatBuffer().put(upload.rgba().view());
+                    data.position(0).limit(upload.rgba().size() * Float.BYTES);
+                }
                 GL15C.glBindBuffer(GL21C.GL_PIXEL_UNPACK_BUFFER, 0);
                 GL11C.glBindTexture(GL11C.GL_TEXTURE_2D, getId());
                 GL11C.glPixelStorei(GL11C.GL_UNPACK_ALIGNMENT, 1);
@@ -75,8 +81,9 @@ public final class MinecraftSceneTextureHost implements SceneTexturePublication.
                 GL11C.glPixelStorei(GL11C.GL_UNPACK_SKIP_ROWS, 0);
                 GL11C.glPixelStorei(GL11C.GL_UNPACK_SKIP_PIXELS, 0);
                 GL11C.glPixelStorei(GL11C.GL_UNPACK_SWAP_BYTES, 0);
-                GL11C.glTexImage2D(GL11C.GL_TEXTURE_2D, 0, GL30C.GL_RGBA16F, upload.width(), upload.height(), 0,
-                        GL11C.GL_RGBA, GL11C.GL_FLOAT, data);
+                GL11C.glTexImage2D(GL11C.GL_TEXTURE_2D, 0, compact ? GL11C.GL_RGBA8 : GL30C.GL_RGBA16F,
+                        upload.width(), upload.height(), 0, GL11C.GL_RGBA,
+                        compact ? GL11C.GL_UNSIGNED_BYTE : GL11C.GL_FLOAT, data);
                 var sampler = upload.sampler();
                 GL11C.glTexParameteri(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MAG_FILTER, sampler.magFilter());
                 GL11C.glTexParameteri(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MIN_FILTER, sampler.minFilter());

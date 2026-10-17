@@ -13,6 +13,48 @@ import javax.imageio.stream.MemoryCacheImageInputStream;
 
 /** General-scene samples; deliberately separate from the legacy MC RGBA8 image wire. */
 public final class SceneImageDecoder {
+  /** Returns the deterministic retained-raster variant selected for a bounded decode. */
+  public String cacheVariant(ByteData source,String hint,ReadLimits limits) throws IOException {
+    Objects.requireNonNull(source);Objects.requireNonNull(limits);
+    if(source.size()>limits.maxBytes()) throw new IOException("Encoded scene image exceeds byte budget");
+    String formatHint=Objects.requireNonNullElse(hint,"").toLowerCase(Locale.ROOT);
+    var format=detect(source,formatHint);
+    if(format==SceneImage.Format.TGA) return new TgaDecoder().cacheVariant(source,limits);
+    if(format==SceneImage.Format.ZTX || format==SceneImage.Format.AVIF) return format.name()+":native";
+    if(format==SceneImage.Format.BMP) validateBmp(source,limits);
+    try(var stream=new MemoryCacheImageInputStream(new ByteArrayInputStream(source.copy()))) {
+      ImageReader reader=switch(format) {
+        case BMP -> new BMPImageReaderSpi().createReaderInstance();
+        case WEBP -> new WebPImageReaderSpi().createReaderInstance();
+        default -> standardReader(format);
+      };
+      try {
+        reader.setInput(stream,false,true);
+        int sourceWidth=reader.getWidth(0),sourceHeight=reader.getHeight(0);
+        var raw=reader.getRawImageType(0);
+        if(raw==null) throw new IOException("No source image sample layout: "+format);
+        int colorType=raw.getColorModel().getColorSpace().getType();
+        if(colorType!=ColorSpace.TYPE_RGB && colorType!=ColorSpace.TYPE_GRAY)
+          throw new IOException("Scene image color layout needs an explicit conversion: "+colorType);
+        boolean gray=raw.getColorModel().getNumColorComponents()==1;
+        boolean alpha=raw.getColorModel().hasAlpha();
+        boolean compact=componentBits(raw,gray,alpha)<=8;
+        int sample=1;
+        while(sample<1024) {
+          int candidateWidth=(sourceWidth+sample-1)/sample;
+          int candidateHeight=(sourceHeight+sample-1)/sample;
+          if(fitsBudget(source,candidateWidth,candidateHeight,limits,compact?8:32,1L)) break;
+          sample<<=1;
+        }
+        int width=(sourceWidth+sample-1)/sample,height=(sourceHeight+sample-1)/sample;
+        budget(source,width,height,limits,compact?8:32,1L);
+        return format.name()+":"+sample+":"+width+"x"+height+":"+(compact?"unorm8":"float")+":"+componentBits(raw,gray,alpha);
+      } finally { reader.dispose(); }
+    } catch(IllegalArgumentException | IndexOutOfBoundsException invalid) {
+      throw new IOException("Invalid scene image",invalid);
+    }
+  }
+
   public SceneImage read(ByteData source,String hint,ReadLimits limits) throws IOException {
     Objects.requireNonNull(source);Objects.requireNonNull(limits);
     if(source.size()>limits.maxBytes()) throw new IOException("Encoded scene image exceeds byte budget");
@@ -48,11 +90,22 @@ public final class SceneImageDecoder {
           while (sample < 1024) {
             int candidateWidth=(sourceWidth+sample-1)/sample;
             int candidateHeight=(sourceHeight+sample-1)/sample;
-            if (fitsBudget(source,candidateWidth,candidateHeight,limits,compact?12:40)) break;
+            // SceneImage is retained for the whole package and is subsequently
+            // sampled into a material working set.  Admission must charge the
+            // retained pixels plus the two float scratch copies used by the
+            // material conversion, otherwise a valid 8K atlas passes image
+            // decoding and fails later in SceneImageSamples with no way to
+            // recover.  Keep the same conservative estimate for the decoder
+            // and the material stage.
+            // The ImageIO source copy and destination raster are transient;
+            // only the decoded FloatData/UNORM8 payload is retained. Charge
+            // the actual peak for this decoder rather than accumulating future
+            // material scratch arrays for every image in the package.
+            if (fitsBudget(source,candidateWidth,candidateHeight,limits,compact?8:32,1L)) break;
             sample <<= 1;
           }
           int width=(sourceWidth+sample-1)/sample,height=(sourceHeight+sample-1)/sample;
-          budget(source,width,height,limits,compact?12:40);
+          budget(source,width,height,limits,compact?8:32,1L);
           var param=reader.getDefaultReadParam();
           if (sample>1) param.setSourceSubsampling(sample,sample,0,0);
           param.setDestinationType(raw);
@@ -94,21 +147,27 @@ public final class SceneImageDecoder {
     budget(source,width,height,limits,40);
   }
   static void budget(ByteData source,int width,int height,ReadLimits limits,int bytesPerPixel) throws IOException {
+    budget(source,width,height,limits,bytesPerPixel,2L);
+  }
+  /** Budget a decoder whose input is already owned by the caller and is not copied. */
+  static void budget(ByteData source,int width,int height,ReadLimits limits,int bytesPerPixel,long sourceCopies) throws IOException {
     long pixels=(long)width*height;
-    // Includes the output and its immutable ownership copy (32 bytes/pixel),
-    // a bounded decoder raster and the encoded input copy. 40 bytes/pixel
-    // keeps two 4K RGBA images admissible under a 1 GiB scene budget while
-    // still charging substantially more than the retained representation.
-    long estimated=Math.addExact(Math.multiplyExact(pixels,bytesPerPixel),Math.multiplyExact(2L,source.size()));
+    // Includes the retained RGBA samples and the two float material scratch
+    // copies.  The material stage uses the same admission formula, so a large
+    // atlas is downsampled before it can make the later preparation pass fail.
+    long estimated=Math.addExact(Math.multiplyExact(pixels,bytesPerPixel),Math.multiplyExact(sourceCopies,source.size()));
     if(width<1 || height<1 || pixels>limits.maxElements() || estimated>limits.maxBytes())
       throw new IOException("Decoded scene image exceeds pixel/byte budget: dimensions="+width+"x"+height
           +", pixels="+pixels+", encodedBytes="+source.size()+", estimatedBytes="+estimated
           +", estimatedBytesPerPixel="+bytesPerPixel+", maxBytes="+limits.maxBytes()+", maxPixels="+limits.maxElements());
   }
-  private static boolean fitsBudget(ByteData source,int width,int height,ReadLimits limits,int bytesPerPixel) {
+  static boolean fitsBudget(ByteData source,int width,int height,ReadLimits limits,int bytesPerPixel,long sourceCopies) {
     long pixels=(long)width*height;
     return width>=1 && height>=1 && pixels<=limits.maxElements()
-        && pixels<=((long)limits.maxBytes()-2L*source.size())/bytesPerPixel;
+        && pixels<=((long)limits.maxBytes()-sourceCopies*source.size())/bytesPerPixel;
+  }
+  private static boolean fitsBudget(ByteData source,int width,int height,ReadLimits limits,int bytesPerPixel) {
+    return fitsBudget(source,width,height,limits,bytesPerPixel,2L);
   }
 
   private static int componentBits(ImageTypeSpecifier raw,boolean gray,boolean alpha) {
@@ -136,7 +195,9 @@ public final class SceneImageDecoder {
     // before accepting AVIF scene data. Never silently truncate 10/12-bit images here.
     if(format==SceneImage.Format.AVIF) throw new IOException("AVIF scene sample precision is not yet available");
     var codec=new JavaImageProvider();var info=codec.probe(source.view());
-    budget(source,info.width(),info.height(),limits);
+    // The codec returns a temporary RGBA8 buffer which is immediately
+    // converted into the retained float representation.
+    budget(source,info.width(),info.height(),limits,20,0L);
     var bytes=codec.decode(source.view(),info);var pixels=new float[bytes.length];
     for(int i=0;i<bytes.length;i++) pixels[i]=(bytes[i]&255)/255f;
     return new SceneImage(format,info.width(),info.height(),FloatData.owned(pixels),new IntData(8,8,8,8),
@@ -172,7 +233,15 @@ public final class SceneImageDecoder {
       int width=b.getInt(18),height=b.getInt(22);
       if(width<1 || height==Integer.MIN_VALUE) throw new IOException("Invalid BMP dimensions");
       long pixels=(long)width*Math.abs(height);
-      if(pixels*48+colors*8+2L*source.size()>limits.maxBytes()) throw new IOException("BMP combined raster/palette budget exceeded");
+      // Do not reject the source raster against the remaining output budget here.
+      // ImageIO can legally read a BMP with source subsampling, and the bounded
+      // decode path below chooses that factor before allocating the destination
+      // image.  Checking the full source dimensions at this stage made a valid
+      // small MMD BMP fail after earlier 4K textures consumed the package budget,
+      // even though a 256/128-pixel destination would fit.  Keep the header
+      // arithmetic validation, then let budget()/fitsBudget() enforce the actual
+      // retained raster and working copies.
+      if(pixels<1) throw new IOException("Invalid BMP dimensions");
       long compression=Integer.toUnsignedLong(b.getInt(30));
       // Embedded PNG/JPEG would introduce a second unchecked dimension/allocation domain.
       if(compression==4 || compression==5) throw new IOException("Embedded PNG/JPEG BMP requires a bounded nested decoder");

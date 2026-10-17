@@ -40,6 +40,8 @@ final class ScenePackageAnimations {
             }
             // PMM exposes a project timeline and multiple object tracks, not a source-local model clip list.
         }
+        var profileBytes=assets.source().files().get(SceneModelProfile.PACKAGE_PATH);
+        if(profileBytes!=null) {var profile=YsmRuntime.scenes().readModelProfile(profileBytes);SceneFeatureBindings.validate(assets,profile);output.addAll(SceneFeatureBindings.animations(profile));}
         output.sort(Comparator.comparing(a -> a.selection().sourceId().startsWith("@ysm/generated/")));
         return List.copyOf(output);
     }

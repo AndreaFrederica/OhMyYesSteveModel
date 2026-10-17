@@ -34,20 +34,29 @@ final class ScenePackageImageLoader {
       // A PMX texture table is not a usage list. Large models often retain
       // unused 4K textures, and decoding every table entry would exhaust the
       // cumulative image budget before the renderer has requested anything.
+      record Candidate(ScenePackageImages.Key key,ByteData bytes,String hint) {}
       var usedIndexed=new LinkedHashSet<Integer>();
       var usedSharedToon=new LinkedHashSet<Integer>();
+      var candidates=new ArrayList<Candidate>();
       for(var material:services.materials(pmx.value()).definitions()) for(var image:material.images()) {
         if(image.kind()==cc.sirrus.ysmlib.scene.mmd.MmdMaterials.ImageKind.INDEXED) {
           int index=image.index();
           if(usedIndexed.add(index)) {
             var reference=pmx.value().textures().get(index);
-            if(!reference.isEmpty()) add(ScenePackageImages.Key.indexed(owner,index),resolve(owner,reference),reference);
+            if(!reference.isEmpty()) candidates.add(new Candidate(ScenePackageImages.Key.indexed(owner,index),resolve(owner,reference),reference));
           }
         } else if(image.kind()==cc.sirrus.ysmlib.scene.mmd.MmdMaterials.ImageKind.SHARED_TOON
             && usedSharedToon.add(image.index())) {
-          add(image.key(owner),services.sharedMmdToon(image.index()),"bmp");
+          candidates.add(new Candidate(image.key(owner),services.sharedMmdToon(image.index()),"bmp"));
         }
       }
+      // Admit the smallest source rasters first. The image budget is cumulative
+      // and each decode has a bounded encoded-source working copy; this order
+      // keeps small BMP/toon assets from being stranded behind a run of large
+      // atlases, while the large assets still downsample to the remaining
+      // retained-material budget.
+      candidates.sort(Comparator.comparingLong((Candidate c)->c.bytes().size()).thenComparing(c->c.key().toString()));
+      for(var candidate:candidates) add(candidate.key(),candidate.bytes(),candidate.hint());
     } else if(document instanceof ScenePackageAssets.Pmd pmd) {
       var references=new LinkedHashSet<String>();
       for(var material:pmd.value().materials()) {
@@ -92,7 +101,14 @@ final class ScenePackageImageLoader {
       var remaining=new ReadLimits((int)remainingBytes,(int)remainingPixels,(int)Math.min(limits.maxStringBytes(),remainingBytes));
       try { image=decoder.read(source,hint,remaining); }
       catch(IOException failure) { throw new AssetFormatException("Cannot decode scene image: "+key,failure); }
-      usedBytes+=image.rgba().storageBytes();usedPixels+=(long)image.width()*image.height();decoded.put(source,image);
+      long imagePixels=(long)image.width()*image.height();
+      // Only the decoded source image is retained by this loader. Material
+      // conversion scratch/results are charged when a concrete usage is
+      // prepared, so temporary arrays are never accumulated once per image.
+      long retainedBytes=image.rgba().storageBytes();
+      if(retainedBytes>remainingBytes || imagePixels>remainingPixels)
+        throw new AssetFormatException("Cumulative decoded image budget exceeded");
+      usedBytes+=retainedBytes;usedPixels+=imagePixels;decoded.put(source,image);
     }
     images.put(key,image);
   }

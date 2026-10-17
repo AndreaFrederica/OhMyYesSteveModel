@@ -4,6 +4,7 @@ import cc.sirrus.ysmlib.scene.*;
 import cc.sirrus.ysmlib.scene.io.*;
 import cc.sirrus.ysmlib.scene.mmd.*;
 import cc.sirrus.ysmlib.scene.vrm.VrmMaterials;
+import cc.sirrus.ysmlib.scene.fbx.FbxMappingProfile;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
@@ -85,7 +86,8 @@ public final class SceneDiskCache {
     public Rest rest(ScenePackageAssets assets) throws IOException {
       item=assets.source().model().path();
       var sidecar=assets.source().files().get(SceneModelProfile.PACKAGE_PATH);
-      return derive("geometry",key(assetsKey(assets),sidecar==null?"":hash(sidecar)),Rest.class,assets.source().files(),()->{
+      var fbxMapping=assets.source().files().get(FbxMappingProfile.PACKAGE_PATH);
+      return derive("geometry",key(assetsKey(assets),sidecar==null?"":hash(sidecar),fbxMapping==null?"":hash(fbxMapping)),Rest.class,assets.source().files(),()->{
         try(var player=services.playback(assets,ScenePackagePlayback.Selection.REST,ScenePackagePlayback.Settings.preview().withPhysics(false),limits)) {
           var frame=player.seek(0);var diagnostics=frame.details() instanceof ScenePackagePlayback.Mmd m?m.value().pose().diagnostics():List.<CompatibilityReport.Diagnostic>of();
           return new Rest(frame.thirdPerson(),frame.firstPerson(),frame.details() instanceof ScenePackagePlayback.Vrm v?v.materials():null,diagnostics,services.animations(assets,30));
@@ -102,7 +104,11 @@ public final class SceneDiskCache {
     }
     private SceneImage image(ByteData source,String hint,ReadLimits remaining) throws IOException {
       item=hint;
-      String key=key(profile,hash(source),hint.toLowerCase(Locale.ROOT),remaining.toString());
+      // The decoder may choose a power-of-two downsample factor from the
+      // remaining budget.  Key the selected output variant, rather than the
+      // transient byte/pixel totals, so equivalent variants share an entry
+      // while a smaller-budget decode never masquerades as a full-resolution one.
+      String key=key(profile,hash(source),hint.toLowerCase(Locale.ROOT),services.imageCacheVariant(source,hint,remaining));
       var result=derive("image",key,SceneImage.class,Map.of("source",source),()->services.readImage(source,hint,remaining));
       if(result.rgba().storageBytes()>remaining.maxBytes() || (long)result.width()*result.height()>remaining.maxElements())throw new IOException("Cached image exceeds remaining scene budget");
       imageKeys.put(result,key);imageLabels.put(result,hint);return result;
@@ -116,7 +122,10 @@ public final class SceneDiskCache {
       if(imageKey==null) { // Also usable by standalone hosts supplying already decoded images.
         var digest=SceneCacheCodec.digest();SceneCacheCodec.write(new DigestOutputStream(OutputStream.nullOutputStream(),digest),image,Map.of());imageKey=HexFormat.of().formatHex(digest.digest());
       }
-      String key=key(profile,imageKey,usage.toString(),remaining.toString());
+      // Material samples are identified by source pixels and sampler meaning.
+      // The remaining budget is still checked after decoding, but must not
+      // fragment the persistent cache into one entry per transient budget.
+      String key=key(profile,imageKey,usage.toString());
       var result=derive("material",key,FloatData.class,Map.of(),()->services.texturePixels(image,usage,remaining));
       if(result.size()!=image.rgba().size() || result.storageBytes()>remaining.maxBytes())throw new IOException("Invalid cached material sample shape/budget");
       return result;

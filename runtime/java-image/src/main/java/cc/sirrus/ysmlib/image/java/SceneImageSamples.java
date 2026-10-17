@@ -27,9 +27,6 @@ public final class SceneImageSamples {
   /** Returns existing immutable pixels when interpretation needs no work, otherwise null. Same admission checks as prepare. */
   public FloatData passthrough(SceneImage source,SceneImageUsage usage,ReadLimits limits) throws IOException {
     Objects.requireNonNull(source);Objects.requireNonNull(usage);Objects.requireNonNull(limits);
-    long sampleBytes=source.rgba().storageBytes()+(long)source.rgba().size()*Float.BYTES*2;
-    if((long)source.width()*source.height()>limits.maxElements() || sampleBytes>limits.maxBytes())
-      throw new IOException("Material texture sample budget exceeded");
     if(usage.alpha()==SceneImageUsage.Alpha.STRAIGHT && source.alpha()==SceneImage.Alpha.UNDEFINED)
       throw new IOException("Undefined source attributes cannot be interpreted as opacity");
     // SOURCE_NUMERIC/LINEAR preserves the decoded RGB samples.  Keep the
@@ -40,6 +37,19 @@ public final class SceneImageSamples {
     boolean alphaUnchanged=usage.alpha()==SceneImageUsage.Alpha.RAW
         || usage.alpha()==SceneImageUsage.Alpha.STRAIGHT && source.alpha()!=SceneImage.Alpha.PREMULTIPLIED
         || usage.alpha()==SceneImageUsage.Alpha.OPAQUE && source.alpha()==SceneImage.Alpha.OPAQUE;
-    return rgbUnchanged && alphaUnchanged?source.rgba():null;
+    if(rgbUnchanged && alphaUnchanged) {
+      if((long)source.width()*source.height()>limits.maxElements()
+          || source.rgba().storageBytes()>limits.maxBytes())
+        throw new IOException("Material texture sample budget exceeded");
+      return source.rgba();
+    }
+    // prepare() retains the converted float result while the source image is
+    // still retained by the package. Account for those two real payloads;
+    // temporary loop state is bounded and is not charged per package image.
+    long sampleBytes=Math.addExact(source.rgba().storageBytes(),
+        Math.multiplyExact((long)source.rgba().size(),Float.BYTES));
+    if((long)source.width()*source.height()>limits.maxElements() || sampleBytes>limits.maxBytes())
+      throw new IOException("Material texture sample budget exceeded");
+    return null;
   }
 }

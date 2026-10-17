@@ -60,6 +60,21 @@ class SceneDiskCacheTest {
     }
     assertTrue(events.stream().noneMatch(e->e.state().equals("building")),events.toString());
   }
+  @Test void transientRemainingBudgetDoesNotFragmentMaterialCache(@TempDir Path root)throws Exception {
+    var source=new ScenePackageImagesTest().gltf(true);
+    var events=new ArrayList<SceneDiskCache.Event>();
+    var session=cache(root).session(scenes,limits,events::add,()->false);
+    var images=session.images(session.loadPackage(source));
+    var image=images.require(ScenePackageImages.Key.indexed("model/avatar.gltf",0));
+    var usage=new SceneImageUsage(SceneImageUsage.Transfer.SRGB,SceneImageUsage.Alpha.STRAIGHT);
+    session.texturePixels(image,usage,limits);
+    events.clear();
+    // The decoded result is identical even though this call has a different
+    // transient admission limit.  It must reuse the content-addressed entry.
+    session.texturePixels(image,usage,new ReadLimits(1024,limits.maxElements(),1024));
+    assertTrue(events.stream().anyMatch(e->e.stage().equals("material")&&e.state().equals("hit")&&e.reason().equals("disk")),events.toString());
+    assertTrue(events.stream().noneMatch(e->e.state().equals("building")),events.toString());
+  }
   @Test void corruptEntriesAreRebuiltAndSourceVersionAndLimitsInvalidate(@TempDir Path root)throws Exception {
     var source=pack(ScenePackage.Format.PMX,"skin.pmx",Map.of("skin.pmx",resource("/mmd-oracle/skin.pmx")),List.of());
     var events=new ArrayList<SceneDiskCache.Event>();var disk=cache(root);disk.session(scenes,limits,events::add,()->false).loadPackage(source);
