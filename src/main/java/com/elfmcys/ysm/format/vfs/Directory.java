@@ -18,7 +18,6 @@ import java.util.Comparator;
 
 public class Directory implements VirtualFileSystem, Closeable {
     private final Path dir;
-    private ArrayBuffer buffer;
     private boolean closed;
 
     public Directory(Path dir) {
@@ -63,19 +62,6 @@ public class Directory implements VirtualFileSystem, Closeable {
         return file != null && Files.isRegularFile(file);
     }
 
-    private ArrayBuffer getBufferView(int size) {
-        if (buffer != null) {
-            if (buffer.size() < size) {
-                var newSize = Math.max(size, Math.min(UniBuffer.MAX_SIZE, buffer.size() * 2));
-                buffer.close();
-                buffer = ArrayBuffer.allocate(newSize);
-            }
-        } else {
-            buffer = ArrayBuffer.allocate(Math.max(32 * 1024, size));
-        }
-        return buffer.slice(0, size).borrow();
-    }
-
     @Override
     public @Nullable ArrayBuffer getFile(String fileName) {
         var file = prependPath(fileName);
@@ -89,7 +75,12 @@ public class Directory implements VirtualFileSystem, Closeable {
                 throw new IllegalArgumentException("File is too large: " + file);
             }
 
-            var buffer = getBufferView((int) size);
+            // Each result owns its backing storage.  Returning a view into a
+            // reusable Directory buffer lets a later read overwrite or close
+            // the bytes while a parser is still consuming them.  When the
+            // backing implementation is native/direct, that becomes a
+            // use-after-free in ByteBuffer.get().
+            var buffer = ArrayBuffer.allocate((int) size);
             readFully(channel, buffer.nio(), file);
             return buffer;
         } catch (IOException e) {
@@ -100,10 +91,6 @@ public class Directory implements VirtualFileSystem, Closeable {
     @Override
     public void close() {
         if (!closed) {
-            if (buffer != null) {
-                buffer.close();
-                buffer = null;
-            }
             closed = true;
         }
     }

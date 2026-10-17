@@ -56,6 +56,39 @@ class PortableCaptureTest {
         Files.delete(zip);
     }
 
+    @Test void directoryReadsHaveIndependentBackingStorage() throws Exception {
+        Files.write(temp.resolve("small.json"), "{\"ok\":true}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Files.write(temp.resolve("large.bin"), new byte[128 * 1024]);
+        try (var source = new Directory(temp)) {
+            var first = source.getFile("small.json");
+            assertNotNull(first);
+            var expected = bytes(first);
+            var second = source.getFile("large.bin");
+            assertNotNull(second);
+            assertArrayEquals(expected, bytes(first));
+        }
+    }
+
+    @Test void archiveReadsHaveIndependentBackingStorage() throws Exception {
+        Path zip = temp.resolve("independent.zip");
+        try (var out = new ZipOutputStream(Files.newOutputStream(zip))) {
+            out.putNextEntry(new ZipEntry("small.json"));
+            out.write("{\"ok\":true}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            out.closeEntry();
+            out.putNextEntry(new ZipEntry("large.bin"));
+            out.write(new byte[128 * 1024]);
+            out.closeEntry();
+        }
+        try (var source = ArchiveFileSystem.open(zip)) {
+            var first = source.getFile("small.json");
+            assertNotNull(first);
+            var expected = bytes(first);
+            var second = source.getFile("large.bin");
+            assertNotNull(second);
+            assertArrayEquals(expected, bytes(first));
+        }
+    }
+
     @Test void compiledV3NeverRoutesToRawArchive() throws Exception {
         Path v3 = Files.write(temp.resolve("v3.ysm"),
                 new byte[]{(byte) 0xef, (byte) 0xbb, (byte) 0xbf, 'Y', 'S', 'G', 'P', 0});

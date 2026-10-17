@@ -14,7 +14,6 @@ import java.util.Locale;
 /** Mod adapter only; archive codecs live in the independent portable runtime. */
 public final class ArchiveFileSystem implements VirtualFileSystem, Closeable {
     private final Archive archive;
-    private ArrayBuffer current;
     private boolean closed;
 
     private ArchiveFileSystem(Archive archive) { this.archive = archive; }
@@ -48,22 +47,19 @@ public final class ArchiveFileSystem implements VirtualFileSystem, Closeable {
         checkOpen();
         try {
             byte[] bytes = archive.read(path);
-            if (current != null) { current.close(); current = null; }
             if (bytes == null) return null;
-            current = ArrayBuffer.move(bytes);
-            return current.borrow();
+            // Keep every result independent.  Reusing and closing the prior
+            // owner invalidated borrowed views while parsers were still
+            // reading them, which can surface as a JVM native access violation.
+            return ArrayBuffer.move(bytes);
         } catch (IOException failure) { throw new UncheckedIOException(failure); }
     }
 
     @Override public void close() {
         if (closed) return;
         closed = true;
-        try { if (current != null) current.close(); }
-        finally {
-            current = null;
-            try { archive.close(); }
-            catch (IOException failure) { throw new UncheckedIOException(failure); }
-        }
+        try { archive.close(); }
+        catch (IOException failure) { throw new UncheckedIOException(failure); }
     }
     private void checkOpen() { if (closed) throw new IllegalStateException("Archive is closed"); }
 }
