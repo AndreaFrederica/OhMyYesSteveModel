@@ -143,6 +143,13 @@ final class ServerProbe {
     private PendingAction start(HostAction next) {
         return switch (next.name()) {
             case "snapshot" -> () -> snapshot();
+            case "equip-scene-items" -> () -> {
+                var player=server.getPlayerList().getPlayerByName(next.require("player"));
+                if(player==null)throw new IllegalStateException("Missing scene player");
+                player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD));
+                player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND,new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+                return Map.of("equipped",true);
+            };
             case "prepare-render-stage" -> () -> prepareRenderStage(next.require("player"));
             case "await-pack" -> () -> awaitPack(next.require("hierarchy"));
             case "await-selection" -> () -> awaitSelection(
@@ -168,6 +175,8 @@ final class ServerProbe {
             for (int z = -8; z <= 8; z++) {
                 level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x, 199, z),
                         net.minecraft.world.level.block.Blocks.SMOOTH_STONE.defaultBlockState());
+                // Keep isolated screenshot lighting stable while newly generated skylight propagates.
+                level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x, 202, z),net.minecraft.world.level.block.Blocks.LIGHT.defaultBlockState());
             }
         }
         level.setDayTime(6000);

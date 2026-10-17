@@ -222,6 +222,8 @@ public final class ClientProbe {
             case "runtime-render-proof" -> new RuntimeRenderProof();
             case "runtime-first-person-proof" -> new FirstPersonProof();
             case "runtime-first-person-body-proof" -> new FirstPersonBodyProbe(io, () -> ticks);
+            case "scene-remote-proof" -> new SceneRemoteProof(next.require("player"),next.require("path"));
+            case "scene-first-person-proof" -> new SceneFirstPersonProbe(io, () -> ticks);
             case "runtime-audio-proof" -> new RuntimeAudioProof(next.require("codec"));
             case "await-path" -> () -> awaitPath(next.require("path"));
             case "page-pack-cover" -> new PagePackCover(next.require("hierarchy"));
@@ -338,6 +340,25 @@ public final class ClientProbe {
         return Map.of("pack", name, "folderClicked", false, "automaticRefresh", true);
     }
 
+    private final class SceneRemoteProof implements PendingAction {
+        private final String name,path;private int captureAt=-1;private long initial;
+        private final net.minecraft.client.CameraType previous=minecraft.options.getCameraType();
+        SceneRemoteProof(String name,String path){this.name=name;this.path=path;minecraft.setScreen(null);minecraft.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);}
+        public Map<String,?> poll()throws Exception{
+            if(minecraft.level==null)return null;
+            var remote=minecraft.level.players().stream().filter(p->p.getGameProfile().getName().equals(name)).findFirst().orElse(null);if(remote==null)return null;
+            float yaw=(float)Math.toDegrees(-Math.atan2(remote.getX()-minecraft.player.getX(),remote.getZ()-minecraft.player.getZ()));
+            minecraft.player.setYRot(yaw);minecraft.player.yRotO=yaw;minecraft.player.setXRot(0);minecraft.player.xRotO=0;
+            var facts=awaitPlayerModel(name,path);if(facts==null)return null;
+            if(captureAt<0){initial=RenderFeatureProbe.sceneDraws(remote.getId());captureAt=ticks+45;return null;}
+            if(ticks<captureAt)return null;long draws=RenderFeatureProbe.sceneDraws(remote.getId())-initial;
+            if(draws<1)throw new IllegalStateException("Remote VRM did not render driven bones");
+            try(var image=net.minecraft.client.Screenshot.takeScreenshot(minecraft.getMainRenderTarget())){image.writeToFile(io.artifact("scene-remote-"+name+".png"));}
+            finally{minecraft.options.setCameraType(previous);}
+            return Map.of("remote",facts,"drivenSceneDraws",draws);
+        }
+    }
+
     private final class PairRenderProof implements PendingAction {
         private final int captureAt = ticks + 10;
         private final net.minecraft.client.CameraType previous = minecraft.options.getCameraType();
@@ -443,8 +464,10 @@ public final class ClientProbe {
         if (entry == null) {
             return null;
         }
-        var texture = entry.displayRepresentation().view().getPlayer().getTextureNames()
-                .stream().findFirst().orElse("");
+        var view = entry.displayRepresentation().view();
+        var texture = view.schema() == com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH
+                ? com.elfmcys.ysm.model.domain.RenderTargetIds.GENERAL_MESH_VARIANT
+                : view.getPlayer().getTextureNames().stream().findFirst().orElse("");
         ClientProtocolGateway.selectModel(modelId, texture);
         return Map.of(
                 "connection", connectionId(currentConnection),

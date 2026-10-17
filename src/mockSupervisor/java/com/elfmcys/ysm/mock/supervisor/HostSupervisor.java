@@ -34,7 +34,8 @@ import java.util.stream.Stream;
 
 public final class HostSupervisor {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-    private static final String SCENARIO_ID = "MMR-FORGE-THIN-001";
+    private static final String SCENARIO_ID = System.getProperty("ysm.mockSceneModel", "").isBlank()
+            ? "MMR-FORGE-THIN-001" : "SCENE-FIRST-PERSON-001";
     private static final Duration READY_TIMEOUT = Duration.ofMinutes(4);
     private static final Duration ACTION_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration EXIT_TIMEOUT = Duration.ofMinutes(2);
@@ -90,6 +91,7 @@ public final class HostSupervisor {
             mismatches.add(productFailure.getMessage());
         } catch (Throwable infrastructureFailure) {
             failure = infrastructureFailure;
+            infrastructureFailure.printStackTrace();
             outcome = ScenarioEvidence.Outcome.UNREVIEWABLE;
             mismatches.add(infrastructureFailure.getClass().getName() + ": "
                     + Objects.toString(infrastructureFailure.getMessage(), ""));
@@ -125,7 +127,8 @@ public final class HostSupervisor {
                 "runtimeLibrarySha256", sha256(runtimeLibrary),
                 "firstPersonCompat", Boolean.toString(Boolean.getBoolean("ysm.mockFirstPerson")),
                 "nativeAcceleration", Boolean.toString(Boolean.getBoolean("ysm.mockNative")),
-                "scenario", "thin-host-adapter-conformance",
+                "scenario", System.getProperty("ysm.mockSceneModel", "").isBlank()
+                        ? "thin-host-adapter-conformance" : "scene-first-person-regression",
                 "task", "modelManagementMockForge");
         var metadata = new EvidenceRun.Metadata(
                 new EvidenceRun.Revisions(3, 3, 2, implementationRevision),
@@ -151,6 +154,14 @@ public final class HostSupervisor {
     }
 
     private byte[] canonicalInput() throws Exception {
+        if (!System.getProperty("ysm.mockSceneModel", "").isBlank()) {
+            var model = Path.of(System.getProperty("ysm.mockSceneModel")).toRealPath();
+            return EvidenceJson.canonicalBytes(Map.of("sceneModel", model.toString(),
+                    "sourceTreeSha256", treeHash(model.getParent()), "isolated", true,
+                    "actions", List.of("server:publish-scene", "client-a:select-scene",
+                            "server:stage", "client-a:first-person-scene-proof", "all:normal-stop"),
+                    "runtimeLibrarySha256", sha256(runtimeLibrary)));
+        }
         var fixtureRoot = project.resolve("src/main/resources/assets/ysm/builtin/misc");
         var input = new LinkedHashMap<String, Object>();
         input.put("actions", List.of(
@@ -189,6 +200,9 @@ public final class HostSupervisor {
     }
 
     private void runScenario() throws Exception {
+        if (!System.getProperty("ysm.mockSceneModel", "").isBlank()) {
+            runSceneScenario();return;
+        }
         var scenarioDirectory = evidenceRoot.resolve(SCENARIO_ID);
         var processRoot = scenarioDirectory.resolve("processes");
         var serverGame = processRoot.resolve("server/game");
@@ -386,6 +400,57 @@ public final class HostSupervisor {
         awaitExit(server);
         normalStop = true;
         observations.add("All three Forge processes acknowledged normal lifecycle stop and exited");
+    }
+
+    /** Copies a real loose scene into an isolated server and exercises the normal remote loading path. */
+    private void runSceneScenario() throws Exception {
+        if (!Boolean.getBoolean("ysm.mockFirstPerson"))throw new IllegalArgumentException("Scene proof requires FirstPerson");
+        var model=Path.of(System.getProperty("ysm.mockSceneModel")).toRealPath();
+        var processRoot=evidenceRoot.resolve(SCENARIO_ID).resolve("processes");
+        var serverGame=processRoot.resolve("server/game");var clientGame=processRoot.resolve("client-a/game");
+        prepareServer(serverGame);prepareClient(clientGame,"AUTO");
+        var destination=serverGame.resolve("ysm/custom/scene");
+        try(var paths=Files.walk(model.getParent())) {
+            for(var file:paths.sorted().toList()) {
+                var target=destination.resolve(model.getParent().relativize(file));
+                if(Files.isDirectory(file))Files.createDirectories(target);else Files.copy(file,target);
+            }
+        }
+        Files.createDirectories(clientGame.resolve("mods"));
+        Files.copy(Path.of(System.getProperty("ysm.mockFirstPersonJar")),clientGame.resolve("mods/firstperson-test.jar"));
+        int port=reserveScenePort();String address="127.0.0.1:"+port;
+        Files.writeString(serverGame.resolve("server.properties"),"online-mode=false\nserver-ip=127.0.0.1\nserver-port="+port+"\nspawn-protection=0\nview-distance=3\nsimulation-distance=3\n",StandardCharsets.UTF_8);
+        var server=role("server",serverGame,serverScript,address);launch(server);awaitReady(server);
+        var client=role("client-a",clientGame,clientAScript,address);launch(client);awaitReady(client);
+        send(client,"scene-active","await-state",Map.of("state","ACTIVE"));
+        String path="scene/"+model.getFileName();
+        send(client,"scene-published","await-path",Map.of("path",path));
+        send(client,"scene-select","select-path",Map.of("path",path));
+        send(server,"scene-selected","await-selection",Map.of("player","YsmHostA","path",path));
+        send(client,"scene-equipped","await-equipped",Map.of("path",path));
+        send(server,"scene-stage","prepare-render-stage",Map.of("player","YsmHostA"));
+        send(server,"scene-items","equip-scene-items",Map.of("player","YsmHostA"));
+        var proof=send(client,"scene-first-person","scene-first-person-proof",Map.of());
+        expect(proof,"facts.noDuplicateBody",true);expect(proof,"facts.headOriginNearCamera",true);
+        expectAtLeast(proof,"facts.bodyDraws",1);expectAtLeast(proof,"facts.cameraFallbackDraws",1);
+        expectAtLeast(proof,"facts.thirdPersonDraws",1);
+        if(Boolean.getBoolean("ysm.mockScenePeers")){
+            var peerGame=processRoot.resolve("client-b/game");prepareClient(peerGame,"AUTO");Files.createDirectories(peerGame.resolve("mods"));
+            Files.copy(Path.of(System.getProperty("ysm.mockFirstPersonJar")),peerGame.resolve("mods/firstperson-test.jar"));
+            var peer=role("client-b",peerGame,clientBScript,address);launch(peer);awaitReady(peer);
+            send(peer,"scene-peer-active","await-state",Map.of("state","ACTIVE"));send(peer,"scene-peer-published","await-path",Map.of("path",path));
+            send(peer,"scene-peer-select","select-path",Map.of("path",path));send(peer,"scene-peer-equipped","await-equipped",Map.of("path",path));
+            send(server,"scene-peer-stage","prepare-render-stage",Map.of("player","YsmHostB"));
+            send(server,"scene-primary-stage","prepare-render-stage",Map.of("player","YsmHostA"));
+            send(server,"scene-peer-items","equip-scene-items",Map.of("player","YsmHostB"));
+            send(server,"scene-primary-items","equip-scene-items",Map.of("player","YsmHostA"));
+            send(peer,"scene-remote-a","scene-remote-proof",Map.of("player","YsmHostA","path",path));
+            send(client,"scene-remote-b","scene-remote-proof",Map.of("player","YsmHostB","path",path));
+            send(peer,"scene-peer-stop","stop",Map.of());awaitExit(peer);
+        }
+        send(client,"scene-client-stop","stop",Map.of());awaitExit(client);
+        send(server,"scene-server-stop","stop",Map.of());awaitExit(server);normalStop=true;
+        observations.add("Real scene FirstPerson body, camera fallback, third-person restoration and screenshots captured; original assets untouched");
     }
 
     private Role role(String name, Path gameDirectory, Path script, String address)
@@ -695,6 +760,18 @@ public final class HostSupervisor {
             socket.setReuseAddress(false);
             return socket.getLocalPort();
         }
+    }
+    private static int reserveScenePort() throws IOException {
+        // Match the server's IPv4 loopback bind and avoid Windows' dynamic port range.
+        IOException last=null;
+        for(int attempt=0;attempt<30;attempt++) {
+            try(var socket=new ServerSocket()) {
+                socket.setReuseAddress(false);
+                socket.bind(new java.net.InetSocketAddress("127.0.0.1",java.util.concurrent.ThreadLocalRandom.current().nextInt(20000,40000)));
+                return socket.getLocalPort();
+            } catch(IOException failure){last=failure;}
+        }
+        throw new IOException("No isolated IPv4 scene test port available",last);
     }
 
     private static void writeAtomically(Path target, byte[] bytes) throws IOException {

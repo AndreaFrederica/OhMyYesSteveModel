@@ -31,4 +31,10 @@ public final class RenderFeatureProbe {
         if (event.renderData().modelState.getVertexCount() > 0) draws.incrementAndGet(event.targetKind().ordinal());
         FirstPersonBodyProbe.observe(event);
     }
+    private static final java.util.Map<Integer,Long> sceneDraws=new java.util.HashMap<>();
+    static long sceneDraws(int entity){return sceneDraws.getOrDefault(entity,0L);}
+    @SubscribeEvent public static void onSceneDraw(com.elfmcys.ysm.api.rendering.v0.event.RenderSceneEvent event) {
+        if(event.target() instanceof net.minecraft.world.entity.player.Player player&&!event.context().inventory()&&!event.context().paperDoll()&&!event.context().offScreen()&&!event.firstPerson()&&!event.frame().drivenBones().isEmpty())sceneDraws.merge(player.getId(),1L,Long::sum);
+        SceneFirstPersonProbe.observe(event);
+    }
 }

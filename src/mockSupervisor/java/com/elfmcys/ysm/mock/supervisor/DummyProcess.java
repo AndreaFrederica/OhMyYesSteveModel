@@ -17,7 +17,11 @@ public final class DummyProcess {
             case "tree" -> {
                 var child = new ProcessBuilder(javaCommand("ready", args[2], "600000"))
                         .inheritIO().start();
-                Files.writeString(Path.of(args[1]), Long.toString(child.pid()));
+                var pidFile = Path.of(args[1]);
+                var temporary = pidFile.resolveSibling(pidFile.getFileName()+".tmp");
+                Files.writeString(temporary, Long.toString(child.pid()));
+                Files.move(temporary, pidFile, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 Thread.sleep(600000);
             }
             default -> throw new IllegalArgumentException("Unknown dummy mode: " + args[0]);
