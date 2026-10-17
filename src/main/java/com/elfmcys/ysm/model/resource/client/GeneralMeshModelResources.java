@@ -60,12 +60,18 @@ public final class GeneralMeshModelResources implements RenderTargetResources, A
                 low=Math.min(low,y);high=Math.max(high,y);
             }
         }
-        this.profile=saved!=null?YsmRuntime.scenes().readModelProfile(saved):SceneModelProfile.defaults(assets.source().settings().metersPerUnit(),
-            Double.isFinite(high-low)&&high>low?high-low:1,Double.isFinite(low)?low:0).withBones(SceneSkeleton.suggest(SceneSkeleton.of(assets)));
+        var initialProfile=saved!=null?YsmRuntime.scenes().readModelProfile(saved):cc.sirrus.ysmlib.SceneProfiles.defaults(assets,
+            Double.isFinite(high-low)&&high>low?high-low:1,Double.isFinite(low)?low:0);
+        this.profile=saved==null&&assets.model() instanceof ScenePackageAssets.Vrm?com.elfmcys.ysm.client.animation.VrmPlayerDefaults.configure(assets,initialProfile):initialProfile;
         SceneSkeleton.validate(SceneSkeleton.of(assets),profile.bones());
         profile.validateAnimations(assets.source(),animations);
     }
     public SceneModelProfile profile() { return profile; }
+
+    /** True only when the source supplied an explicit .omysm.json profile. */
+    public boolean hasAuthoredProfile() {
+        return assets.source().files().containsKey(SceneModelProfile.PACKAGE_PATH);
+    }
 
     /** CPU work only. Playback probing uses a private, immediately closed Lib session. */
     public static GeneralMeshModelResources prepare(ScenePackage source, ReadLimits limits, BooleanSupplier cancelled) throws IOException {

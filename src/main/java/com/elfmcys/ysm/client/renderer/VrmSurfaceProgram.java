@@ -66,6 +66,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
         if (triangle && !normal) throw new IllegalArgumentException("VRM triangle needs a normal");
         var attributes = new LinkedHashMap<String, Integer>(); attributes.put("POSITION", 0);
         var declarations = new StringBuilder();
+        if (shader == VrmMaterials.Shader.MTOON_0) declarations.append("#define MTOON_LEGACY\n");
         if (normal) { attributes.put("NORMAL", attributes.size()); declarations.append("#define HAS_NORMAL\n"); }
         if (tangent) { attributes.put("TANGENT", attributes.size()); declarations.append("#define HAS_TANGENT\n"); }
         if (geometry.attributes().containsKey("COLOR_0")) {
@@ -91,6 +92,7 @@ public final class VrmSurfaceProgram implements AutoCloseable {
                 default -> 0;
             };
             declarations.append("#define ").append(candidate.define()).append("_UV_MODE ").append(uvMode).append('\n');
+            if (texture.channel() == 1) declarations.append("#define ").append(candidate.define()).append("_GREEN_CHANNEL\n");
             if (texture.channel() == 2) declarations.append("#define ").append(candidate.define()).append("_BLUE_CHANNEL\n");
             declarations.append("#define ").append(candidate.define()).append("_UV_VALUE animationUv((")
                     .append(candidate.uniform()).append("UvTransform * vec3(")
@@ -155,6 +157,10 @@ public final class VrmSurfaceProgram implements AutoCloseable {
         private PreparedBinding(VrmMaterials.Material material, View view, int[] ids) { this.material = material; this.view = view; this.ids = ids; }
         public Binding bind() { return bind(false); }
         public Binding bind(boolean outline) {
+            return bind(outline,1);
+        }
+        public Binding bind(boolean outline,double outlineScale) {
+            if(!Double.isFinite(outlineScale)||outlineScale<0||outlineScale>10)throw new IllegalArgumentException("Invalid outline scale");
             requireOpen(); if (bound) throw new IllegalStateException("Nested VRM shader binding");
             var scope = new Binding(); bound = true;
             try {
@@ -172,6 +178,9 @@ public final class VrmSurfaceProgram implements AutoCloseable {
                 scalar("ShadeShift", scalar(material, "VRMC_materials_mtoon/shadingShiftFactor", "_ShadeShift", 0));
                 scalar("ShadeToony", scalar(material, "VRMC_materials_mtoon/shadingToonyFactor", "_ShadeToony", .9f));
                 rgb("RimColor", parameter(material, "VRMC_materials_mtoon/parametricRimColorFactor", "_RimColor", 0, 0, 0, 1));
+                scalar("ShadingGradeRate", scalar(material, "unused", "_ShadingGradeRate", 1));
+                var shiftTexture = material.textures().get("VRMC_materials_mtoon/shadingShiftTexture");
+                scalar("ShiftTextureScale", shiftTexture == null ? 1 : shiftTexture.binding().scale());
                 scalar("RimPower", scalar(material, "VRMC_materials_mtoon/parametricRimFresnelPowerFactor", "_RimFresnelPower", 5));
                 integer("AlphaMode", switch (material.renderState().alphaMode()) { case "OPAQUE" -> 0; case "MASK" -> 1; case "BLEND" -> 2; default -> throw new IllegalArgumentException("Invalid VRM alpha mode"); });
                 scalar("AlphaCutoff", material.renderState().alphaCutoff()); integer("Unlit", material.shader() == VrmMaterials.Shader.LEGACY_UNLIT ? 1 : 0);
@@ -185,9 +194,10 @@ public final class VrmSurfaceProgram implements AutoCloseable {
                     case "screenCoordinates" -> 2;
                     default -> throw new IllegalArgumentException("Invalid VRM outline mode");
                 });
-                scalar("OutlineWidth", scalar(material, "VRMC_materials_mtoon/outlineWidthFactor", "_OutlineWidth", 0));
+                scalar("OutlineWidth", (float)(outlineScale*(shader == VrmMaterials.Shader.MTOON_0 ? .01 : 1)*scalar(material, "VRMC_materials_mtoon/outlineWidthFactor", "_OutlineWidth", 0)));
+                scalar("OutlineMaxDistance", scalar(material, "unused", "_OutlineScaledMaxDistance", 1));
                 rgb("OutlineColor", parameter(material, "VRMC_materials_mtoon/outlineColorFactor", "_OutlineColor", 0, 0, 0));
-                scalar("OutlineLightingMix", scalar(material, "VRMC_materials_mtoon/outlineLightingMixFactor", "_OutlineLightingMix", 1));
+                scalar("OutlineLightingMix", shader == VrmMaterials.Shader.MTOON_0 && scalar(material, "unused", "_OutlineColorMode", 0) == 0 ? 0 : scalar(material, "VRMC_materials_mtoon/outlineLightingMixFactor", "_OutlineLightingMix", 1));
                 rgb("MatcapColor", parameter(material, "VRMC_materials_mtoon/matcapFactor", "_MatCapMul", 0, 0, 0));
                 scalar("Time", (float) material.seconds());
                 scalar("AnimationScrollX", scalar(material, "VRMC_materials_mtoon/uvAnimationScrollXSpeedFactor", "_UvAnimScrollX", 0));

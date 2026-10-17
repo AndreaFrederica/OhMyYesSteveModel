@@ -25,6 +25,8 @@ public final class VrmRenderResources implements AutoCloseable {
     private final Map<Integer, VrmTextureBindings> textures = new LinkedHashMap<>();
     private final Map<Variant, VrmSurfaceProgram> programs = new LinkedHashMap<>();
     private boolean closed;
+    private long uploadReservation;
+    long uploadReservation(){return uploadReservation;}
 
     public VrmRenderResources(String owner, SceneAsset scene, GeometryFrame initial,
                               VrmMaterials.Frame initialMaterials) throws IOException {
@@ -32,19 +34,27 @@ public final class VrmRenderResources implements AutoCloseable {
         this.scene = Objects.requireNonNull(scene);
         this.initialMaterials = Objects.requireNonNull(initialMaterials);
         try {
-            for (var draw : initial.draws()) for (var primitive : draw.geometry().primitives()) {
+            var reservations=new HashMap<String,long[]>();
+            for (var draw : initial.draws()) for (int ordinal=0;ordinal<draw.geometry().primitives().size();ordinal++) {
+                var primitive=draw.geometry().primitives().get(ordinal);
+                var reservation=reservations.computeIfAbsent(draw.node()+":"+draw.sourcePrimitive(ordinal),ignored->new long[2]);
                 var key = Variant.of(primitive);
-                if (programs.containsKey(key)) continue;
+                if (programs.containsKey(key)) {reserve(reservation,primitive,programs.get(key));continue;}
                 var material = material(initialMaterials, primitive.material());
                 textures.computeIfAbsent(primitive.material(), ignored -> new VrmTextureBindings(owner, scene, material));
-                programs.put(key, new VrmSurfaceProgram(primitive, material));
+                var program=new VrmSurfaceProgram(primitive, material);programs.put(key,program);reserve(reservation,primitive,program);
             }
+            for(var bytes:reservations.values())uploadReservation+=2*bytes[0]+3*bytes[1];
         } catch (Exception | Error failure) {
             try { close(); } catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
             throw failure;
         }
     }
 
+    private void reserve(long[] reservation,MeshAsset.Primitive primitive,VrmSurfaceProgram program){
+        int stride=0;for(String name:program.layout().keySet())stride+=primitive.attributes().get(name).components();
+        reservation[0]=Math.max(reservation[0],4L*primitive.vertexCount()*stride);reservation[1]=Math.max(reservation[1],4L*primitive.indices().size());
+    }
     public SceneAsset scene() { return scene; }
     public VrmMaterials.Frame initialMaterials() { return initialMaterials; }
     public Set<PreparedSceneTextures.Key> textureRequests() {

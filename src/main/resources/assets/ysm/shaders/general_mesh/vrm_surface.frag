@@ -19,6 +19,8 @@ uniform vec3 Emission;
 uniform vec3 RimColor;
 uniform float ShadeShift;
 uniform float ShadeToony;
+uniform float ShadingGradeRate;
+uniform float ShiftTextureScale;
 uniform float RimPower;
 uniform int AlphaMode;
 uniform float AlphaCutoff;
@@ -127,21 +129,10 @@ void main() {
     float opacity = base.a;
     if (AlphaMode == 0) opacity = 1.0;
     else if (AlphaMode == 1) { if (opacity < AlphaCutoff) discard; opacity = 1.0; }
-#ifdef OUTLINE_WIDTH_MAP
-    float outlineWidthFactor = texture(OutlineWidthTexture, OUTLINE_WIDTH_UV_VALUE).r;
-#else
-    float outlineWidthFactor = 1.0;
-#endif
     vec3 emission = Emission;
 #ifdef EMISSIVE_MAP
     emission *= texture(EmissiveTexture, EMISSIVE_UV_VALUE).rgb;
 #endif
-    if (OutlinePass == 1) {
-        vec3 outline = mix(OutlineColor, OutlineColor * (Ambient + LightRadiance), clamp(OutlineLightingMix, 0.0, 1.0));
-        outline *= mix(vec3(1.0), hostLightLinear(), clamp(OutlineLightingMix, 0.0, 1.0));
-        Color = vec4(outline, opacity * outlineWidthFactor) * HostTint;
-        return;
-    }
     if (Unlit == 1) { Color = vec4(base.rgb + emission, opacity) * HostTint; return; }
 #ifndef HAS_NORMAL
     Color = vec4(base.rgb * hostLightLinear() + emission, opacity) * HostTint;
@@ -154,23 +145,42 @@ void main() {
     if (!gl_FrontFacing) n = -n;
     vec3 l = dot(ToLight, ToLight) > 0.0 ? normalize(ToLight) : vec3(0.0, 1.0, 0.0);
     float ndl = dot(n, l);
-    float width = max(0.001, ShadeToony * 0.5);
-    float toon = smoothstep(ShadeShift - width, ShadeShift + width, ndl);
-    vec3 shaded = mix(base.rgb * ShadeColor, base.rgb, toon);
+    vec3 shade = ShadeColor;
 #ifdef SHADE_MAP
-    shaded *= texture(ShadeTexture, SHADE_UV_VALUE).rgb;
+    shade *= texture(ShadeTexture, SHADE_UV_VALUE).rgb;
 #endif
-#ifdef SHIFT_MAP
-    float shift = texture(ShiftTexture, SHIFT_UV_VALUE).r;
-    toon = smoothstep(ShadeShift + shift - width, ShadeShift + shift + width, ndl);
-    shaded = mix(base.rgb * ShadeColor, base.rgb, toon);
+#ifdef HAS_COLOR
+    shade *= VertexTint.rgb;
 #endif
-    vec3 lit = shaded * (Ambient + toon * LightRadiance);
+    float toon;
+#ifdef MTOON_LEGACY
+    float intensity = ndl;
 #ifdef SHADING_GRADE_MAP
-    lit *= texture(ShadingGradeTexture, SHADING_GRADE_UV_VALUE).r;
+    float grade = 1.0 - ShadingGradeRate * (1.0 - texture(ShadingGradeTexture, SHADING_GRADE_UV_VALUE).r);
+    intensity = (intensity * 0.5 + 0.5) * grade * 2.0 - 1.0;
 #endif
-#ifdef RECEIVE_SHADOW_MAP
-    lit *= texture(ReceiveShadowTexture, RECEIVE_SHADOW_UV_VALUE).rgb;
+    toon = clamp((intensity - ShadeShift) / max(0.0009765625, mix(1.0, ShadeShift, ShadeToony) - ShadeShift), 0.0, 1.0);
+#else
+    float shift = ShadeShift;
+#ifdef SHIFT_MAP
+    shift += texture(ShiftTexture, SHIFT_UV_VALUE).r * ShiftTextureScale;
+#endif
+    float width = max(0.00001, 1.0 - ShadeToony);
+    toon = clamp((ndl + shift + width) / (2.0 * width), 0.0, 1.0);
+#endif
+    // Shade and lit textures are independent albedos, not successive multipliers.
+    vec3 lit = mix(shade, base.rgb, toon) * LightRadiance + base.rgb * Ambient;
+#ifdef MTOON_LEGACY
+    // UniVRM clamps base lighting to the lit albedo before rim/matcap/emission.
+    lit = min(lit, base.rgb);
+#endif
+    // Receive-shadow masks modulate a shadow attenuation term. Without a host
+    // shadow map attenuation is one, so the mask must not darken the albedo.
+#ifdef MTOON_LEGACY
+    if (OutlinePass == 1) {
+        Color = vec4(OutlineColor * mix(vec3(1.0), lit * hostLightLinear(), clamp(OutlineLightingMix, 0.0, 1.0)), opacity) * HostTint;
+        return;
+    }
 #endif
     vec3 view = Orthographic == 0 && dot(ViewPosition, ViewPosition) > 0.0 ? normalize(-ViewPosition) : vec3(0.0, 0.0, 1.0);
     float rim = pow(max(0.0, 1.0 - max(dot(n, view), 0.0)), max(0.001, RimPower));
@@ -182,6 +192,8 @@ void main() {
     vec3 matcap = texture(MatcapTexture, (MatcapUvTransform * vec3(matcapUv, 1.0)).xy).rgb;
     lit += matcap * MatcapColor;
 #endif
-    Color = vec4((lit + RimColor * rim) * hostLightLinear() + emission, opacity) * HostTint;
+    vec3 surface = (lit + RimColor * rim) * hostLightLinear() + emission;
+    if (OutlinePass == 1) surface = OutlineColor * mix(vec3(1.0), surface, clamp(OutlineLightingMix, 0.0, 1.0));
+    Color = vec4(surface, opacity) * HostTint;
 #endif
 }

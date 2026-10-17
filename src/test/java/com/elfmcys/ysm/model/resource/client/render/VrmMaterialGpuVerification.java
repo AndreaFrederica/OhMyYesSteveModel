@@ -9,7 +9,7 @@ import com.elfmcys.ysm.model.resource.client.GeneralMeshModelResources;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-/** Driver-backed VRM MToon 1 smoke test; verifies the real host shader rather than only Lib material evaluation. */
+/** Driver-backed MToon pixel regressions plus VRM 1 material-variant submission smoke. */
 public final class VrmMaterialGpuVerification {
     public static void main(String[] args) throws Exception {
         var errors = org.lwjgl.glfw.GLFWErrorCallback.createPrint(System.err).set();
@@ -36,6 +36,7 @@ public final class VrmMaterialGpuVerification {
         }
     }
     static void verify() throws Exception {
+        VrmSurfacePixelVerification.verify();
         var source = new ScenePackage(new ScenePackage.Source("vrm", "materials-avatar.gltf", ScenePackage.Format.VRM),
                 new ScenePackage.Settings(1, -1, FbxEvaluation.SkinSpace.BIND_WORLD), List.of(), List.of(),
                 Map.of("materials-avatar.gltf", resource("/three-vrm-oracle/materials-avatar.gltf")));
@@ -59,7 +60,7 @@ public final class VrmMaterialGpuVerification {
                 checkGl("after first-person render");
             }
         }
-        System.out.println("VRM MToon host: MToon 1 material variants, alpha/cull/outline passes and first/third-person frame rendering passed");
+        System.out.println("VRM MToon host: material-variant and first/third-person submission smoke passed");
     }
 
     private static ByteData resource(String path) throws Exception {
