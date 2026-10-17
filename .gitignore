@@ -40,6 +40,13 @@ hs_err_pid*
 /runtime/native/.cache/
 /.tooling-*.log
 
+# Local scratch directories and one-off diagnostics
+/$out/
+/com/
+/*.class
+/tmp*
+/dump.log
+
 # Local research notes and work logs
 /MESH_BACKEND_WORKLOG.md
 /MMD_RENDER_REVIEW.md
