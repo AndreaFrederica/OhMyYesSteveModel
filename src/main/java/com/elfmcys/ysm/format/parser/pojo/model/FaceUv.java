@@ -7,6 +7,10 @@ public class FaceUv {
 
     @SerializedName("uv_size")
     public float[] uvSize;
+
+    /** Internal adapter flag: reverse the GeoBuilder UV winding for this face. */
+    @com.google.gson.annotations.Expose(serialize = false, deserialize = false)
+    public boolean flip;
 /*
 // 暂未实现
     @SerializedName("uv_rotation")

@@ -122,6 +122,11 @@ public final class ModelInfoView {
         return info.hasMetadata();
     }
 
+    /** Stable importer/backend identifier persisted in the manifest. */
+    public String originVersion() {
+        return info.properties().originVer();
+    }
+
     public Settings getSettings() {
         return settings;
     }

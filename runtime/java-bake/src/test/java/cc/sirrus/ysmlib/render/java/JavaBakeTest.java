@@ -171,7 +171,9 @@ class JavaBakeTest {
     assertThrows(
         IOException.class,
         () -> baker.decode(ByteBuffer.wrap(Arrays.copyOf(bytes, bytes.length + 1))));
-    ByteBuffer.wrap(bytes).putInt(13, 0);
+    // Header is magic, PBR, transform mode, bone count. Corrupt the first
+    // bone's parent after the expanded transform-mode field.
+    ByteBuffer.wrap(bytes).putInt(21, 0);
     assertThrows(IOException.class, () -> baker.decode(ByteBuffer.wrap(bytes)));
   }
 }

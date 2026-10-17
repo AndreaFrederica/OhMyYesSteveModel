@@ -14,7 +14,7 @@ class PublicUnstableVersionTest {
     @Test
     void allPublicFormatsUseTheExactUnstableVersion() {
         var expected = "0.1.0-unstable";
-        var bakedModelExpected = "0.2.0-unstable";
+        var bakedModelExpected = "0.2.1-unstable";
         assertAll(
                 () -> assertEquals(expected, AssetContainerConstant.CURRENT_VERSION),
                 () -> assertEquals(0, AssetContainerConstant.CURRENT_MAJOR_VER),

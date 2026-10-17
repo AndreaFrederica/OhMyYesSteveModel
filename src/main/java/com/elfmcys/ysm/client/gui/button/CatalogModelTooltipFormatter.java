@@ -60,7 +60,8 @@ public final class CatalogModelTooltipFormatter {
                 ? stats.textures()
                 : catalog.representation().view().getPlayer().getTextureNames().size();
         return new Input(name, tips, authors, license, catalog.path(), entry.modelHash().toString(),
-                source(entry), new Stats(stats.bones(), stats.cubes(), stats.faces(), textureCount), loadError);
+                source(entry), modelType(catalog.info().originVersion()),
+                new Stats(stats.bones(), stats.cubes(), stats.faces(), textureCount), loadError);
     }
 
     public static String displayName(CatalogModelMetadata catalog, String locale) {
@@ -84,6 +85,9 @@ public final class CatalogModelTooltipFormatter {
         Objects.requireNonNull(locale, "locale");
         var lines = new ArrayList<Line>();
         lines.add(new Line(input.name(), ChatFormatting.GOLD));
+        if (!input.modelType().isBlank()) {
+            lines.add(new Line(translator.translate(KEY_PREFIX + "model_type", input.modelType()), ChatFormatting.GRAY));
+        }
         appendTips(lines, input.name(), input.tips());
         appendMetadata(lines, input, translator);
         if (input.loadError() != null) {
@@ -237,8 +241,13 @@ public final class CatalogModelTooltipFormatter {
     }
 
     public record Input(String name, String tips, List<Author> authors, String license,
-                        String path, String hash, Source source, Stats stats,
+                        String path, String hash, Source source, String modelType, Stats stats,
                         @Nullable Throwable loadError) {
+        public Input(String name, String tips, List<Author> authors, String license,
+                     String path, String hash, Source source, Stats stats,
+                     @Nullable Throwable loadError) {
+            this(name, tips, authors, license, path, hash, source, "", stats, loadError);
+        }
         public Input {
             name = Objects.requireNonNull(name, "name").trim();
             tips = Objects.requireNonNullElse(tips, "");
@@ -247,8 +256,25 @@ public final class CatalogModelTooltipFormatter {
             path = Objects.requireNonNull(path, "path");
             hash = Objects.requireNonNull(hash, "hash");
             Objects.requireNonNull(source, "source");
+            modelType = Objects.requireNonNullElse(modelType, "").trim();
             Objects.requireNonNull(stats, "stats");
         }
+    }
+
+    private static String modelType(String origin) {
+        if (origin == null) return "";
+        return switch (origin.toLowerCase(Locale.ROOT)) {
+            case "cpm-legacy" -> "CPM (CustomModel 1.12 / legacy)";
+            case "cpm-remake" -> "CPM (CustomPlayerModel 1.16 / remake)";
+            case "cpm" -> "CPM (CustomPlayerModel/CustomModel)";
+            case "generic-mesh" -> "Generic mesh";
+            case "gltf", "glb" -> "glTF";
+            case "vrm" -> "VRM";
+            case "pmx", "pmd" -> "MMD (" + origin.toUpperCase(Locale.ROOT) + ")";
+            case "fbx" -> "FBX";
+            case "obj" -> "Wavefront OBJ";
+            default -> origin;
+        };
     }
 
     public record Author(String name, String role) {

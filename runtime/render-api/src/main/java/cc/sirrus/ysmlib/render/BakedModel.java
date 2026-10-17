@@ -4,12 +4,17 @@ import cc.sirrus.ysmlib.render.Geometry.*;
 import java.util.List;
 
 /** Immutable logical representation; no native pointers or SIMD-dependent layout. */
-public record BakedModel(List<Bone> bones, boolean hasPbr) {
-  public static final String PROFILE = "ysmlib-java-bake-1";
+public record BakedModel(List<Bone> bones, boolean hasPbr, int transformMode) {
+  public static final String PROFILE = "ysmlib-java-bake-2";
 
   public BakedModel {
     bones = List.copyOf(bones);
+    if (transformMode < 0 || transformMode > 2) {
+      throw new IllegalArgumentException("Invalid baked transform mode: " + transformMode);
+    }
   }
+
+  public BakedModel(List<Bone> bones, boolean hasPbr) { this(bones, hasPbr, 0); }
 
   public record Quad(
       List<Integer> indices,

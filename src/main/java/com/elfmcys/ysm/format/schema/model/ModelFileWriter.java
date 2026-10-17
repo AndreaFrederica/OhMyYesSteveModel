@@ -70,4 +70,15 @@ public class ModelFileWriter extends AssetFileWriter {
     public void setIcon(Image img) {
         addImage(ModelFileConstant.THUMB_ICON_CHUNK_NAME, img);
     }
+
+    /**
+     * Stores the original CPM source closure alongside the converted YSM
+     * geometry.  The chunk is optional and ignored by older readers, while
+     * newer readers can restore animation.js and per-entity pose state after
+     * a cache/remote load.
+     */
+    public void setCpmSource(UniBuffer source, int compressLevel) {
+        addRawChunk(ModelFileConstant.CPM_SOURCE_CHUNK_NAME,
+                Objects.requireNonNull(source, "source"), compressLevel);
+    }
 }

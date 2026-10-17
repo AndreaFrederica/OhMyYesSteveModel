@@ -70,6 +70,9 @@ public class GeoBuilder {
         if (src.parent != null) {
             dst.setParent(src.parent);
         }
+        if (src.locator != null && !src.locator.isBlank()) {
+            dst.setLocator(src.locator);
+        }
         var pivot = arrayOrDefault(src.pivot, 0, 0, 0);
         dst.addPivot(-pivot[0]).addPivot(pivot[1]).addPivot(pivot[2]);
         var rotation = arrayOrDefault(src.rotation, 0, 0, 0);
@@ -95,6 +98,15 @@ public class GeoBuilder {
                                                            CubeBuilder builder) {
         var dst = CubeLegacy.newBuilder();
         builder.clear();
+        if (cube.plane) {
+            buildPlane(builder, cube, properties, stats);
+            builder.applyTransform(cube.rotation == null ? new float[]{0, 0, 0} : cube.rotation,
+                    cube.pivot == null ? new float[]{0, 0, 0} : cube.pivot, dst);
+            dst.setFaceCount(builder.faceCount);
+            stats.cubes++;
+            stats.faces += builder.faceCount;
+            return dst.build();
+        }
         var sizeIn = arrayOrDefault(cube.size, 1, 1, 1);
         var originIn = arrayOrDefault(cube.origin, 0, 0, 0);
         var inflate = cube.inflate != null ? cube.inflate / 16f : boneInflate;
@@ -122,7 +134,7 @@ public class GeoBuilder {
             addPerFaceQuads(builder, cube.uv.perFaceUv, cube.mirror, mirroredLayout,
                     texWidth, texHeight, p1, p2, p3, p4, p5, p6, p7, p8);
         } else if (cube.uv != null && cube.uv.boxUv != null && cube.uv.boxUv.length >= 2) {
-            addBoxQuads(builder, cube.uv.boxUv, sizeIn, cube.mirror, mirroredLayout,
+            addBoxQuads(builder, cube.uv.boxUv, sizeIn, cube.mirror, mirroredLayout, cube.doubleFace,
                     texWidth, texHeight, p1, p2, p3, p4, p5, p6, p7, p8);
         }
 
@@ -133,6 +145,26 @@ public class GeoBuilder {
         stats.cubes++;
         stats.faces += builder.faceCount;
         return dst.build();
+    }
+
+    private static void buildPlane(CubeBuilder builder, Cube cube, GeometryDescription properties,
+                                    Stats stats) {
+        var size = arrayOrDefault(cube.size, 1, 1, 0);
+        var origin = arrayOrDefault(cube.origin, 0, 0, 0);
+        var inflate = cube.inflate == null ? 0 : cube.inflate;
+        float x0 = origin[0] - inflate, x1 = origin[0] + size[0] + inflate;
+        float y0 = origin[1] - inflate, y1 = origin[1] + size[1] + inflate;
+        float z = origin[2];
+        var a = new Vector3f(-x1 / 16f, y0 / 16f, z / 16f);
+        var b = new Vector3f(-x0 / 16f, y0 / 16f, z / 16f);
+        var c = new Vector3f(-x0 / 16f, y1 / 16f, z / 16f);
+        var d = new Vector3f(-x1 / 16f, y1 / 16f, z / 16f);
+        var uv = cube.uv == null || cube.uv.boxUv == null ? new float[]{0, 0} : cube.uv.boxUv;
+        float width = Math.abs(size[0]), height = Math.abs(size[1]);
+        float tw = properties != null && properties.textureWidth != 0 ? properties.textureWidth : 64;
+        float th = properties != null && properties.textureHeight != 0 ? properties.textureHeight : 64;
+        builder.addQuad(new Vector3f[]{a, b, c, d}, uv[0], uv[1], width, height, tw, th,
+                cube.mirror, Direction.NORTH);
     }
 
     private static void addPerFaceQuads(CubeBuilder builder, UvFaces faces, boolean cubeMirror, boolean mirroredLayout,
@@ -157,29 +189,27 @@ public class GeoBuilder {
     }
 
     private static void addBoxQuads(CubeBuilder builder, float[] uv, float[] size,
-                                    boolean cubeMirror, boolean mirroredLayout,
+                                    boolean cubeMirror, boolean mirroredLayout, boolean doubleFace,
                                     float texWidth, float texHeight,
                                     Vector3f p1, Vector3f p2, Vector3f p3, Vector3f p4,
                                     Vector3f p5, Vector3f p6, Vector3f p7, Vector3f p8) {
-        var x = Math.floor(size[0]);
-        var y = Math.floor(size[1]);
-        var z = Math.floor(size[2]);
+        // CPM's ElementParser passes the authored float dimensions directly
+        // to ModelRenderer.ModelBox.  UV rectangles therefore use the exact
+        // dx/dy/dz values; flooring here changes the atlas endpoints for
+        // perfectly valid modern models such as 4.9995-wide cubes.
+        var x = size[0];
+        var y = size[1];
+        var z = size[2];
         var u = uv[0];
         var v = uv[1];
         if (!mirroredLayout) {
-            builder.addQuad(new Vector3f[]{p4, p3, p1, p2}, u + z + x, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.WEST);
-            builder.addQuad(new Vector3f[]{p7, p8, p6, p5}, u, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.EAST);
-            builder.addQuad(new Vector3f[]{p3, p7, p5, p1}, u + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.NORTH);
-            builder.addQuad(new Vector3f[]{p8, p4, p2, p6}, u + z + x + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.SOUTH);
-            builder.addQuad(new Vector3f[]{p4, p8, p7, p3}, u + z, v, x, z, texWidth, texHeight, cubeMirror, Direction.UP);
-            builder.addQuad(new Vector3f[]{p1, p5, p6, p2}, u + z + x, v + z, x, -z, texWidth, texHeight, cubeMirror, Direction.DOWN);
+            if (y != 0 || z != 0) { builder.addQuad(new Vector3f[]{p4, p3, p1, p2}, u + z + x, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.WEST); if (x != 0 || doubleFace) builder.addQuad(new Vector3f[]{p7, p8, p6, p5}, u, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.EAST); }
+            if (x != 0 || z != 0) { builder.addQuad(new Vector3f[]{p3, p7, p5, p1}, u + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.NORTH); if (y != 0 || doubleFace) builder.addQuad(new Vector3f[]{p8, p4, p2, p6}, u + z + x + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.SOUTH); }
+            if (x != 0 || y != 0) { builder.addQuad(new Vector3f[]{p4, p8, p7, p3}, u + z, v, x, z, texWidth, texHeight, cubeMirror, Direction.UP); if (z != 0 || doubleFace) builder.addQuad(new Vector3f[]{p1, p5, p6, p2}, u + z + x, v + z, x, -z, texWidth, texHeight, cubeMirror, Direction.DOWN); }
         } else {
-            builder.addQuad(new Vector3f[]{p7, p8, p6, p5}, u + z + x, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.WEST);
-            builder.addQuad(new Vector3f[]{p4, p3, p1, p2}, u, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.EAST);
-            builder.addQuad(new Vector3f[]{p3, p7, p5, p1}, u + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.NORTH);
-            builder.addQuad(new Vector3f[]{p8, p4, p2, p6}, u + z + x + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.SOUTH);
-            builder.addQuad(new Vector3f[]{p4, p8, p7, p3}, u + z, v, x, z, texWidth, texHeight, cubeMirror, Direction.UP);
-            builder.addQuad(new Vector3f[]{p1, p5, p6, p2}, u + z + x, v + z, x, -z, texWidth, texHeight, cubeMirror, Direction.DOWN);
+            if (y != 0 || z != 0) { builder.addQuad(new Vector3f[]{p7, p8, p6, p5}, u + z + x, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.WEST); if (x != 0 || doubleFace) builder.addQuad(new Vector3f[]{p4, p3, p1, p2}, u, v + z, z, y, texWidth, texHeight, cubeMirror, Direction.EAST); }
+            if (x != 0 || z != 0) { builder.addQuad(new Vector3f[]{p3, p7, p5, p1}, u + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.NORTH); if (y != 0 || doubleFace) builder.addQuad(new Vector3f[]{p8, p4, p2, p6}, u + z + x + z, v + z, x, y, texWidth, texHeight, cubeMirror, Direction.SOUTH); }
+            if (x != 0 || y != 0) { builder.addQuad(new Vector3f[]{p4, p8, p7, p3}, u + z, v, x, z, texWidth, texHeight, cubeMirror, Direction.UP); if (z != 0 || doubleFace) builder.addQuad(new Vector3f[]{p1, p5, p6, p2}, u + z + x, v + z, x, -z, texWidth, texHeight, cubeMirror, Direction.DOWN); }
         }
     }
 
@@ -189,7 +219,7 @@ public class GeoBuilder {
             return;
         }
         builder.addQuad(new Vector3f[]{a, b, c, d}, face.uv[0], face.uv[1], face.uvSize[0], face.uvSize[1],
-                texWidth, texHeight, cubeMirror, direction);
+                texWidth, texHeight, cubeMirror, direction, face.flip);
     }
 
     private static float[] arrayOrDefault(float[] values, float x, float y, float z) {
@@ -214,6 +244,25 @@ public class GeoBuilder {
             this.widthScale = widthScale;
             this.legacyInfo = legacyInfo;
         }
+
+        public com.elfmcys.ysm.proto.mixel.asset.model.data.GeoModel model() { return model; }
+        public Stats stats() { return stats; }
+        public float heightScale() { return heightScale; }
+        public float widthScale() { return widthScale; }
+        @Nullable public ExtraInfo legacyInfo() { return legacyInfo; }
+        public Result withScales(float height, float width) {
+            if (!Float.isFinite(height) || !Float.isFinite(width) || height <= 0 || width <= 0)
+                throw new IllegalArgumentException("Invalid geometry scale");
+            return new Result(model, stats, height, width, legacyInfo);
+        }
+
+        /** Adds source-specific transform semantics before the model crosses into the Lib. */
+        public Result withTransformMode(int mode) {
+            if (mode < 0 || mode > 2) throw new IllegalArgumentException("Invalid transform mode: " + mode);
+            var properties = model.properties().toBuilder().setTransformMode(mode).build();
+            var converted = model.toBuilder().setProperties(properties).build();
+            return new Result(converted, stats, heightScale, widthScale, legacyInfo);
+        }
     }
 
     public static final class Stats {
@@ -221,7 +270,7 @@ public class GeoBuilder {
         int cubes;
         int faces;
 
-        ModelStats toProto() {
+        public ModelStats toProto() {
             return ModelStats.newBuilder()
                     .setBones(bones)
                     .setCubes(cubes)
@@ -272,6 +321,12 @@ public class GeoBuilder {
 
         private void addQuad(Vector3f[] vertices, float u1, float v1, float uSize, float vSize,
                              float texWidth, float texHeight, boolean mirror, Direction direction) {
+            addQuad(vertices, u1, v1, uSize, vSize, texWidth, texHeight, mirror, direction, mirror);
+        }
+
+        private void addQuad(Vector3f[] vertices, float u1, float v1, float uSize, float vSize,
+                             float texWidth, float texHeight, boolean mirror, Direction direction,
+                             boolean uvMirror) {
             var u2 = u1 + uSize;
             var v2 = v1 + vSize;
             u1 /= texWidth;
@@ -279,7 +334,7 @@ public class GeoBuilder {
             v1 /= texHeight;
             v2 /= texHeight;
 
-            var uv = mirror
+            var uv = uvMirror
                     ? new Vector2f[]{new Vector2f(u1, v1), new Vector2f(u2, v1), new Vector2f(u2, v2), new Vector2f(u1, v2)}
                     : new Vector2f[]{new Vector2f(u2, v1), new Vector2f(u1, v1), new Vector2f(u1, v2), new Vector2f(u2, v2)};
             normals.add(direction.createNormal(mirror));

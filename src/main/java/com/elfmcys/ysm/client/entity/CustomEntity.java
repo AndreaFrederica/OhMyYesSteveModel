@@ -23,6 +23,9 @@ import com.elfmcys.ysm.geckolib3.geo.render.built.GeoModel;
 import com.elfmcys.ysm.geckolib3.model.AnimatableEntity;
 import com.elfmcys.ysm.model.domain.Hash256;
 import com.elfmcys.ysm.model.domain.RenderTargetIds;
+import com.elfmcys.ysm.model.catalog.CpmModelImporter;
+import cc.sirrus.ysmlib.cpm.CpmPoseSession;
+import com.elfmcys.ysm.geckolib3.model.AnimatedGeoBone;
 import com.elfmcys.ysm.util.Closeable;
 import com.elfmcys.ysm.util.ThreadTools;
 import com.elfmcys.ysm.util.UnsafeUtil;
@@ -39,6 +42,8 @@ import java.util.concurrent.Future;
  * 自动管理当前 model id 和 model container，并在找不到指定模型时 fallback 到默认模型
  */
 public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T> {
+    private static volatile boolean cpmItemNamesRegistered;
+    private static volatile java.util.Map<String, Double> cpmItemConstants = java.util.Map.of();
     private final EntityModelBinding modelBinding;
     private ModelRenderTarget currentModelRenderTarget;
     private boolean modelFallback;
@@ -49,6 +54,10 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
     private DebugInfo debugInfo;
     @Nullable
     private List<IValue> deferHandler;
+    @Nullable
+    private CpmPoseSession cpmPoseSession;
+    /** Partial tick associated with the frame currently being evaluated. */
+    private volatile float cpmPartialTicks;
 
     @Nullable
     private Future<GeoRenderData> asyncTask;
@@ -268,7 +277,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
             // passes can use different partial ticks, so their raw times are not a monotonic clock.
             if(!holder.sceneClock.beginFrame(sequence,sampledSeconds))return scene;
             double seconds=holder.sceneClock.seconds();
-            if (!(this instanceof IPreviewEntity)) holder.updateGeneralAnimation(generalAnimationState(),seconds);
+            if (!(this instanceof IPreviewEntity)) holder.updateGeneralAnimation(generalAnimationState(),seconds,this instanceof CustomPlayerEntity p?p.generalActionElapsed(partialTicks):0);
             boolean boundSkeleton;
             if(this instanceof IPreviewEntity&&editorReferencePose) {
                 try {boundSkeleton=updateGeneralReference(scene);}
@@ -278,16 +287,306 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
             else boundSkeleton=holder.retargeting && updateGeneralSkeleton(scene,partialTicks);
             if (!boundSkeleton && !(this instanceof IPreviewEntity) && entity instanceof net.minecraft.world.entity.LivingEntity living)
                 scene.look(net.minecraft.util.Mth.wrapDegrees(living.getYHeadRot()-living.yBodyRot),living.getXRot());
-            if(!(this instanceof IPreviewEntity))scene.updateHostPhysics(this,partialTicks,seconds);
+            if(!(this instanceof IPreviewEntity)){
+                if(entity instanceof net.minecraft.world.entity.LivingEntity living)scene.interactionInputs(living,this instanceof CustomPlayerEntity p?p.getRoamingStruct():null,seconds,boundSkeleton);
+                if(scene.controllerLayerRequested()&&!boundSkeleton)updateGeneralControllerLayer(scene,partialTicks);
+                scene.updateHostPhysics(this,partialTicks,seconds);
+            }
             holder.updateScene(sequence,seconds);
         }
         return scene;
+    }
+
+    /** Applies CPM's per-entity expression/script pose after the regular YSM frame. */
+    private void applyCpmPose(float partialTicks) {
+        var session = cpmPoseSession;
+        if (session == null || getModelHash() == null || getLoadedGeoModel() == null) return;
+        // The two CPM generations expose different Euler channels.  Legacy
+        // CustomModel calls setEulerAnglesRad(yaw=source.x,
+        // pitch=source.y, roll=source.z), while Modern/Remake's
+        // ModelBone.instantiate() swaps those channels before constructing
+        // its quaternion. Keep the source document beside the pose session so
+        // this bridge never infers a format from bone names or screenshots.
+        var cpmDocument = CpmModelImporter.document(getModelHash()).orElse(null);
+        boolean legacyCpm = cpmDocument instanceof cc.sirrus.ysmlib.cpm.CpmDocument.Legacy;
+        var inputs = new java.util.LinkedHashMap<String, Double>();
+        inputs.put("age", entity.tickCount + (double) partialTicks);
+        inputs.put("time", inputs.get("age"));
+        inputs.put("partial", (double) partialTicks);
+        inputs.put("scale", 1d);
+        boolean firstPerson = entity == net.minecraft.client.Minecraft.getInstance().getCameraEntity()
+                && net.minecraft.client.Minecraft.getInstance().options.getCameraType().isFirstPerson();
+        inputs.put("is_first_person", firstPerson ? 1d : 0d);
+        if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
+            inputs.put("limb_swing", (double) living.walkAnimation.position(partialTicks));
+            inputs.put("limb_swing_amount", (double) living.walkAnimation.speed(partialTicks));
+            inputs.put("anim_position", inputs.get("limb_swing"));
+            inputs.put("anim_speed", inputs.get("limb_swing_amount"));
+            // CustomModel 1.12 expression names (the Lib keeps the newer
+            // CPM names above as well).
+            inputs.put("limb_speed", inputs.get("limb_swing_amount"));
+            inputs.put("head_pitch", (double) living.getXRot());
+            inputs.put("head_yaw", (double) living.getYHeadRot());
+            inputs.put("body_yaw", (double) living.yBodyRot);
+            inputs.put("is_crouching", living.isCrouching() ? 1d : 0d);
+            inputs.put("is_sneaking", living.isCrouching() ? 1d : 0d);
+            inputs.put("is_riding", living.isPassenger() ? 1d : 0d);
+            inputs.put("is_sprinting", living.isSprinting() ? 1d : 0d);
+            inputs.put("is_hurt", living.hurtTime > 0 ? 1d : 0d);
+            inputs.put("is_climbing", living.onClimbable() ? 1d : 0d);
+            inputs.put("is_on_ground", living.onGround() ? 1d : 0d);
+            inputs.put("is_wet", living.isInWaterRainOrBubble() ? 1d : 0d);
+            inputs.put("is_in_water", living.isInWater() ? 1d : 0d);
+            inputs.put("pose_sleeping", living.isSleeping() ? 1d : 0d);
+            inputs.put("pose_swimming", living.isSwimming() ? 1d : 0d);
+            inputs.put("pose_fall_flying", living.isFallFlying() ? 1d : 0d);
+            inputs.put("pose_spin_attack", living.isAutoSpinAttack() ? 1d : 0d);
+            inputs.put("is_alive", living.isAlive() ? 1d : 0d);
+            inputs.put("is_burning", living.isOnFire() ? 1d : 0d);
+            inputs.put("is_glowing", living.isCurrentlyGlowing() ? 1d : 0d);
+            inputs.put("is_in_lava", living.isInLava() ? 1d : 0d);
+            inputs.put("is_invisible", living.isInvisible() ? 1d : 0d);
+            inputs.put("is_camera_first_person", firstPerson ? 1d : 0d);
+            inputs.put("current_pose", cpmPoseId(living));
+            inputs.put("pose.standing", 0d); inputs.put("pose.fall_flying", 1d);
+            inputs.put("pose.sleeping", 2d); inputs.put("pose.swimming", 3d);
+            inputs.put("pose.spin_attack", 4d); inputs.put("pose.sneaking", 5d);
+            inputs.put("pose.dying", 6d);
+            var motion = living.getDeltaMovement();
+            inputs.put("motion_x", motion.x);
+            inputs.put("motion_y", motion.y);
+            inputs.put("motion_z", motion.z);
+            inputs.put("speed_x", motion.x);
+            inputs.put("speed_y", motion.y);
+            inputs.put("speed_z", motion.z);
+            inputs.put("hurt_time", (double) living.hurtTime - partialTicks);
+            inputs.put("pos_y", living.getY());
+            inputs.put("pos_x", living.getX());
+            inputs.put("pos_z", living.getZ());
+            inputs.put("yaw", (double) living.getYRot());
+            inputs.put("pitch", (double) living.getXRot());
+            inputs.put("health", (double) living.getHealth());
+            inputs.put("max_health", (double) living.getMaxHealth());
+            var main = living.getMainHandItem();
+            var off = living.getOffhandItem();
+            var left = living.getMainArm() == net.minecraft.world.entity.HumanoidArm.LEFT ? main : off;
+            var right = living.getMainArm() == net.minecraft.world.entity.HumanoidArm.RIGHT ? main : off;
+            inputs.put("left_hand_empty", left.isEmpty() ? 1d : 0d);
+            inputs.put("right_hand_empty", right.isEmpty() ? 1d : 0d);
+            inputs.put("main_hand_empty", main.isEmpty() ? 1d : 0d);
+            inputs.put("off_hand_empty", off.isEmpty() ? 1d : 0d);
+            inputs.put("helmet_empty", living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).isEmpty() ? 1d : 0d);
+            inputs.put("chestplate_empty", living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 1d : 0d);
+            inputs.put("leggings_empty", living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS).isEmpty() ? 1d : 0d);
+            inputs.put("boots_empty", living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET).isEmpty() ? 1d : 0d);
+            inputs.put("inv.helmet", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)));
+            inputs.put("inv.chestplate", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST)));
+            inputs.put("inv.leggings", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS)));
+            inputs.put("inv.boots", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET)));
+            inputs.put("inv.offhand", cpmItemId(off));
+            inputs.put("inv.mainhand", cpmItemId(main));
+            inputs.put("left_hand_item_id", cpmItemId(left));
+            inputs.put("right_hand_item_id", cpmItemId(right));
+            inputs.put("main_hand_item_id", cpmItemId(main));
+            inputs.put("off_hand_item_id", cpmItemId(off));
+            inputs.put("helmet_empty_id", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)));
+            inputs.put("chestplate_empty_id", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST)));
+            inputs.put("leggings_empty_id", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS)));
+            inputs.put("boots_empty_id", cpmItemId(living.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET)));
+            if (living instanceof net.minecraft.world.entity.player.Player player) {
+                inputs.put("food_level", (double) player.getFoodData().getFoodLevel());
+                inputs.put("saturation_level", (double) player.getFoodData().getSaturationLevel());
+                for (int i = 0; i < player.getInventory().items.size(); i++) {
+                    var stack = player.getInventory().items.get(i);
+                    inputs.put("inventory_" + i + "_empty", stack.isEmpty() ? 1d : 0d);
+                    inputs.put("inventory_" + i + "_id", cpmItemId(stack));
+                }
+            }
+            // Legacy expressions compare inv.* with item.<path> constants.
+            // Registering the compact path keeps the Lib evaluator Minecraft
+            // independent while preserving the upstream numeric semantics.
+            if (!cpmItemNamesRegistered) synchronized (CustomEntity.class) {
+                if (!cpmItemNamesRegistered) {
+                    var constants = new java.util.LinkedHashMap<String, Double>();
+                    for (var entry : net.minecraft.core.registries.BuiltInRegistries.ITEM.entrySet()) {
+                        int id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getId(entry.getValue());
+                        cc.sirrus.ysmlib.cpm.CpmItemNames.register(id, entry.getKey().location().toString());
+                        constants.put("item." + entry.getKey().location().getPath(), (double) id);
+                    }
+                    cpmItemConstants = java.util.Map.copyOf(constants);
+                    cpmItemNamesRegistered = true;
+                }
+            }
+            inputs.putAll(cpmItemConstants);
+        }
+        // Modern CPM scripts can read and modify the live vanilla skeleton
+        // through model.getBone("head"), etc.  Feed the Lib the post-YSM
+        // animation values before evaluating the script; otherwise the
+        // script starts from zero every frame and authored locomotion is lost.
+        if (!legacyCpm) session.setHostPose(cpmHostPose());
+        var poses = session.tick(entity.tickCount + (double) partialTicks, inputs);
+        // CPM owns emission clocks in the per-entity Lib session.  Drain once
+        // after evaluation so GUI/secondary passes cannot duplicate events.
+        for (var particle : session.drainParticles())
+            com.elfmcys.ysm.client.particle.ParticleSpawner.spawnCpmParticle(entity, particle);
+        for (var entry : poses.entrySet()) {
+            var bone = cpmBoneView(entry.getKey(), legacyCpm);
+            if (bone == null) continue;
+            var pose = entry.getValue();
+            var position = pose.position();
+            var rotation = pose.rotation();
+            var scale = pose.scale();
+            if (isCpmCanonicalHost(entry.getKey())) {
+                // Legacy skeleton.*_all entries only replace the vanilla
+                // ModelRenderer rotation point. Their zero rotation/scale
+                // defaults must not erase the normal YSM locomotion pose.
+                bone.setPosition((float) position[0], (float) position[1], (float) position[2]);
+                if (!legacyCpm) {
+                    bone.setRotation((float) -Math.toRadians(rotation[0]),
+                            (float) -Math.toRadians(rotation[1]),
+                            (float) -Math.toRadians(rotation[2]));
+                    bone.setScale((float) scale[0], (float) scale[1], (float) scale[2]);
+                    bone.setHidden(!pose.visible());
+                }
+                continue;
+            }
+            // JavaModelState turns attributes into the CPM ModelBone
+            // translation (-attrX, +attrY, +attrZ) / 16.  CPM's original
+            // Bone.update() uses (-x, -y, +z) / 16, so the bridge stores the
+            // source values as (x, -y, z) pixels here.  The renderer performs
+            // the only pixel-to-block conversion.
+            // AnimatedGeoBone stores CPM translations in authored pixels;
+            // JavaModelState performs the single pixel-to-block conversion
+            // while building the pose matrix.  Dividing here would shrink
+            // every legacy local offset by another factor of sixteen.
+            if (legacyCpm) CpmLegacyRenderPoseAdapter.apply(bone, pose);
+            else CpmModernRenderPoseAdapter.apply(bone, pose);
+            var color = pose.color();
+            bone.setColor(clampCpmColor(color[0]), clampCpmColor(color[1]), clampCpmColor(color[2]));
+            bone.setTransparency(Math.max(0, Math.min(255, (int) Math.round(pose.alpha() * 255))));
+            bone.setGlow(pose.emissive() ? 15 : -1);
+        }
+    }
+
+    private java.util.Map<String, CpmPoseSession.BonePose> cpmHostPose() {
+        var result = new java.util.LinkedHashMap<String, CpmPoseSession.BonePose>();
+        cpmHostPose(result, "head", "Head");
+        cpmHostPose(result, "body", "UpperBody");
+        cpmHostPose(result, "left_arm", "LeftArm");
+        cpmHostPose(result, "right_arm", "RightArm");
+        cpmHostPose(result, "left_leg", "LeftLeg");
+        cpmHostPose(result, "right_leg", "RightLeg");
+        return result;
+    }
+
+    private void cpmHostPose(java.util.Map<String, CpmPoseSession.BonePose> target,
+                             String scriptName, String ysmName) {
+        var view = getBone(com.elfmcys.ysm.geckolib3.core.molang.util.StringPool.computeIfAbsent(ysmName));
+        if (!(view instanceof AnimatedGeoBone bone)) return;
+        target.put(scriptName, new CpmPoseSession.BonePose(
+                new double[]{bone.getPositionX(), bone.getPositionY(), bone.getPositionZ()},
+                // CpmPoseSession takes host rotations in radians and
+                // converts them to CPM's degree based script channels.  The
+                // YSM model frame is reflected on X, so CPM observes the
+                // inverse reflected rotation on all three axes.
+                new double[]{-bone.getRotationX(),
+                        -bone.getRotationY(),
+                        -bone.getRotationZ()},
+                new double[]{bone.getScaleX(), bone.getScaleY(), bone.getScaleZ()},
+                !bone.areCubesHidden(), new double[]{1, 1, 1}, 1, false));
+    }
+
+    /**
+     * The Lib compiler reserves YSM's canonical player bone names for the
+     * host skeleton and prefixes a CPM bone that uses one of those names.
+     * CPM scripts still address the authored name, so resolve that name at
+     * the host boundary instead of silently dropping the pose.  The fallback
+     * chain also handles the collision prefixes used by the compiler when a
+     * package contains both a canonical name and its reserved form.
+     */
+    @Nullable
+    private AnimatedGeoBone cpmBoneView(String authoredName, boolean legacy) {
+        var pool = com.elfmcys.ysm.geckolib3.core.molang.util.StringPool
+                .computeIfAbsent(authoredName);
+        var view = getBone(pool);
+        if (view instanceof AnimatedGeoBone bone) return bone;
+        String hostAlias = switch (authoredName) {
+            case "head" -> "Head"; case "body" -> "UpperBody";
+            case "left_arm" -> "LeftArm"; case "right_arm" -> "RightArm";
+            case "left_leg" -> "LeftLeg"; case "right_leg" -> "RightLeg";
+            default -> null;
+        };
+        if (hostAlias != null) {
+            view = getBone(com.elfmcys.ysm.geckolib3.core.molang.util.StringPool.computeIfAbsent(hostAlias));
+            if (view instanceof AnimatedGeoBone bone) return bone;
+        }
+        if (cpmPoseSession == null) return null;
+        String candidate = "__cpm_" + authoredName;
+        view = getBone(com.elfmcys.ysm.geckolib3.core.molang.util.StringPool.computeIfAbsent(candidate));
+        if (view instanceof AnimatedGeoBone bone) return bone;
+        // Compiler collision prefixes are deterministic but not knowable from
+        // this renderer. Probe the bounded prefix chain used by CpmSceneCompiler.
+        for (int i = 1; i <= 8; i++) {
+            candidate = "_".repeat(i) + "__cpm_" + authoredName;
+            view = getBone(com.elfmcys.ysm.geckolib3.core.molang.util.StringPool.computeIfAbsent(candidate));
+            if (view instanceof AnimatedGeoBone bone) return bone;
+        }
+        return null;
+    }
+
+    /**
+     * CPM expressions are a post-animation layer.  AnimatableEntity extracts
+     * GeoRenderData immediately after tickAnimation(), so applying the pose
+     * from update() would leave the current frame one tick behind.  The
+     * post-animation hook is the last point at which bone state can still be
+     * included in the render snapshot and also runs for asynchronous updates.
+     */
+    @Override
+    protected void postAnimationSetup(float seekTime, boolean shouldTick) {
+        super.postAnimationSetup(seekTime, shouldTick);
+        applyCpmPose(currentFramePartialTicks());
+    }
+
+    private float currentFramePartialTicks() {
+        return cpmPartialTicks;
+    }
+
+    private static int clampCpmColor(double value) {
+        return Math.max(0, Math.min(255, (int) Math.round(value * 255)));
+    }
+
+    private static boolean isCpmCanonicalHost(String name) {
+        return switch (name) {
+            case "Root", "MAllBody", "AllBody", "UpBody", "UpperBody", "Arm",
+                    "LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand",
+                    "AllHead", "MHead", "Head", "DownBody", "Leg", "LeftLeg", "LeftLowerLeg", "LeftFoot",
+                    "RightLeg", "RightLowerLeg", "RightFoot", "HeadOverlay", "BodyOverlay", "LeftArmOverlay",
+                    "RightArmOverlay", "LeftLegOverlay", "RightLegOverlay", "head", "body", "left_arm", "right_arm",
+                    "left_leg", "right_leg" -> true;
+            default -> false;
+        };
+    }
+
+    private static double cpmItemId(net.minecraft.world.item.ItemStack stack) {
+        return stack == null || stack.isEmpty() ? 0d
+                : net.minecraft.core.registries.BuiltInRegistries.ITEM.getId(stack.getItem());
+    }
+
+    private static double cpmPoseId(net.minecraft.world.entity.LivingEntity living) {
+        if (living.isFallFlying()) return 1d;
+        if (living.isSleeping()) return 2d;
+        if (living.isSwimming()) return 3d;
+        if (living.isAutoSpinAttack()) return 4d;
+        if (living.isCrouching()) return 5d;
+        if (!living.isAlive()) return 6d;
+        return 0d;
     }
 
     /** Logical YSM animation state used by the general-scene adapter. */
     protected String generalAnimationState() { return "idle"; }
     /** Host-specific YSM controllers supply their evaluated pose; Lib owns the cross-rig conversion. */
     protected boolean updateGeneralSkeleton(com.elfmcys.ysm.client.renderer.GeneralMeshInstance scene,float partialTicks) { return false; }
+    protected void updateGeneralControllerLayer(com.elfmcys.ysm.client.renderer.GeneralMeshInstance scene,float partialTicks) {}
 
     protected void onModelRenderTargetLoaded(ModelRenderTarget newModel) {
         var resourceHolder = modelBinding.resourceHolder();
@@ -295,6 +594,12 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
             return;
         }
         deferHandler = newModel.assets().eventHandlers().get(MolangEventWrapper.DEFER);
+        if (cpmPoseSession != null) cpmPoseSession.close();
+        // A fallback render target is valid even when no model has been selected.
+        // Its binding hash is null, and it must not create a CPM session.
+        var modelHash = getModelHash();
+        cpmPoseSession = modelFallback || modelHash == null
+                ? null : CpmModelImporter.createPoseSession(modelHash).orElse(null);
     }
 
     protected void resetModelRenderTarget() {
@@ -302,6 +607,10 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
         modelBinding.releaseRenderTarget();
         currentModelRenderTarget = null;
         deferHandler = null;
+        if (cpmPoseSession != null) {
+            cpmPoseSession.close();
+            cpmPoseSession = null;
+        }
         modelFallback = false;
         resetGeoModel();
     }
@@ -369,6 +678,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
     public void beginAsyncUpdate(final float partialTicks) {
         waitForAsyncUpdate();
         if(isGeneralMesh()) return;
+        cpmPartialTicks = partialTicks;
         UnsafeUtil.getUnsafe().storeFence();
         asyncTask = ThreadTools.submit(() -> {
             try {
@@ -383,6 +693,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
     @Nullable
     protected GeoRenderData update(float partialTicks, RenderContext context) {
         RenderSystem.assertOnRenderThread();
+        cpmPartialTicks = partialTicks;
         var resolvedContext = resolveRenderContext(context);
         if (resolvedContext.immutable() && asyncTask != null) {
             var result = awaitAsyncUpdate();
@@ -496,7 +807,7 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
             lastSceneTime=next;sceneSequence=sequence;sceneUpdated=true;
         }
 
-        void updateGeneralAnimation(String state,double seconds) {
+        void updateGeneralAnimation(String state,double seconds,double elapsed) {
             if (scene == null || !scene.live() || state == null || state.isBlank()) return;
             if(transitions==null)transitions=new cc.sirrus.ysmlib.scene.SceneStateTransitions(scene.profile(),scene.assets().source(),model.generalMeshResources().animations());
             var transition=transitions.update(state,seconds);
@@ -509,18 +820,22 @@ public abstract class CustomEntity<T extends Entity> extends AnimatableEntity<T>
             boolean rest = mapped != null && mapped.selection().equals(cc.sirrus.ysmlib.scene.ScenePackagePlayback.Selection.REST);
             // Native controllers are the default for bound rigs. A named VMD in the directory
             // must not silently replace gameplay; explicit mappings and wheel requests own their clip.
-            boolean useSkeleton=transition==null && mapped==null && com.elfmcys.ysm.model.domain.SceneActionId.base(state).isEmpty()
+            boolean sourceAction=selected!=null&&selected.selection().sourceId().startsWith("@ysm/source/");
+            boolean useSkeleton=transition==null && (sourceAction||mapped==null&&com.elfmcys.ysm.model.domain.SceneActionId.base(state).isEmpty())
                     && !scene.profile().retarget().sourceBones().isEmpty();
+            if(sourceAction&&!useSkeleton)throw new IllegalArgumentException("Source action requires explicit sourceBones");
             if (selected == null && !rest && !useSkeleton) {
                 if (mapped != null) YesSteveModel.LOGGER.warn("Unavailable scene mapping model={} state={} source={}", model.modelHash(), state, mapped.sourceId());
                 selected = com.elfmcys.ysm.client.animation.GeneralAnimationActions.automatic(model, state);
             }
             var target = selected == null || useSkeleton ? cc.sirrus.ysmlib.scene.ScenePackagePlayback.Selection.REST : selected.selection();
             try {
+                if(!useSkeleton&&retargeting)scene.skeletonPose(java.util.Map.of(),java.util.Map.of());
                 // Native controller changes do not restart the MMD physics world or source clock.
                 if(!(useSkeleton && retargeting && target.equals(scene.selection()))) {
-                    scene.selectLive(target, selected == null || useSkeleton ? null : selected.range(), loop);
-                    sceneStart=Double.NaN;lastSceneTime=0;sceneUpdated=false;
+                    double offset=!com.elfmcys.ysm.model.domain.SceneActionId.base(state).isEmpty()?elapsed:0;
+                    boolean retained=scene.selectLive(target, selected == null || useSkeleton ? null : selected.range(), loop,offset);
+                    if(!retained){sceneStart=Double.NaN;lastSceneTime=0;}sceneUpdated=false;
                 }
                 retargeting=useSkeleton;
                 activeTransition=transition;

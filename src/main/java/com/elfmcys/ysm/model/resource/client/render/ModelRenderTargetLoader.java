@@ -8,9 +8,12 @@ import com.elfmcys.ysm.client.model.locator.VehicleLocator;
 import com.elfmcys.ysm.geckolib3.geo.render.built.GeoLocatorType;
 import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.schema.file.AssetFileConstant;
+import com.elfmcys.ysm.buffer.BufferType;
 import com.elfmcys.ysm.format.schema.file.ChunkDataSource;
 import com.elfmcys.ysm.format.schema.file.PBRImageSources;
 import com.elfmcys.ysm.format.schema.model.ModelFileView;
+import com.elfmcys.ysm.format.schema.model.ModelFileConstant;
+import com.elfmcys.ysm.model.catalog.CpmModelImporter;
 import com.elfmcys.ysm.format.schema.model.ModelManifestLookup;
 import com.elfmcys.ysm.format.schema.model.views.RenderTargetView;
 import com.elfmcys.ysm.geckolib3.core.molang.value.IValue;
@@ -147,6 +150,7 @@ public final class ModelRenderTargetLoader {
                 throw AssetLoadException.content(
                         "Invalid model render target selection", failure);
             }
+            restoreCpmSource(cancelled, representation, view, chunks);
             if (view.schema() == com.elfmcys.ysm.format.schema.model.ModelSchema.GENERAL_MESH) {
                 progress.update("general_mesh", "read_scene_package", key.targetId(), 0, 0, 0, 4);
                 requireActive(cancelled);
@@ -192,6 +196,26 @@ public final class ModelRenderTargetLoader {
                     "Failed to build model render target", failure));
         } finally {
             progress.close();
+        }
+    }
+
+    private static void restoreCpmSource(BooleanSupplier cancelled,
+                                          ModelRepresentation representation,
+                                          ModelFileView view,
+                                          ChunkDataSource chunks) throws IOException {
+        var chunk = view.getFileView().getAssetView()
+                .getChunkInfo(ModelFileConstant.CPM_SOURCE_CHUNK_NAME);
+        if (chunk == null) return;
+        try (var payload = view.getFileView().readPayload(cancelled, chunks,
+                ModelFileConstant.CPM_SOURCE_CHUNK_NAME, BufferType.ARRAY)) {
+            if (!(payload instanceof com.elfmcys.ysm.buffer.ArrayBuffer array)) {
+                throw new IOException("CPM source chunk is not array-backed");
+            }
+            var bytes = new byte[array.size()];
+            array.nio().get(bytes);
+            CpmModelImporter.restoreSource(representation.modelId(), bytes);
+        } catch (RuntimeException failure) {
+            throw AssetLoadException.content("Invalid persisted CPM source", failure);
         }
     }
 

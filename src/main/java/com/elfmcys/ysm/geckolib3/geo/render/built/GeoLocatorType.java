@@ -46,6 +46,12 @@ public class GeoLocatorType {
         return nameMap.get(name);
     }
 
+    /** Resolves an explicit locator name stored in the model metadata. */
+    @Nullable
+    public GeoLocator getByName(String name) {
+        return name == null || name.isBlank() ? null : nameMap.get(name);
+    }
+
     protected void freeze() {
         frozen.setRelease(true);
     }

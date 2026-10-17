@@ -4,6 +4,7 @@ import com.elfmcys.ysm.format.AssetLoadException;
 import com.elfmcys.ysm.format.parser.RawModelDiagnostic;
 import com.elfmcys.ysm.format.parser.RawCompileResult;
 import com.elfmcys.ysm.model.catalog.GenericMeshModelImporter;
+import com.elfmcys.ysm.model.catalog.CpmModelImporter;
 import com.elfmcys.ysm.model.catalog.RawModelImporter;
 import com.elfmcys.ysm.model.catalog.content.DirectContainerAdmission;
 import com.elfmcys.ysm.model.catalog.snapshot.CatalogIndexEntry;
@@ -32,9 +33,10 @@ import java.util.Set;
 
 public final class ModelSourceResolver {
     /** Invalidates generic scene containers whenever their manifest/statistics contract changes. */
-    private static final String GENERIC_CACHE_PROFILE = ".generic-v8/";
+    private static final String GENERIC_CACHE_PROFILE = ".generic-v10/";
     private final RawModelImporter importer;
     private final GenericMeshModelImporter genericImporter;
+    private final CpmModelImporter cpmImporter;
     private final LegacyModelImporter legacyImporter;
     private final ConvertedSourceIndexStore indexes;
     private final ConvertedObjectStore objects;
@@ -52,6 +54,7 @@ public final class ModelSourceResolver {
                                ConvertedObjectStore objects) {
         this.importer = Objects.requireNonNull(importer, "importer");
         this.genericImporter = new GenericMeshModelImporter();
+        this.cpmImporter = new CpmModelImporter();
         this.legacyImporter = Objects.requireNonNull(legacyImporter, "legacyImporter");
         this.indexes = Objects.requireNonNull(indexes, "indexes");
         this.objects = Objects.requireNonNull(objects, "objects");
@@ -74,8 +77,13 @@ public final class ModelSourceResolver {
         }
 
         if (observation.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
-                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE) {
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE) {
             return resolveGeneric(observation, location);
+        }
+        if (observation.key().sourceKind() == ModelSourceKind.CPM_RAW_DIRECTORY
+                || observation.key().sourceKind() == ModelSourceKind.CPM_RAW_ARCHIVE) {
+            return resolveCpm(observation, location);
         }
 
         var rawRelativePath = observation.key().root().rootKind().namespace()
@@ -260,8 +268,30 @@ public final class ModelSourceResolver {
     public Optional<MaterializedResolution> resolveCached(SourceObservation observation)
             throws IOException {
         if (observation.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
-                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE) {
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE) {
             return resolveCachedGeneric(observation);
+        }
+        if (observation.key().sourceKind() == ModelSourceKind.CPM_RAW_DIRECTORY
+                || observation.key().sourceKind() == ModelSourceKind.CPM_RAW_ARCHIVE) {
+            // CPM directory/archive stamps are content based, so capture the
+            // source closure once to obtain its stable model hash. A matching
+            // converted object is then opened directly; conversion and model
+            // baking are skipped on the cache-only startup path.
+            var captured = cpmImporter.capture(observation.absolutePath());
+            var rawRelativePath = rawRelativePath(observation);
+            var indexed = indexes.find(rawRelativePath)
+                    .filter(entry -> entry.modelId().equals(captured.modelHash()));
+            if (indexed.isEmpty()) return Optional.empty();
+            var existing = objects.findIdentity(indexed.get());
+            if (existing.isEmpty()) return Optional.empty();
+            var identity = existing.get();
+            var location = new CatalogModelLocation(observation.key().root().rootKind(),
+                    observation.key().relativePath());
+            var entry = new CatalogIndexEntry(identity, location,
+                    objects.objectPath(identity.modelId(), identity.containerId()));
+            var content = ManagedContainer.openIndexed(entry);
+            return Optional.of(new MaterializedResolution(entry, content, indexed, List.of()));
         }
         if (observation.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE) return Optional.empty();
         var source = V3dCache.capture(observation.absolutePath());
@@ -358,12 +388,67 @@ public final class ModelSourceResolver {
                 .map(stored::get).filter(Objects::nonNull).toList();
     }
 
+    private Resolution resolveCpm(SourceObservation observation,
+                                  CatalogModelLocation location)
+            throws CatalogBuildException {
+        var rawRelativePath = rawRelativePath(observation);
+        try {
+            var captured = cpmImporter.capture(observation.absolutePath());
+            var indexed = indexes.find(rawRelativePath)
+                    .filter(entry -> entry.modelId().equals(captured.modelHash()));
+            if (indexed.isPresent()) {
+                var existing = objects.findIdentity(indexed.get());
+                if (existing.isPresent()) {
+                    var identity = existing.get();
+                    return new Resolution(new CatalogIndexEntry(identity, location,
+                            objects.objectPath(identity.modelId(), identity.containerId())), indexed, List.of());
+                }
+            }
+            Files.createDirectories(objects.temporaryRoot());
+            var temporaryDirectory = Files.createTempDirectory(objects.temporaryRoot(), "cpm-");
+            try {
+                var compiled = cpmImporter.convert(captured, temporaryDirectory);
+                var object = objects.commit(compiled, location);
+                var entry = convertedSourceIndex(object, rawRelativePath,
+                        indexes.fullModVersion(), observation);
+                var catalogEntry = new CatalogIndexEntry(object, location,
+                        objects.objectPath(object.modelId(), object.containerId()));
+                return new Resolution(catalogEntry, Optional.of(entry), compiled.diagnostics());
+            } finally {
+                deleteTree(temporaryDirectory);
+            }
+        } catch (ModelSourceException | CatalogInfrastructureException failure) {
+            throw failure;
+        } catch (IOException | SecurityException failure) {
+            throw new CatalogInfrastructureException(
+                    "Failed to access CPM source", failure);
+        } catch (RuntimeException failure) {
+            throw new ModelSourceException("Failed to import CPM model source", failure);
+        }
+    }
+
     private static String rawRelativePath(SourceObservation observation) {
         var namespace = observation.key().root().rootKind().namespace();
         if (observation.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
-                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE) {
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE
+                || observation.key().sourceKind() == ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE) {
             return namespace + "/" + GENERIC_CACHE_PROFILE
                     + observation.key().relativePath().value();
+        }
+        if (observation.key().sourceKind() == ModelSourceKind.CPM_RAW_DIRECTORY
+                || observation.key().sourceKind() == ModelSourceKind.CPM_RAW_ARCHIVE) {
+            // The canonical CPM skeleton binding is part of the converted
+            // artifact. Bump this profile whenever that conversion changes so
+            // an older .mxc cannot survive a renderer/Lib semantic fix.
+            // Coordinate conversion, host binding and scale semantics changed
+            // in the canonical CPM compiler.  Keep old converted artifacts
+            // out of the lookup path; otherwise a client can continue to
+            // render a pre-fix .mxc after the mod JAR has been replaced.
+            // v9 invalidates containers produced before the Legacy
+            // PlayerBone independent-root correction.  Legacy host slots are
+            // independent ModelRenderers in CustomModel; older containers
+            // used a synthetic parent chain and cannot be reused.
+            return namespace + "/.cpm-v9/" + observation.key().relativePath().value();
         }
         return namespace + "/" + observation.key().relativePath().value();
     }

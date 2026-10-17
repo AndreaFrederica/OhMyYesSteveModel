@@ -116,6 +116,57 @@ class JavaRenderTest {
   }
 
   @Test
+  void legacyHostUsesModelRendererOriginForAttachmentTransforms() throws Exception {
+    var host = bone("LeftArm", null, 0);
+    host = new Geometry.Bone("LeftArm", null, new V3(5, 26, 0), new V3(0, 0, 0), host.cubes());
+    var child = bone("piece", "LeftArm", 0);
+    var model = new JavaBakeProvider().bake(
+        new Model(List.of(host, child), 1),
+        ByteBuffer.wrap(new byte[] {-1, -1, -1, (byte) 255}), 1, 1,
+        new Options(29, false, false, true));
+    try (var state = new JavaModelState()) {
+      var attributes = new float[28];
+      for (int i = 0; i < 2; i++) {
+        int o = i * 14;
+        attributes[o + 6] = attributes[o + 7] = attributes[o + 8] = 1;
+        attributes[o + 11] = 1; attributes[o + 12] = 0xffffff; attributes[o + 13] = 0xffff;
+      }
+      assertTrue(state.extract(model, attributes));
+      var pose = state.pose(1, new Matrix4f());
+      assertEquals(5f / 16f, pose.m30(), 1e-6f);
+      assertEquals(2f / 16f, pose.m31(), 1e-6f);
+    }
+  }
+
+  @Test
+  void legacySkeletonOverrideTargetsAbsoluteModelRendererPoint() throws Exception {
+    var host = new Geometry.Bone("LeftArm", null, new V3(5, 26, 0), new V3(0, 0, 0),
+        bone("LeftArm", null, 0).cubes());
+    var child = bone("piece", "LeftArm", 0);
+    var model = new JavaBakeProvider().bake(
+        new Model(List.of(host, child), 1),
+        ByteBuffer.wrap(new byte[] {-1, -1, -1, (byte) 255}), 1, 1,
+        new Options(29, false, false, true));
+    try (var state = new JavaModelState()) {
+      var attributes = new float[28];
+      for (int i = 0; i < 2; i++) {
+        int o = i * 14;
+        attributes[o + 6] = attributes[o + 7] = attributes[o + 8] = 1;
+        attributes[o + 11] = 1; attributes[o + 12] = 0xffffff; attributes[o + 13] = 0xffff;
+      }
+      // CPM skeleton left_arm_all=[-3,0,0] means
+      // ModelRenderer.setRotationPoint(3,0,0).  The bridge encodes the
+      // correction from the vanilla point (5,2,0) as (2,-2,0) in YSM attrs.
+      attributes[3] = 2;
+      attributes[4] = -2;
+      assertTrue(state.extract(model, attributes));
+      var pose = state.pose(1, new Matrix4f());
+      assertEquals(3f / 16f, pose.m30(), 1e-6f);
+      assertEquals(0f, pose.m31(), 1e-6f);
+    }
+  }
+
+  @Test
   void failedExtractInvalidatesPreviousFrameAndCloseIsFinal() throws Exception {
     var state = new JavaModelState();
     var a = attrs();

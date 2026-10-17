@@ -70,6 +70,9 @@ public final class RuntimeGeometryMapper {
               geometry));
     }
     if (offset != cubes.size()) throw new IOException("Unowned cubes in geometry payload");
-    return new Geometry.Model(bones);
+    int transformMode = model.properties().transformMode();
+    if (transformMode < 0 || transformMode > 2)
+      throw new IOException("Invalid geometry transform mode: " + transformMode);
+    return new Geometry.Model(bones, transformMode);
   }
 }

@@ -47,7 +47,9 @@ public class GeoModel implements Closeable {
                 throw new IllegalArgumentException("Invalid sorted bone indices");
             }
             var boneData = boneByIndex.apply(originalIndex);
-            var locator = locatorType.getByBoneName(boneData.name());
+            var locator = boneData.locator().isPresent()
+                    ? locatorType.getByName(boneData.locator().get())
+                    : locatorType.getByBoneName(boneData.name());
             var bone = new GeoBone(boneData, locator);
             sortedBones.add(bone);
             if (locator != null) {

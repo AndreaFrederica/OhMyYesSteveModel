@@ -124,7 +124,8 @@ public final class ModelSourceDiscovery {
                 final var changedPath = changed;
                 var rawOwner = previous.sources().values().stream()
                         .filter(observation -> observation.key().sourceKind()
-                                == ModelSourceKind.CURRENT_RAW_DIRECTORY)
+                                == ModelSourceKind.CURRENT_RAW_DIRECTORY
+                                || observation.key().sourceKind() == ModelSourceKind.CPM_RAW_DIRECTORY)
                         .map(SourceObservation::absolutePath)
                         .filter(changedPath::startsWith)
                         .max(Comparator.comparingInt(Path::getNameCount)).orElse(null);
@@ -133,10 +134,18 @@ public final class ModelSourceDiscovery {
                     continue;
                 }
                 var name = changed.getFileName().toString();
-                if (name.equals("ysm.json") || name.equals("main.json")) {
+                if (name.equals("ysm.json") || name.equals("main.json") || name.equals("model.json")) {
                     scopes.add(changed.getParent());
                 } else if (name.endsWith(".omysm.json")) {
                     var modelName = name.substring(0, name.length() - ".omysm.json".length());
+                    var model = changed.resolveSibling(modelName);
+                    if (isArchive(model)) scopes.add(model);
+                } else if (name.endsWith(".fbxmap.json")) {
+                    var modelName = name.substring(0, name.length() - ".fbxmap.json".length());
+                    var model = changed.resolveSibling(modelName);
+                    if (isArchive(model)) scopes.add(model);
+                } else if (name.endsWith(".resources.json")) {
+                    var modelName = name.substring(0, name.length() - ".resources.json".length());
                     var model = changed.resolveSibling(modelName);
                     if (isArchive(model)) scopes.add(model);
                 } else {
@@ -147,9 +156,10 @@ public final class ModelSourceDiscovery {
                 if (name.equals("ysm-pack.json") || name.equals("ysm-pack.png")) {
                     packScopes.add(changed.getParent());
                 }
-                if (SourceStamp.isSceneDependency(changed) || Files.isDirectory(changed,
+                boolean modelSidecar = name.endsWith(".fbxmap.json") || name.endsWith(".resources.json");
+                if (!modelSidecar && (SourceStamp.isSceneDependency(changed) || Files.isDirectory(changed,
                         LinkOption.NOFOLLOW_LINKS) || previous.sources().values().stream()
-                        .anyMatch(observation -> observation.absolutePath().startsWith(changedPath))) {
+                        .anyMatch(observation -> observation.absolutePath().startsWith(changedPath)))) {
                     // Loose scenes collect dependencies below their model directory.
                     // Restrict invalidation to owners that can include this path.
                     previous.sources().values().stream()
@@ -187,7 +197,7 @@ public final class ModelSourceDiscovery {
                     if (isArchive(real)) addModel(identity, real, models, dependencyStamps);
                     continue;
                 }
-                if (isRawDirectory(real)) {
+                if (isRawDirectory(real) || isCpmDirectory(real)) {
                     addModel(identity, real, models, dependencyStamps);
                     continue;
                 }
@@ -280,7 +290,7 @@ public final class ModelSourceDiscovery {
                             new IOException("Links and special directories are not allowed")));
                     return FileVisitResult.SKIP_SUBTREE;
                 }
-                if (!directory.equals(root) && isRawDirectory(directory)) {
+                if (!directory.equals(root) && (isRawDirectory(directory) || isCpmDirectory(directory))) {
                     models.add(directory);
                     return FileVisitResult.SKIP_SUBTREE;
                 }
@@ -319,6 +329,10 @@ public final class ModelSourceDiscovery {
                 || Files.isRegularFile(directory.resolve("main.json"), LinkOption.NOFOLLOW_LINKS);
     }
 
+    private static boolean isCpmDirectory(Path directory) {
+        return Files.isRegularFile(directory.resolve("model.json"), LinkOption.NOFOLLOW_LINKS);
+    }
+
     private static boolean isArchive(Path file) {
         var name = file.getFileName().toString().toLowerCase(Locale.ROOT);
         return FILE_EXTENSIONS.stream().anyMatch(name::endsWith);
@@ -326,7 +340,8 @@ public final class ModelSourceDiscovery {
 
     private static ModelSourceKind sourceKind(Path source) throws IOException {
         if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
-            return ModelSourceKind.CURRENT_RAW_DIRECTORY;
+            return isCpmDirectory(source) ? ModelSourceKind.CPM_RAW_DIRECTORY
+                    : ModelSourceKind.CURRENT_RAW_DIRECTORY;
         }
         var name = source.getFileName().toString().toLowerCase(Locale.ROOT);
         if (name.endsWith(".mxc")) {
@@ -334,6 +349,10 @@ public final class ModelSourceDiscovery {
         }
         if (name.endsWith(".unitypackage")) {
             return ModelSourceKind.GENERIC_UNITY_PACKAGE;
+        }
+        if (name.endsWith(".zip")) {
+            if (isCpmArchive(source)) return ModelSourceKind.CPM_RAW_ARCHIVE;
+            if (isGenericWorkspaceArchive(source)) return ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE;
         }
         if (GENERIC_EXTENSIONS.stream().anyMatch(name::endsWith)) {
             return ModelSourceKind.GENERIC_RAW_FILE;
@@ -353,6 +372,31 @@ public final class ModelSourceDiscovery {
             }
         }
         return ModelSourceKind.CURRENT_RAW_ARCHIVE;
+    }
+
+    private static boolean isCpmArchive(Path source) {
+        try (var zip = new java.util.zip.ZipFile(source.toFile())) {
+            return zip.stream().anyMatch(entry -> !entry.isDirectory()
+                    && (entry.getName().replace('\\', '/').equalsIgnoreCase("model.json")
+                    || entry.getName().replace('\\', '/').toLowerCase(Locale.ROOT).endsWith("/model.json")));
+        } catch (IOException | RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isGenericWorkspaceArchive(Path source) {
+        try (var zip = new java.util.zip.ZipFile(source.toFile())) {
+            return zip.stream().anyMatch(entry -> !entry.isDirectory()
+                    && isGenericArchiveModel(entry.getName()));
+        } catch (IOException | RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isGenericArchiveModel(String value) {
+        var name = value.replace('\\', '/').toLowerCase(Locale.ROOT);
+        return name.endsWith(".fbx") || name.endsWith(".gltf") || name.endsWith(".glb")
+                || name.endsWith(".vrm") || name.endsWith(".pmx") || name.endsWith(".pmd");
     }
 
     private static boolean hasCurrentContainerMagic(Path source) throws IOException {

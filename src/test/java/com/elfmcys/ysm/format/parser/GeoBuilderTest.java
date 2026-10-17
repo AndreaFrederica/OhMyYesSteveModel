@@ -17,6 +17,7 @@ import us.hebi.quickbuf.ProtoSource;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GeoBuilderTest {
     private static final float[] CUBE_NORMALS = new float[]{
@@ -62,6 +63,42 @@ class GeoBuilderTest {
         var second = buildCubes(model).cubesLegacy().get(0).normal().toFloatArray();
 
         assertArrayEquals(first, second);
+    }
+
+    @Test
+    void boxUvKeepsModernFloatingPointDimensions() throws Exception {
+        var cube = cube(null);
+        cube.size = new float[]{4.5f, 5.25f, 6.75f};
+        cube.uv = CubeUv.box(new float[]{1, 2});
+        var encoded = buildCubes(modelWithCubes(cube)).cubesLegacy().get(0);
+        var uv = encoded.uv().toFloatArray();
+
+        // The first ModelBox side ends at u + z + x + z = 19.0.  A
+        // floor(size) implementation would emit 17/64 instead.
+        assertTrue(containsNear(uv, 19f / 64f));
+        assertTrue(containsNear(uv, 8.75f / 64f));
+    }
+
+    @Test
+    void zeroDepthBoxUsesUpstreamFaceOmissionAndDoubleFaceRule() throws Exception {
+        var single = cube(null);
+        single.size = new float[]{6, 6, 0};
+        single.doubleFace = false;
+        var doubleSided = cube(null);
+        doubleSided.size = new float[]{6, 6, 0};
+        doubleSided.doubleFace = true;
+
+        var one = buildCubes(modelWithCubes(single)).cubesLegacy().get(0);
+        var two = buildCubes(modelWithCubes(doubleSided)).cubesLegacy().get(0);
+        // The box path omits the zero-depth opposite face unless CPM asks for
+        // double_face.  Per-face UV adapters remain independent of this rule.
+        assertEquals(5, one.faceCount());
+        assertEquals(6, two.faceCount());
+    }
+
+    private static boolean containsNear(float[] values, float expected) {
+        for (float value : values) if (Math.abs(value - expected) < 1e-6f) return true;
+        return false;
     }
 
     @Test

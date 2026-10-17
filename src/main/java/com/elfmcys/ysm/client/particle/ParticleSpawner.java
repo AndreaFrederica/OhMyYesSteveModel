@@ -18,6 +18,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
+import cc.sirrus.ysmlib.cpm.CpmFeatures;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.apache.commons.lang3.StringUtils;
@@ -29,6 +30,19 @@ import java.util.concurrent.TimeUnit;
 @OnlyIn(Dist.CLIENT)
 public class ParticleSpawner {
     private static final Cache<String, ParticleOptions> PARTICLE_OPTIONS_CACHE = CacheBuilder.newBuilder().expireAfterAccess(60, TimeUnit.SECONDS).build();
+
+    /** Host bridge for CPM Lib particle events.  Events are already throttled
+     * and owned by a per-entity pose session, so this method only performs the
+     * Minecraft-side resource lookup and spawn. */
+    public static void spawnCpmParticle(Entity entity, CpmFeatures.Spawn spawn) {
+        if (entity == null || spawn == null || spawn.name().isBlank() || !entity.level().isClientSide()) return;
+        try {
+            spawnParticle(entity, spawn.name(), new Vector3d(spawn.position()[0] / 16d, spawn.position()[1] / 16d, spawn.position()[2] / 16d),
+                    new Vector3d(spawn.velocity()[0], spawn.velocity()[1], spawn.velocity()[2]), spawn.speed(), spawn.count(), spawn.lifetime(), false, RandomSource.create());
+        } catch (RuntimeException | CommandSyntaxException | ExecutionException ignored) {
+            // An absent/invalid particle registry entry must not break model rendering.
+        }
+    }
 
     public static boolean evalSpawnParticle(ExecutionContext<IContext<Entity>> context, Function.ArgumentCollection arguments, boolean absPos)
             throws ExecutionException, CommandSyntaxException {

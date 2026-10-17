@@ -61,10 +61,15 @@ public final class Geometry {
     }
   }
 
-  public record Model(List<Bone> bones) {
+  public record Model(List<Bone> bones, int transformMode) {
     public Model {
       bones = List.copyOf(bones);
+      if (transformMode < 0 || transformMode > 2) {
+        throw new IllegalArgumentException("Invalid geometry transform mode: " + transformMode);
+      }
     }
+
+    public Model(List<Bone> bones) { this(bones, 0); }
   }
 
   public record Options(

@@ -4,6 +4,7 @@ import cc.sirrus.ysmlib.YsmRuntime;
 import cc.sirrus.ysmlib.scene.*;
 import cc.sirrus.ysmlib.scene.fbx.FbxDocument;
 import cc.sirrus.ysmlib.scene.io.ReadLimits;
+import cc.sirrus.ysmlib.scene.io.AssetResolver;
 import cc.sirrus.ysmlib.scene.mmd.PmxDocument;
 import cc.sirrus.ysmlib.scene.mmd.PmdDocument;
 import cc.sirrus.ysmlib.scene.mmd.VmdDocument;
@@ -68,6 +69,20 @@ public final class MeshFormatAudit {
               "textures="+d.textures().size(),"resolvedTextures="+dependencies.images().size(),"textureRefs="+safe(d.textures().stream().map(t->t.relativePath().isEmpty()?t.absolutePath():t.relativePath()).filter(s->!s.isEmpty()).toList().toString()),"surfaceMaterials="+surface.materials().size(),
               "surfaceTextureMappings="+surfaceTextureMappings,"hostPrepare="+hostPrepare,"blendShapes="+d.blendShapes().size(),"constraints="+d.constraintCount(),"drawsAtT0="+draws,"warnings="+d.compatibility().diagnostics().size());
         }
+        case ".gltf", ".glb" -> {
+          var d=scenes.readGltf(source,AssetResolver.NONE,limits);var scene=d.scene();
+          emit("PARSED",relative,ext,bytes.length,"nodes="+scene.nodes().size(),"meshes="+scene.meshes().size(),
+              "skins="+scene.skins().size(),"materials="+scene.materials().size(),"images="+scene.images().size(),
+              "animations="+scene.animations().size(),"extensions="+scene.compatibility().features().stream().map(CompatibilityReport.Feature::id).toList(),
+              "diagnostics="+scene.compatibility().diagnostics().size());
+        }
+        case ".vrm" -> {
+          var d=scenes.readVrm(source,AssetResolver.NONE,limits);var scene=d.scene();
+          emit("PARSED",relative,ext,bytes.length,"version="+d.version(),"nodes="+scene.nodes().size(),
+              "meshes="+scene.meshes().size(),"skins="+scene.skins().size(),"materials="+scene.materials().size(),
+              "images="+scene.images().size(),"animations="+scene.animations().size(),
+              "diagnostics="+d.compatibility().diagnostics().size());
+        }
         case ".blend" -> {
           try(var in=new GZIPInputStream(new ByteArrayInputStream(bytes))) {
             byte[] header=in.readNBytes(16);emit("UNSUPPORTED_SOURCE",relative,ext,bytes.length,"container=gzip","decompressedHeader="+hex(header),"reason=Blender .blend is not a portable reader input; export glTF/GLB or FBX");
@@ -83,14 +98,25 @@ public final class MeshFormatAudit {
   }
   private static String extension(Path path) { String name=path.getFileName().toString().toLowerCase(Locale.ROOT);int dot=name.lastIndexOf('.');return dot<0?"":name.substring(dot); }
   private static ByteData resolveByName(Path root,Path owner,String reference) throws IOException {
-    Path candidate=owner.resolve(reference).normalize();
+    String cleaned=cleanTextureReference(reference);
+    Path candidate=owner.resolve(cleaned).normalize();
     if (Files.isRegularFile(candidate)) return new ByteData(Files.readAllBytes(candidate));
-    String name=Path.of(reference.replace('\\','/')).getFileName().toString();
+    String name=textureBasename(cleaned);
     try(var paths=Files.walk(root)) {
-      var found=paths.filter(Files::isRegularFile).filter(p->p.getFileName().toString().equalsIgnoreCase(name)).findFirst();
+      var found=paths.filter(Files::isRegularFile).filter(p->p.getFileName().toString().trim().equalsIgnoreCase(name)).findFirst();
       if(found.isPresent()) return new ByteData(Files.readAllBytes(found.get()));
     }
     throw new IOException("Unresolved FBX texture reference: "+reference);
+  }
+  private static String cleanTextureReference(String value) {
+    if(value==null) return "";
+    String s=value.trim();
+    if(s.length()>=2 && ((s.startsWith("\"") && s.endsWith("\"")) || (s.startsWith("'") && s.endsWith("'")))) s=s.substring(1,s.length()-1);
+    int query=s.indexOf('?');if(query>=0) s=s.substring(0,query);
+    return s.replace('\\','/');
+  }
+  private static String textureBasename(String value) {
+    String s=cleanTextureReference(value);int slash=s.lastIndexOf('/');return slash>=0?s.substring(slash+1):s;
   }
   private static String packageCheck(Path model,Path auditRoot,SceneProvider scenes,ReadLimits limits) throws Exception {
     Path parent=model.getParent();Path motion;
@@ -124,11 +150,12 @@ public final class MeshFormatAudit {
       for(var p:paths.filter(Files::isRegularFile).toList())
         files.put(packageRoot.relativize(p).toString().replace('\\','/'),new ByteData(Files.readAllBytes(p)));
     }
-    String owner=packageRoot.relativize(model).toString().replace('\\','/');var relocations=new ArrayList<ScenePackage.Relocation>();
+    String owner=packageRoot.relativize(model).toString().replace('\\','/');var relocations=new ArrayList<ScenePackage.Relocation>();var seenReferences=new HashSet<String>();
     for(var texture:document.textures()) {
       if(texture.type()!=0) continue;
       String reference=texture.relativePath().isEmpty()?texture.absolutePath():texture.relativePath();
       if(reference.isEmpty()) continue;
+      if(!seenReferences.add(reference.replace('\\','/').toLowerCase(Locale.ROOT))) continue;
       String target=findPackageTarget(packageRoot,reference);
       if(target!=null && files.containsKey(target)) relocations.add(new ScenePackage.Relocation(owner,reference,target));
     }

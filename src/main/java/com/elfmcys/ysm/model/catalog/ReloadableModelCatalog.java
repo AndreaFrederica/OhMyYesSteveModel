@@ -540,13 +540,15 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                 cacheSources = sourceInputs.stream()
                         .filter(source -> source.key().sourceKind() == ModelSourceKind.LEGACY_ARCHIVE
                                 || source.key().sourceKind() == ModelSourceKind.GENERIC_RAW_FILE
-                                || source.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE)
+                                || source.key().sourceKind() == ModelSourceKind.GENERIC_UNITY_PACKAGE
+                                || source.key().sourceKind() == ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE)
                         .sorted(lastUsedComparator())
                         .toList();
                 sourceInputs.stream()
                         .filter(source -> source.key().sourceKind() != ModelSourceKind.LEGACY_ARCHIVE)
                         .filter(source -> source.key().sourceKind() != ModelSourceKind.GENERIC_RAW_FILE
-                                && source.key().sourceKind() != ModelSourceKind.GENERIC_UNITY_PACKAGE)
+                                && source.key().sourceKind() != ModelSourceKind.GENERIC_UNITY_PACKAGE
+                                && source.key().sourceKind() != ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE)
                         .forEach(coldSources::addLast);
                 // Legacy cache misses are appended below; generic cache misses follow the same path.
                 discoveryApplied = true;
@@ -619,6 +621,7 @@ public final class ReloadableModelCatalog implements AutoCloseable {
                             case LEGACY_ARCHIVE -> "convert-legacy";
                             case GENERIC_RAW_FILE -> "convert-mesh";
                             case GENERIC_UNITY_PACKAGE -> "convert-unitypackage";
+                            case GENERIC_WORKSPACE_ARCHIVE -> "convert-workspace";
                             default -> "load-source";
                         };
                         currentPath = source.key().relativePath().value();

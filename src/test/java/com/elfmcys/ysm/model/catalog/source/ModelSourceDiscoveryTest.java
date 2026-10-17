@@ -10,6 +10,8 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,11 +33,13 @@ class ModelSourceDiscoveryTest {
 
         var legacy = Files.createDirectories(temp.resolve("legacy"));
         Files.writeString(legacy.resolve("main.json"), "{}");
+        var cpm = Files.createDirectories(temp.resolve("cpm"));
+        Files.writeString(cpm.resolve("model.json"), "{\"modelId\":\"smoke\"}");
         Files.writeString(temp.resolve("packed.ysm"), "archive");
 
         var result = ModelSourceDiscovery.discover(temp);
 
-        assertEquals(List.of("category/modern", "legacy", "packed.ysm"),
+        assertEquals(List.of("category/modern", "cpm", "legacy", "packed.ysm"),
                 result.models().stream().map(this::relative).toList());
         assertFalse(result.packDirectories().stream()
                 .map(this::relative).anyMatch(path -> path.startsWith("category/modern/")));
@@ -84,6 +88,37 @@ class ModelSourceDiscoveryTest {
         assertNotEquals(observation(before, model), observation(after, model));
         assertSame(observation(before, variant), observation(after, variant));
         assertSame(observation(before, other), observation(after, other));
+    }
+
+    @Test
+    void fbxMappingSidecarInvalidatesOnlyItsFbxModel() throws Exception {
+        var model = Files.writeString(temp.resolve("avatar.fbx"), "model");
+        var other = Files.writeString(temp.resolve("other.fbx"), "other");
+        var root = new ModelCatalogSource(CatalogRootKind.CUSTOM, temp, false);
+        var before = assertInstanceOf(RootInventoryState.Complete.class, ModelSourceDiscovery.inventory(root));
+        var mapping = Files.writeString(temp.resolve("avatar.fbx.fbxmap.json"), "{}");
+        var after = assertInstanceOf(RootInventoryState.Complete.class,
+                ModelSourceDiscovery.inventoryChanged(root, before, Set.of(mapping)));
+        assertNotEquals(observation(before, model), observation(after, model));
+        assertSame(observation(before, other), observation(after, other));
+    }
+
+    @Test
+    void classifiesZipWorkspaceWithNativeModelAsGenericArchive() throws Exception {
+        var archive = temp.resolve("avatar-workspace.zip");
+        try (var output = new ZipOutputStream(Files.newOutputStream(archive))) {
+            output.putNextEntry(new ZipEntry("Avatar/Avatar.fbx"));
+            output.write("Kaydara FBX Binary".getBytes());
+            output.closeEntry();
+        }
+        var state = assertInstanceOf(RootInventoryState.Complete.class,
+                ModelSourceDiscovery.inventory(new ModelCatalogSource(
+                        CatalogRootKind.CUSTOM, temp, false)));
+        var observation = state.sources().values().stream()
+                .filter(value -> value.absolutePath().equals(archive.toAbsolutePath().normalize()))
+                .findFirst().orElseThrow();
+        assertEquals(ModelSourceKind.GENERIC_WORKSPACE_ARCHIVE,
+                observation.key().sourceKind());
     }
 
     @Test

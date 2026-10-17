@@ -9,6 +9,8 @@ public class Bone {
     public boolean mirror;
     public String name;
     public String parent;
+    /** Optional explicit YSM locator name for imported multi-root groups. */
+    public String locator;
     public float[] pivot;
 
     public float[] rotation;

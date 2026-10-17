@@ -96,7 +96,7 @@ public final class JavaBakeProvider implements BakeProvider {
         stack.push(new Frame(descendants.get(i), sorted, f.depth() + 1, false, -1));
     }
     require(bones.size() == n, "Cyclic or disconnected hierarchy");
-    return new BakedModel(bones, options.hasPbr());
+    return new BakedModel(bones, options.hasPbr(), source.transformMode());
   }
 
   private static boolean process(

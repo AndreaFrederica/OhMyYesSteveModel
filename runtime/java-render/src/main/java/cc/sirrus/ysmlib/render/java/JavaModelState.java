@@ -57,14 +57,52 @@ public final class JavaModelState implements cc.sirrus.ysmlib.render.ModelState 
         pose.normalScale = parent.normalScale;
       }
       var pivot = bone.pivot();
-      pose.matrix
-          .translate(
-              (pivot.x() - attributes[o + 3]) / 16,
-              (pivot.y() + attributes[o + 4]) / 16,
-              (pivot.z() + attributes[o + 5]) / 16)
-          .rotateZYX(attributes[o + 2], attributes[o + 1], attributes[o])
-          .scale(sx, sy, sz)
-          .translate(-pivot.x() / 16, -pivot.y() / 16, -pivot.z() / 16);
+      // Legacy CPM custom bones are compiled with a zero local pivot. Host
+      // player bones retain their non-zero absolute pivots, which gives us a
+      // format-neutral boundary here without carrying host names through the
+      // compact baked representation.
+      if (next.transformMode() == 1
+          && pivot.x() == 0 && pivot.y() == 0 && pivot.z() == 0) {
+        // CustomModel's IBone.getTransform() is a local scale -> rotation ->
+        // translation transform. Legacy CPM boxes are stored in that bone's
+        // local ModelRenderer space, so the transform must remain local.
+        pose.matrix
+            .scale(sx, sy, sz)
+            .rotateZYX(attributes[o + 2], attributes[o + 1], attributes[o])
+            .translate(-attributes[o + 3] / 16,
+                attributes[o + 4] / 16,
+                attributes[o + 5] / 16);
+      } else if (next.transformMode() == 1) {
+        // Legacy CustomModel renders a custom bone below a live 1.12
+        // ModelRenderer.  The box vertices were already moved from the
+        // ModelRenderer frame into YSM's frame by the compiler (the fixed
+        // 24-pixel model origin is therefore part of the vertex data).  A
+        // vanilla host transform is consequently
+        //   T(base + rotationPoint) * R * T(-base)
+        // rather than a pivot conjugation.  The old implementation used
+        // T(pivot) * R * T(-pivot), which made arm/leg attachments stay at
+        // the model origin and caused nested Legacy models to fan out.
+        pose.matrix
+            .translate(
+                (pivot.x() - attributes[o + 3]) / 16,
+                (pivot.y() + attributes[o + 4]) / 16,
+                (pivot.z() + attributes[o + 5]) / 16)
+            .rotateZYX(attributes[o + 2], attributes[o + 1], attributes[o])
+            .translate(0, -24f / 16f, 0);
+      } else {
+        // YSM's player bones (including the materialized host skeleton in a
+        // Legacy CPM model) use absolute pivots and animated deltas. Keep
+        // their normal pivot conjugation so default locomotion and CPM's
+        // skeleton.*_all rotation points share the same semantics.
+        pose.matrix
+            .translate(
+                (pivot.x() - attributes[o + 3]) / 16,
+                (pivot.y() + attributes[o + 4]) / 16,
+                (pivot.z() + attributes[o + 5]) / 16)
+            .rotateZYX(attributes[o + 2], attributes[o + 1], attributes[o])
+            .scale(sx, sy, sz)
+            .translate(-pivot.x() / 16, -pivot.y() / 16, -pivot.z() / 16);
+      }
       pose.normal.rotateZYX(attributes[o + 2], attributes[o + 1], attributes[o]);
       boolean uniform = Math.abs(sx) == Math.abs(sy) && Math.abs(sy) == Math.abs(sz);
       pose.uniform &= uniform;
@@ -103,6 +141,7 @@ public final class JavaModelState implements cc.sirrus.ysmlib.render.ModelState 
     valid = true;
     return true;
   }
+
 
   private static boolean packed(float v, int max) {
     return Float.isFinite(v) && v >= 0 && v <= max && v == (int) v;

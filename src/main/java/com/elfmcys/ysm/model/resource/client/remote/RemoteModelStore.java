@@ -300,6 +300,11 @@ public final class RemoteModelStore implements AutoCloseable {
         if (common.stringsBlobId() > 0) {
             addBlob(descriptors, view, common.stringsBlobId());
         }
+        var cpmSource = view.getFileView().getAssetView()
+                .getChunkInfo(ModelFileConstant.CPM_SOURCE_CHUNK_NAME);
+        if (cpmSource != null) {
+            descriptors.putIfAbsent(cpmSource.type(), cpmSource);
+        }
         return descriptors.values().stream()
                 .sorted(Comparator.comparing(AssetContainerView.ChunkInfo::type))
                 .toList();

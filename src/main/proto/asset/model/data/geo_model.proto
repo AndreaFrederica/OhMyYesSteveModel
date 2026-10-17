@@ -25,11 +25,16 @@ message Bone {
   repeated float rotate = 4 [packed = true];
   optional bool debug = 5;
   optional uint32 cubeCount = 6;
+  // Optional explicit render locator for imported multi-root groups.
+  optional string locator = 7;
 }
 
 message GeoProperties {
   float texture_height = 1;
   float texture_width = 2;
+  // 0 = ordinary YSM/Bedrock, 1 = CPM legacy CustomModel transform,
+  // 2 = CPM remake/Modern source transform.
+  uint32 transform_mode = 3;
 }
 
 message GeoModel {

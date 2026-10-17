@@ -37,6 +37,25 @@ class LocatorVisibilityTest {
         }
     }
 
+    @Test void selectsNonContiguousLocatorRootsWithoutIncludingInterveningBones() {
+        var model = multiRootModel();
+        var attributes = new float[5 * 14];
+        for (int i = 0; i < 5; i++) {
+            int offset = i * 14;
+            attributes[offset + 6] = attributes[offset + 7] = attributes[offset + 8] = 1;
+            attributes[offset + 12] = 0xffffff;
+            attributes[offset + 13] = 0xffff;
+        }
+        attributes[14 + 11] = 1;
+        attributes[4 * 14 + 11] = 1;
+        var selected = LocatorVisibility.select(model, attributes, 1);
+        assertEquals(1f, selected[0 * 14 + 9]);
+        assertEquals(0f, selected[1 * 14 + 9]);
+        assertEquals(0f, selected[2 * 14 + 9]);
+        assertEquals(1f, selected[3 * 14 + 9]);
+        assertEquals(0f, selected[4 * 14 + 9]);
+    }
+
     private static float[] attributes() {
         var a = new float[4 * 14];
         for (int b = 0; b < 4; b++) {
@@ -61,5 +80,16 @@ class LocatorVisibilityTest {
                 new BakedModel.Bone(1,0,3,1,new V3(0,0,0),true,parts),
                 new BakedModel.Bone(2,1,3,2,new V3(0,0,0),true,parts),
                 new BakedModel.Bone(3,0,4,1,new V3(0,0,0),true,parts)),false);
+    }
+
+    private static BakedModel multiRootModel() {
+        var empty = List.<BakedModel.Cube>of();
+        var parts = List.of(empty, empty, empty, empty, empty);
+        return new BakedModel(List.of(
+                new BakedModel.Bone(0, -1, 5, 0, new V3(0, 0, 0), true, parts),
+                new BakedModel.Bone(1, 0, 3, 0, new V3(0, 0, 0), true, parts),
+                new BakedModel.Bone(2, 1, 3, 0, new V3(0, 0, 0), true, parts),
+                new BakedModel.Bone(3, 0, 4, 0, new V3(0, 0, 0), true, parts),
+                new BakedModel.Bone(4, 0, 5, 0, new V3(0, 0, 0), true, parts)), false);
     }
 }

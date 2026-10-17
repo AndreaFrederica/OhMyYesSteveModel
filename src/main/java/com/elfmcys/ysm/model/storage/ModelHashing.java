@@ -60,6 +60,15 @@ public final class ModelHashing {
                 throw new IOException("File changed while hashing: " + file);
             }
             return hash;
+        } catch (UnsupportedOperationException unsupported) {
+            // Forge's union provider can reject FileChannel.open itself, not just map().
+            if(size>64L*1024*1024)throw new IOException("File system cannot map a large source: "+file,unsupported);
+            try(var channel=Files.newByteChannel(file,StandardOpenOption.READ)){
+                var source=ByteBuffer.allocate(Math.toIntExact(size));
+                while(source.hasRemaining())if(channel.read(source)<0)throw new IOException("File changed while hashing: "+file);
+                if(channel.size()!=size)throw new IOException("File changed while hashing: "+file);
+                return new Hash256(Blake3.computeHash(source.flip()));
+            }
         }
     }
 

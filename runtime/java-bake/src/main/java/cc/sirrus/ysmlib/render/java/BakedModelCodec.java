@@ -17,6 +17,7 @@ final class BakedModelCodec {
     var out = new DataOutputStream(bytes);
     out.writeInt(MAGIC);
     out.writeBoolean(model.hasPbr());
+    out.writeInt(model.transformMode());
     out.writeInt(model.bones().size());
     for (var b : model.bones()) {
       out.writeInt(b.originalIndex());
@@ -79,6 +80,8 @@ final class BakedModelCodec {
             });
     require(in.readInt() == MAGIC, "Incompatible baked profile");
     boolean pbr = in.readBoolean();
+    int transformMode = in.readInt();
+    require(transformMode >= 0 && transformMode <= 2, "Invalid baked transform mode");
     int count = count(in, 65536, 45);
     var bones = new ArrayList<BakedModel.Bone>(count);
     boolean[] originals = new boolean[count];
@@ -133,7 +136,7 @@ final class BakedModelCodec {
       bones.add(new BakedModel.Bone(original, parent, end, depth, pivot, solid, parts));
     }
     require(in.available() == 0, "Trailing baked payload");
-    return new BakedModel(bones, pbr);
+    return new BakedModel(bones, pbr, transformMode);
   }
 
   private static int count(DataInputStream in, int max, int minBytes) throws IOException {
