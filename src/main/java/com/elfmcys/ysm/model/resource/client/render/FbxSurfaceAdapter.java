@@ -24,12 +24,16 @@ public final class FbxSurfaceAdapter {
     public static SceneAsset scene(FbxDocument source, FbxAssets assets) {
         Objects.requireNonNull(source);
         Objects.requireNonNull(assets);
-        int textureCount = source.textures().size();
+        // Synthetic Unity material images may be appended after the FBX
+        // texture table. They are addressed by their asset index, while the
+        // FBX table itself is still the only source of element IDs.
+        int textureCount = Math.max(source.textures().size(), assets.images().keySet().stream()
+                .mapToInt(Integer::intValue).max().orElse(-1) + 1);
         var textureIndices = new LinkedHashMap<Integer, Integer>();
-        for (int i = 0; i < textureCount; i++) textureIndices.put(source.textures().get(i).element(), i);
+        for (int i = 0; i < source.textures().size(); i++) textureIndices.put(source.textures().get(i).element(), i);
         // FbxDetails.MaterialTexture stores ufbx's typed_id, while the public
         // texture record stores element_id. Keep both domains addressable.
-        for (int i = 0; i < textureCount; i++) {
+        for (int i = 0; i < source.textures().size(); i++) {
             int element = source.textures().get(i).element();
             // Do not capture the loop index in a lambda here. Besides keeping
             // this compatible with the Java 21 build, the explicit loop makes
@@ -48,16 +52,16 @@ public final class FbxSurfaceAdapter {
         var textures = new ArrayList<SceneAsset.Texture>(textureCount);
         var images = new ArrayList<SceneAsset.Image>(textureCount);
         for (int i = 0; i < textureCount; i++) {
-            var texture = source.textures().get(i);
+            var texture = i < source.textures().size() ? source.textures().get(i) : null;
             var image = assets.images().get(i);
             textures.add(new SceneAsset.Texture("fbx-texture-" + i, i,
-                    9729, 9987, wrap(texture.wrapU()), wrap(texture.wrapV()),
-                    Map.of("element", Integer.toString(texture.element()), "uvSet", texture.uvSet())));
+                    9729, 9987, texture == null ? 10497 : wrap(texture.wrapU()), texture == null ? 10497 : wrap(texture.wrapV()),
+                    texture == null ? Map.of("source", "unity-material") : Map.of("element", Integer.toString(texture.element()), "uvSet", texture.uvSet())));
             images.add(new SceneAsset.Image("fbx-image-" + i, "", image == null ? "" : image.reference(),
                     image == null ? ByteData.EMPTY : image.bytes(), Map.of()));
         }
         var materials = source.details().materials().stream()
-                .map(material -> material(material, source, assets, textureIndices, uvSets))
+            .map(material -> material(material, source, assets, textureIndices, uvSets))
                 .toList();
         var scene = new SceneAsset.Scene(source.info().creator(), new IntData(new int[0]), Map.of());
         var coordinates = new SceneAsset.Coordinates(true, source.info().sourceUnitMeters(), "Y");
@@ -95,8 +99,22 @@ public final class FbxSurfaceAdapter {
         String alpha = "OPAQUE";
         var opacity = first(source.pbr(), "opacity", "Opacity");
         if (opacity != null && opacity.hasValue() && opacity.value().size() > 0 && opacity.value().get(0) < .999) alpha = "BLEND";
-        return new SceneAsset.Material("fbx-material-" + source.element(), "metallic-roughness", parameters,
-                mapped, alpha, .5f, false, Map.of("source", "fbx", "shader", source.shadingModel()));
+        var override=assets.materialOverrides().get(source.element());
+        float cutoff=.5f;
+        if(override!=null) {
+            if(!override.baseColor().isBlank()) addOverrideTexture(mapped,"baseColor",override.baseColor(),assets,document);
+            if(!override.normal().isBlank()) addOverrideTexture(mapped,"normal",override.normal(),assets,document);
+            if(!override.emissive().isBlank()) addOverrideTexture(mapped,"emissive",override.emissive(),assets,document);
+            alpha=override.alphaMode();cutoff=override.alphaCutoff();
+        }
+        return new SceneAsset.Material(override!=null&&!override.name().isBlank()?override.name():"fbx-material-" + source.element(), "metallic-roughness", parameters,
+                mapped, alpha, cutoff, false, Map.of("source", override==null?"fbx":"unity-mat", "shader", source.shadingModel()));
+    }
+
+    private static void addOverrideTexture(Map<String, SceneAsset.TextureBinding> mapped,String semantic,String reference,
+                                           FbxAssets assets,FbxDocument document) {
+        int index=-1;for(var entry:assets.images().entrySet()) if(entry.getValue().reference().equals(reference)){index=entry.getKey();break;}
+        if(index>=0) mapped.put(semantic,new SceneAsset.TextureBinding(index,0,IDENTITY_UV,1,Map.of("source","unity-mat","reference",reference)));
     }
 
     private static void addMapTextures(Map<String, SceneAsset.TextureBinding> mapped,

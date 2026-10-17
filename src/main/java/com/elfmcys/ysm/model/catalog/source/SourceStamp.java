@@ -29,14 +29,30 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
         }
         String key=Objects.toString(attributes.fileKey(), "") + "|mtime=" + attributes.lastModifiedTime();
         String name=path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
-        if(java.util.List.of(".pmx",".pmd",".vrm",".gltf",".glb",".fbx",".unitypackage",".yscene").stream().anyMatch(name::endsWith)) {
+        if(java.util.List.of(".pmx",".pmd",".vrm",".gltf",".glb",".fbx",".unitypackage",".zip",".yscene").stream().anyMatch(name::endsWith)) {
             Path profile=path.resolveSibling(path.getFileName()+".omysm.json");
             if(Files.exists(profile,LinkOption.NOFOLLOW_LINKS)) {
                 var p=Files.readAttributes(profile,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
                 if(!p.isRegularFile() || p.isSymbolicLink()) throw new IOException("Model profile is not a regular non-link file: "+profile);
                 key+="|profile="+p.size()+":"+p.lastModifiedTime()+":"+Objects.toString(p.fileKey(),"");
             }
-            if (!name.endsWith(".unitypackage") && !name.endsWith(".yscene")) {
+            if(name.endsWith(".fbx") || name.endsWith(".unitypackage") || name.endsWith(".zip")) {
+                Path mapping=path.resolveSibling(path.getFileName()+".fbxmap.json");
+                if(Files.exists(mapping,LinkOption.NOFOLLOW_LINKS)) {
+                    var m=Files.readAttributes(mapping,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+                    if(!m.isRegularFile()||m.isSymbolicLink())throw new IOException("FBX mapping is not a regular non-link file: "+mapping);
+                    key+="|fbxMapping="+m.size()+":"+m.lastModifiedTime()+":"+Objects.toString(m.fileKey(),"");
+                }
+            }
+            if(name.endsWith(".fbx") || name.endsWith(".unitypackage") || name.endsWith(".zip")) {
+                Path resources=path.resolveSibling(path.getFileName()+".resources.json");
+                if(Files.exists(resources,LinkOption.NOFOLLOW_LINKS)) {
+                    var r=Files.readAttributes(resources,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+                    if(!r.isRegularFile()||r.isSymbolicLink())throw new IOException("FBX resource mapping is not a regular non-link file: "+resources);
+                    key+="|fbxResources="+r.size()+":"+r.lastModifiedTime()+":"+Objects.toString(r.fileKey(),"");
+                }
+            }
+            if (!name.endsWith(".unitypackage") && !name.endsWith(".zip") && !name.endsWith(".yscene")) {
                 var parent = path.toAbsolutePath().normalize().getParent();
                 var stamp = dependencyStamps.get(parent);
                 if (stamp == null) {
@@ -61,7 +77,7 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
     static boolean isSceneDependency(Path file) {
         var name = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
         return java.util.List.of(".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp",
-                ".bin", ".vmd", ".vpd", ".vrma", ".gltf", ".glb")
+                ".bin", ".vmd", ".vpd", ".vrma", ".gltf", ".glb", ".fbxmap.json", ".resources.json")
                 .stream().anyMatch(name::endsWith);
     }
 
@@ -86,7 +102,7 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
                 if (!attributes.isRegularFile()) {
                     throw new IOException("Unsupported entry in raw model source: " + file);
                 }
-                if (!dependenciesOnly || isSceneDependency(file)) {
+                if (!dependenciesOnly || (isSceneDependency(file) && !isModelSidecar(file))) {
                     entries.add(DirectoryEntry.file(relative(root, file), attributes));
                 }
                 return FileVisitResult.CONTINUE;
@@ -116,6 +132,13 @@ public sealed interface SourceStamp permits SourceStamp.File, SourceStamp.RawDir
             }
         }
         return new RawDirectory(ModelHashing.blake3(bytes.toByteArray()), fileCount, totalBytes);
+    }
+
+    /** Sidecars belong only to their adjacent model and must not invalidate
+     * unrelated sibling models that share the same workspace directory. */
+    private static boolean isModelSidecar(Path file) {
+        var name = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".fbxmap.json") || name.endsWith(".resources.json");
     }
 
     private static void rejectLink(Path path, BasicFileAttributes attributes) throws IOException {
