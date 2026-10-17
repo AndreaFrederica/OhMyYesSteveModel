@@ -1,5 +1,16 @@
 // Explicit hardware check; ordinary unit tests do not require a display/GL driver.
 configurations { sceneGraphicsNatives }
+
+tasks.register('vrmOptimizationGpuVerification', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
+    mainClass = 'com.elfmcys.ysm.model.resource.client.render.VrmOptimizationGpuVerification'
+    maxHeapSize = '3g'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+    systemProperty 'ysm.vrm.benchmark', providers.gradleProperty('vrmBenchmark').getOrElse('false')
+    args providers.gradleProperty('vrmVerificationModels').map { it.split('~@~') as List }.getOrElse([])
+}
 def sceneOsName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
 def sceneArchitecture = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
 def sceneNativeOs = sceneOsName.contains('win') ? 'windows' : sceneOsName.contains('mac') ? 'macos' : 'linux'
@@ -18,6 +29,8 @@ tasks.register('sceneTextureGpuVerification', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath + configurations.sceneGraphicsNatives
     mainClass = 'com.elfmcys.ysm.model.resource.client.render.SceneTextureGpuVerification'
     systemProperty 'ysm.runtime.javaOnly', 'true'
+    // The combined suite also seeds polygon mode for material state restoration.
+    systemProperty 'ysm.scene.enablePolygonMode', 'true'
     if (sceneNativeOs == 'macos') jvmArgs '-XstartOnFirstThread'
 }
 tasks.register('realMeshGpuVerification', JavaExec) {

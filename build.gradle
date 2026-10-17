@@ -785,6 +785,8 @@ tasks.register('modelManagementMockForge', JavaExec) {
     classpath = sourceSets.mockSupervisor.runtimeClasspath
     mainClass = 'com.elfmcys.ysm.mock.supervisor.HostSupervisor'
     systemProperty 'ysm.mockFirstPerson', providers.gradleProperty('ysm.mockFirstPerson').getOrElse('false')
+    systemProperty 'ysm.mockScenePeers', providers.gradleProperty('ysm.mockScenePeers').getOrElse('false')
+    systemProperty 'ysm.mockSceneModel', providers.gradleProperty('ysm.mockSceneModel').getOrElse('')
     systemProperty 'ysm.mockNative', providers.gradleProperty('ysm.mockNative').getOrElse('false')
     outputs.upToDateWhen { false }
 
@@ -855,6 +857,42 @@ tasks.register('runPlayground', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = playgroundMainClass
+}
+
+// Diagnostic export for the game-equivalent CPM -> GeoBuilder path.  The
+// runtime prerequisite is compileOnly for the mod, so include the compile
+// classpath explicitly when launching this ordinary-JVM tool.
+tasks.register('cpmYsmDump', JavaExec) {
+    group = 'verification'
+    description = 'Dumps post-GeoBuilder CPM geometry for the offline renderer.'
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.output + sourceSets.main.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.elfmcys.ysm.tool.CpmYsmActualDump'
+    def modelDir = providers.gradleProperty('cpm.modelDir')
+    def outputFile = providers.gradleProperty('cpm.output')
+    doFirst {
+        if (!modelDir.isPresent()) {
+            throw new GradleException('cpm.modelDir must point to a CPM model directory')
+        }
+        args modelDir.get()
+        if (outputFile.isPresent()) args outputFile.get()
+    }
+}
+
+tasks.register('cpmYsmBatchDump', JavaExec) {
+    group = 'verification'
+    description = 'Dumps every Legacy and Modern CPM model in one Java 17 process.'
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.output + sourceSets.main.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'com.elfmcys.ysm.tool.CpmYsmBatchDump'
+    def legacyRoot = providers.gradleProperty('cpm.legacyRoot')
+    def modernRoot = providers.gradleProperty('cpm.modernRoot')
+    def outputRoot = providers.gradleProperty('cpm.outputRoot')
+    doFirst {
+        if (!legacyRoot.isPresent() || !modernRoot.isPresent() || !outputRoot.isPresent())
+            throw new GradleException('cpm.legacyRoot, cpm.modernRoot and cpm.outputRoot are required')
+        args legacyRoot.get(), modernRoot.get(), outputRoot.get()
+    }
 }
 
 jar {
