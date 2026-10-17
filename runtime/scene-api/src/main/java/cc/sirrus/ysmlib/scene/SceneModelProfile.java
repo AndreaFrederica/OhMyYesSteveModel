@@ -5,7 +5,11 @@ import java.util.*;
 /** Portable per-model authoring settings. Preview transport/physics switches are intentionally absent. */
 public record SceneModelProfile(int schemaVersion,String profileId,Placement placement,
     Map<String,BoneBinding> bones,Map<String,Action> actions,Presentation presentation,Metadata metadata,Retarget retarget,
-    List<Transition> transitions,HeldItems heldItems,ScenePhysicsInput.Settings hostPhysics) {
+    List<Transition> transitions,HeldItems heldItems,ScenePhysicsInput.Settings hostPhysics,SceneModelFeatures features) {
+  public SceneModelProfile(int schemaVersion,String profileId,Placement placement,Map<String,BoneBinding> bones,
+      Map<String,Action> actions,Presentation presentation,Metadata metadata,Retarget retarget,List<Transition> transitions,HeldItems heldItems,ScenePhysicsInput.Settings hostPhysics) {
+    this(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,heldItems,hostPhysics,SceneModelFeatures.empty());
+  }
   public SceneModelProfile(int schemaVersion,String profileId,Placement placement,Map<String,BoneBinding> bones,
       Map<String,Action> actions,Presentation presentation,Metadata metadata,Retarget retarget,List<Transition> transitions,HeldItems heldItems) {
     this(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,heldItems,ScenePhysicsInput.Settings.defaults());
@@ -24,7 +28,7 @@ public record SceneModelProfile(int schemaVersion,String profileId,Placement pla
   public SceneModelProfile {
     if(schemaVersion!=1) throw new IllegalArgumentException("Unsupported model profile schema: "+schemaVersion);
     UUID.fromString(Objects.requireNonNull(profileId));Objects.requireNonNull(placement);Objects.requireNonNull(presentation);Objects.requireNonNull(metadata);Objects.requireNonNull(retarget);Objects.requireNonNull(heldItems);
-    Objects.requireNonNull(hostPhysics);bones=Map.copyOf(bones);actions=Map.copyOf(actions);transitions=List.copyOf(transitions);
+    Objects.requireNonNull(features);Objects.requireNonNull(hostPhysics);bones=Map.copyOf(bones);actions=Map.copyOf(actions);transitions=List.copyOf(transitions);
     var edges=new HashSet<List<String>>();
     for(var edge:transitions)if(!edges.add(List.of(edge.from(),edge.to())))throw new IllegalArgumentException("Duplicate transition: "+edge.from()+" -> "+edge.to());
     var occupied=new HashSet<Integer>();
@@ -89,13 +93,13 @@ public record SceneModelProfile(int schemaVersion,String profileId,Placement pla
   /** path is a stable package path, @ysm/generated/state, or the explicit REST token. */
   public record Action(String path,int clip,boolean loop) {
     public Action {
-      Objects.requireNonNull(path);if(!path.equals("REST") && !path.startsWith("@ysm/generated/")) ScenePackage.checkedPath(path);
+      Objects.requireNonNull(path);if(!path.equals("REST") && !path.equals("@ysm/controller") && !path.startsWith("@ysm/generated/") && !path.startsWith("@ysm/profile/") && !path.startsWith("@ysm/source/")) ScenePackage.checkedPath(path);
       if(clip< -1) throw new IllegalArgumentException("Invalid clip");
-      if((path.equals("REST") || path.startsWith("@ysm/generated/")) && clip!=-1)throw new IllegalArgumentException("Rest/generated actions have no clip index");
+      if((path.equals("REST") || path.equals("@ysm/controller") || path.startsWith("@ysm/generated/") || path.startsWith("@ysm/profile/") || path.startsWith("@ysm/source/")) && clip!=-1)throw new IllegalArgumentException("Rest/generated actions have no clip index");
     }
     public ScenePackagePlayback.Selection resolve(ScenePackage source) {
       if(path.equals("REST")) return ScenePackagePlayback.Selection.REST;
-      if(path.startsWith("@ysm/generated/")) return new ScenePackagePlayback.Selection(path,clip);
+      if(path.equals("@ysm/controller") || path.startsWith("@ysm/generated/") || path.startsWith("@ysm/profile/") || path.startsWith("@ysm/source/")) return new ScenePackagePlayback.Selection(path,clip);
       if(path.equals(source.model().path())) return new ScenePackagePlayback.Selection(source.model().id(),clip);
       return source.animations().stream().filter(a->a.path().equals(path)).findFirst()
           .map(a->new ScenePackagePlayback.Selection(a.id(),clip)).orElseThrow(()->new IllegalArgumentException("Missing animation: "+path));
@@ -127,15 +131,16 @@ public record SceneModelProfile(int schemaVersion,String profileId,Placement pla
   public static SceneModelProfile defaults(double meters,double referenceHeight,double footY) {
     return new SceneModelProfile(1,UUID.randomUUID().toString(),new Placement(meters,SizeMode.SCALE,1,1.8,referenceHeight,footY,0,0,0,0),Map.of(),Map.of(),new Presentation(true,1),Metadata.empty(),Retarget.empty(),List.of());
   }
-  public SceneModelProfile withPlacement(Placement value) { return new SceneModelProfile(schemaVersion,profileId,value,bones,actions,presentation,metadata,retarget,transitions,heldItems,hostPhysics); }
-  public SceneModelProfile withBones(Map<String,BoneBinding> value) { return new SceneModelProfile(schemaVersion,profileId,placement,value,actions,presentation,metadata,retarget,transitions,heldItems,hostPhysics); }
-  public SceneModelProfile withActions(Map<String,Action> value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,value,presentation,metadata,retarget,transitions,heldItems,hostPhysics); }
-  public SceneModelProfile withPresentation(Presentation value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,value,metadata,retarget,transitions,heldItems,hostPhysics); }
-  public SceneModelProfile withMetadata(Metadata value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,value,retarget,transitions,heldItems,hostPhysics); }
-  public SceneModelProfile withRetarget(Retarget value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,value,transitions,heldItems,hostPhysics); }
-  public SceneModelProfile withTransitions(List<Transition> value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,value,heldItems,hostPhysics); }
-  public SceneModelProfile withHeldItems(HeldItems value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,value,hostPhysics); }
-  public SceneModelProfile withHostPhysics(ScenePhysicsInput.Settings value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,heldItems,value); }
+  public SceneModelProfile withPlacement(Placement value) { return new SceneModelProfile(schemaVersion,profileId,value,bones,actions,presentation,metadata,retarget,transitions,heldItems,hostPhysics,features); }
+  public SceneModelProfile withBones(Map<String,BoneBinding> value) { return new SceneModelProfile(schemaVersion,profileId,placement,value,actions,presentation,metadata,retarget,transitions,heldItems,hostPhysics,features); }
+  public SceneModelProfile withActions(Map<String,Action> value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,value,presentation,metadata,retarget,transitions,heldItems,hostPhysics,features); }
+  public SceneModelProfile withPresentation(Presentation value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,value,metadata,retarget,transitions,heldItems,hostPhysics,features); }
+  public SceneModelProfile withMetadata(Metadata value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,value,retarget,transitions,heldItems,hostPhysics,features); }
+  public SceneModelProfile withRetarget(Retarget value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,value,transitions,heldItems,hostPhysics,features); }
+  public SceneModelProfile withTransitions(List<Transition> value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,value,heldItems,hostPhysics,features); }
+  public SceneModelProfile withHeldItems(HeldItems value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,value,hostPhysics,features); }
+  public SceneModelProfile withHostPhysics(ScenePhysicsInput.Settings value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,heldItems,value,features); }
+  public SceneModelProfile withFeatures(SceneModelFeatures value) { return new SceneModelProfile(schemaVersion,profileId,placement,bones,actions,presentation,metadata,retarget,transitions,heldItems,hostPhysics,value); }
   public void validateAnimations(ScenePackage source,List<SceneAnimation> clips) {
     for(var a:actions.values()) {
       var selection=a.resolve(source);

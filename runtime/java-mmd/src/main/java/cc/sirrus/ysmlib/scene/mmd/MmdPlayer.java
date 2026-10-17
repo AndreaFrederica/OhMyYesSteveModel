@@ -66,6 +66,7 @@ public final class MmdPlayer implements MmdPlayback {
   private boolean closed,failed;
   private final List<PmdRuntimeProfile.Constraint> pmdConstraints;
 
+  @Override public synchronized void animationChanged(){open();overlayDirty=true;}
   private AnimationFrame sampleAnimation(double time) {
     var sampled=animationSource.sample(time);var frame=sampled.animation();animationDiagnostics=sampled.diagnostics();
     if(overlays.isEmpty() && poseOverrides.isEmpty() && expressions.isEmpty() && ikSwitches.isEmpty() && vpd==null)return frame;
@@ -172,6 +173,10 @@ public final class MmdPlayer implements MmdPlayback {
   public static MmdPlayer packed(PmdDocument source,MmdAnimationSource program,PhysicsProvider provider,Settings settings,Map<Integer,Pose> outsideParents) {
     var profile=new PmdRuntimeProfile(source);
     return new MmdPlayer(profile.asset,profile.constraints,null,Objects.requireNonNull(program),provider,settings,outsideParents,true);
+  }
+  public static MmdPlayer packed(PmdDocument source,MmdAnimationSource program,PhysicsProvider provider,Settings settings,Map<Integer,Pose> outsideParents,DeformationProvider deformation) {
+    var profile=new PmdRuntimeProfile(source);
+    return new MmdPlayer(profile.asset,profile.constraints,null,Objects.requireNonNull(program),provider,settings,outsideParents,true,deformation);
   }
   private MmdPlayer(PmxDocument source,List<PmdRuntimeProfile.Constraint> pmdConstraints,AnimationClip clip,MmdAnimationSource animationSource,PhysicsProvider provider,Settings settings,Map<Integer,Pose> outsideParents,boolean packedPhysics) {
     this(source,pmdConstraints,clip,animationSource,provider,settings,outsideParents,packedPhysics,new cc.sirrus.ysmlib.scene.java.JavaDeformationProvider());

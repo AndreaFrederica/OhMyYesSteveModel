@@ -1,5 +1,7 @@
 # 状态输入与同步
 
+通用模型的语义脸部输入使用模型作用域 Roaming 数值状态，与身体 animation ID 独立。独立表情片段保存启动世界 tick、循环模式及配置内稳定排序槽，FULL 恢复后由本地配置解析并采样。宿主不同步 native handle、骨骼输出或资产路径；换模由既有 model owner 隔离。变量编码与时间戳 nonce 见[通用模型交互同步](../../standards/scene-interaction-sync.md)。
+
 动画运行时消费的是客户端可见状态的投影。服务端是联网玩家状态的权威，但不求值 animation、controller 或骨骼。客户端把权威投影与本地 `Entity`、输入和 `RenderContext` 合并后完成动画。
 
 ## 输入分类

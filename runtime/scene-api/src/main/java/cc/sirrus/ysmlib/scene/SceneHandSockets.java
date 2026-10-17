@@ -6,9 +6,38 @@ import java.util.Optional;
 public final class SceneHandSockets {
     private SceneHandSockets() {}
     public static Optional<Matrix4> resolve(ScenePackagePlayback.Frame frame,SceneModelProfile profile,boolean left) {
-        var held=profile.heldItems();var socket=left?held.left():held.right();
+        return resolve(frame,profile,left?profile.heldItems().left():profile.heldItems().right());
+    }
+    public static Optional<Matrix4> resolve(ScenePackagePlayback.Frame frame,SceneModelProfile profile,SceneModelProfile.HandSocket socket) {
+        return resolve(frame,profile,socket,true,Rotation.IDENTITY);
+    }
+    /** Node formats may have nonidentity rest axes, unlike the MMD skeleton. */
+    public static Optional<Matrix4> resolve(ScenePackagePlayback.Frame frame,SceneModelProfile profile,SceneModelProfile.HandSocket socket,Rotation restWorld) {
+        return resolve(frame,profile,socket,true,restWorld);
+    }
+    /** Compile scale-independent world rest axes once for attachment evaluation. */
+    public static java.util.List<Rotation> restAxes(SceneAsset scene) {
+        var rig=new SceneRig(scene);var rotations=new Rotation[scene.nodes().size()];var queue=new java.util.ArrayDeque<Integer>();
+        for(int i=0;i<rotations.length;i++)if(rig.parent(i)<0)queue.add(i);
+        while(!queue.isEmpty()){
+            int i=queue.remove(),parent=rig.parent(i);rotations[i]=parent<0?rig.restRotations().get(i):rotations[parent].multiply(rig.restRotations().get(i));
+            var children=scene.nodes().get(i).children();for(int c=0;c<children.size();c++)queue.add(children.get(c));
+        }
+        return java.util.List.of(rotations);
+    }
+    /** A metre-space bone origin/orientation, independent of held-item presentation switches. */
+    public static Optional<Matrix4> resolveBone(ScenePackagePlayback.Frame frame,SceneModelProfile profile,String binding) {
+        return resolve(frame,profile,new SceneModelProfile.HandSocket(true,binding,0,0,0,0,0,0,1),false,Rotation.IDENTITY);
+    }
+    /** A source-unit bone-local point transformed to host metres, without item reference correction. */
+    public static Optional<Vec3> resolveBonePoint(ScenePackagePlayback.Frame frame,SceneModelProfile profile,String binding,Vec3 local) {
+        var point=coordinates(frame.thirdPerson().coordinates()).transformDirection(local);
+        return resolveBone(frame,profile,binding).map(matrix->matrix.transformPoint(point));
+    }
+    private static Optional<Matrix4> resolve(ScenePackagePlayback.Frame frame,SceneModelProfile profile,SceneModelProfile.HandSocket socket,boolean item,Rotation restWorld) {
+        var held=profile.heldItems();
         var binding=profile.bones().get(socket.binding());
-        if(!held.enabled()||!socket.enabled()||binding==null||binding.index()<0)return Optional.empty();
+        if(item&&!held.enabled()||!socket.enabled()||binding==null||binding.index()<0)return Optional.empty();
         int i=binding.index();Matrix4 bone;
         var detail=frame.details();
         if(detail instanceof ScenePackagePlayback.Mmd mmd)bone=mmd.value().pose().bones().get(i).matrix();
@@ -29,6 +58,11 @@ public final class SceneHandSockets {
         // a scale matrix would otherwise cancel metersPerUnit for the bone position.
         var oriented=c.multiply(bone).multiply(c.inverse());
         var origin=c.multiply(bone).transformPoint(Vec3.ZERO);
+        float referenceWeight=frame.referenceWeights().getOrDefault(binding.index(),0f);
+        if(item&&profile.features().socketSpace()==SceneModelFeatures.SocketSpace.RETARGET_REFERENCE && referenceWeight>0) {
+            var reference=new Transform(Vec3.ZERO,Rotation.slerp(Rotation.IDENTITY,binding.referenceRotation().multiply(restWorld).inverse(),referenceWeight),Vec3.ONE).matrix();
+            oriented=oriented.multiply(c.multiply(reference).multiply(c.inverse()));
+        }
         return Optional.of(withOrigin(oriented,origin).multiply(offset));
     }
     private static Matrix4 withOrigin(Matrix4 value,Vec3 origin) {

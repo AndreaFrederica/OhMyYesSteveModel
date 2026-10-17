@@ -13,8 +13,16 @@ public final class VpdReader {
     byte[] bytes=source.copy();int offset=0;Charset encoding=BinaryInput.MS932;
     if(bytes.length>=3 && bytes[0]==(byte)0xef && bytes[1]==(byte)0xbb && bytes[2]==(byte)0xbf) { offset=3;encoding=StandardCharsets.UTF_8; }
     String text;
-    try { text=encoding.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes,offset,bytes.length-offset)).toString(); }
-    catch(CharacterCodingException e) { throw new AssetFormatException("Malformed VPD text",e); }
+    try {
+      text=encoding.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+          .decode(ByteBuffer.wrap(bytes,offset,bytes.length-offset)).toString();
+    } catch(CharacterCodingException e) {
+      // VPD files in the wild often contain a valid Windows-31J body with a
+      // single legacy byte in an ignored comment. Preserve the strict path
+      // for clean files, then replace only undecodable characters so the
+      // structural parser can still validate the actual pose data.
+      text=encoding.decode(ByteBuffer.wrap(bytes,offset,bytes.length-offset)).toString();
+    }
     var parser=new Parser(text.replaceAll("(?m)//[^\\r\\n]*", ""),limits);
     if(!parser.line().strip().equals("Vocaloid Pose Data file")) throw parser.error("Invalid VPD signature");
     String parent=parser.until(';').strip();int count=parser.integer(parser.until(';').strip());

@@ -19,6 +19,7 @@
 | transitions | 状态间一次性过渡片段列表 |
 | heldItems | 左右持物挂点与第一人称呈现选择 |
 | hostPhysics | 世界中的视觉物理：惯性、流体力与方块碰撞 |
+| features | [表情、命名动画、分类持物规则、动作层和视角配置](scene-model-features.md)；缺省为空能力配置 |
 
 placement 包含 `metersPerUnit`（米/源单位）、`sizeMode`（SCALE 或 HEIGHT）、`scale`、`height`（米）、`referenceHeight`（朝上轴的源单位参考高度）、`footY`（朝上轴的源单位脚底参考）、`x/y/z`（米）及 `yaw`（角度）。SCALE 的最终单位比例为 metersPerUnit × scale；HEIGHT 为 height / referenceHeight，不能再次乘 scale。统一放置先在朝上坐标中减去脚底参考，再缩放、转向和加米制偏移。参数必须有限，长度比例严格为正；编辑不改变 Minecraft 碰撞箱。
 
@@ -30,9 +31,9 @@ heldItems 包含 `enabled`、`firstPerson`、`left`、`right`。firstPerson 为 
 
 缺省 heldItems 启用，firstPerson=VANILLA；left/right 分别绑定 leftHand/rightHand，启用，位置 `(0,-0.0625,-0.1)`，角度 `(-90,0,0)`，scale=1。原版物品几何和显示变换由 Minecraft 实现；该配置不承诺第三方武器专用定位器或自定义第一人称动画兼容。
 
-动作值包含 `path`、`clip`、`loop`。path 是包内相对路径、`@ysm/generated/<state>` 或 `REST`；路径通过当前包解析到来源 ID，不依赖导入时的枚举序号。不存在的来源或 clip 拒绝。删除动作映射表示恢复自动选择。动作名不得为空、超过 128 字符或使用保留前缀 `scene/`、`#`。
+动作值包含 `path`、`clip`、`loop`。path 是包内相对路径、`@ysm/generated/<state>`、`@ysm/profile/<name>`、`@ysm/source/<name>` 或 `REST`；路径通过当前包解析到来源 ID，不依赖导入时的枚举序号。虚拟动作 clip=-1，来源片段使用实际索引。不存在的来源或 clip 拒绝。`@ysm/controller` 只用于 features 的宿主姿态层，不能作为轮盘身体动作。删除动作映射表示恢复自动选择。动作名不得为空、超过 128 字符或使用保留前缀 `scene/`、`#`。
 
-presentation 包含 `outlines` 布尔值及 `[0,10]` 的 `outlineScale`。当前这些字段控制 MMD 描边；没有对应语义的材质不伪装为支持。
+presentation 包含 `outlines` 布尔值及 `[0,10]` 的 `outlineScale`。当前这些字段控制 MMD 与 VRM MToon 描边；没有对应语义的材质不伪装为支持。
 
 metadata 包含 `name`、`tips`、`license`、`authors`、`links`。license 为 `{type, desc}`；authors 每项为 `{name, role, contacts, comment, avatar}`；contacts 和 links 每项为 `{key, value}`。avatar 是包内相对图片路径，不接受宿主绝对路径。文本最大 65536 字符，整体仍受 1 MiB 限制。默认名称/提示/作者/链接为空，默认许可证类型为 `All Rights Reserved`。导入主 Mod 后使用普通 YSM metadata 展示机制，包括头像 blob。
 
@@ -45,3 +46,9 @@ transitions 是 `{from, to, animation}` 对象数组。from/to 为非空状态�
 hostPhysics 为 `{worldCollision, inertia, fluidDrag, buoyancy, teleportDistance}`。缺省值分别为 `true, 1, 4, 0.85, 4`。inertia 是移动/旋转惯性倍率，fluidDrag 是每秒流体阻力，buoyancy 是视觉浮力倍率，teleportDistance 是以米计的运动历史重置距离。所有数字必须有限且在 `[0,100]` 内，teleportDistance 严格大于零。方块碰撞仅影响来源刚体、软体或 SpringBone，不改变实体 hitbox、移动或伤害。设置保存在附加文件，并可在 Alt+Y 编辑器的“世界物理”页修改。未提供该字段的附加文件读取时补默认值；出现但缺字段、类型非法或含未知字段仍拒绝。
 
 预览物理启停、时间轴位置、相机缩放和调试骨骼选择不进入模型配置。世界环境参数不使编辑器自动启用物理，也不把游戏环境带入独立预览。读取失败应保留文件及错误原因；编辑保存须检查外部修改冲突，使用同目录临时文件与原子替换。源模型原始字节不修改。
+
+## VRM 初始配置
+
+无作者配置的 VRM 根据 humanBones 生成绑定并保留原生元数据、作者与许可信息；VRM 0 的 meta.texture 是纹理索引，VRM 1 的 thumbnailImage 是图片索引。宿主生成封面不修改来源图片或许可。自动生成的 profileId 由源内容稳定派生，使眨眼相位跨重载一致。
+
+游戏默认使用内置 YSM 源骨架、实际静止臂段参考姿态、原生表情/LookAt 与独立手臂动作层。位移比例为目标 hips 离脚底高度 / 内置源 hips 高度，无法取得有效高度时采用默认像素单位比例；不转移源骨长。不可用或零长度臂段不强制校准。VRM 0 默认放置朝向为 180 度，并与源姿态坐标换算配对，VRM 1 为 0 度。第一人称从原生视点生成骨局部偏移，缺失时回退双眼中点或玩家眼高；语义见[交互能力标准](scene-model-features.md)。显式配置整体优先，导入器不补写或覆盖作者选择。

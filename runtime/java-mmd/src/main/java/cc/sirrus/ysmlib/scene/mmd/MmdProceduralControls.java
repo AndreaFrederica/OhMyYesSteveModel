@@ -34,7 +34,7 @@ public final class MmdProceduralControls {
     headBone=bind(bones,warnings,"head","頭","head","Head","あたま");
     leftEye=bind(bones,warnings,"left eye","左目","eye_L","Eye_L","LeftEye","left_eye","Left_Eye","eyeL","EyeL","左眼","L_Eye","eye.L","Eye.L");
     rightEye=bind(bones,warnings,"right eye","右目","eye_R","Eye_R","RightEye","right_eye","Right_Eye","eyeR","EyeR","右眼","R_Eye","eye.R","Eye.R");
-    blinkMorph=bind(morphs,warnings,"blink","まばたき","眨眼","blink","Blink","まばたき両目","ウィンク","wink");
+    blinkMorph=bind(morphs,warnings,"blink","まばたき","眨眼","blink","Blink","まばたき両目");
     diagnostics=List.copyOf(warnings);
   }
   public MmdProceduralControls(PmdDocument model,long seed){this(new PmdRuntimeProfile(model).asset,seed);}
