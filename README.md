@@ -39,25 +39,26 @@ Oh My YSM 在原有 YSM 基岩版模型之外，通过 Oh My YSM Lib 接入通�
 
 ### 格式 × 阶段
 
-| 格式 | 读取 | 几何/材质 | 动画/求值 | 物理 | 宿主渲染 | 实机验收 |
-|---|---|---|---|---|---|---|
-| YSM 基岩版（V1/V2/V3） | ✅ | ✅ | ✅ | – | ✅ | 🔶 |
-| MMD 模型（PMX / PMD） | ✅ | ✅ | ✅ | ✅ | ✅ | 🔶 |
-| MMD 动作（VMD / VPD） | ✅ | – | ✅ | – | ✅ | 🔶 |
-| MMD 工程（PMM 1/2） | 🔶 | 🔶 | 🔶 | – | 🔶 | ⬜ |
-| glTF / GLB | ✅ | ✅ | ✅ | – | ✅ | 🔶 |
-| VRM 0 / 1 | ✅ | ✅ | ✅ | ✅ | ✅ | 🔶 |
-| VRMA | ✅ | – | ✅ | – | ✅ | 🔶 |
-| FBX（ASCII / binary） | ✅ | ✅ | ✅ | 🔶 | ✅ | 🔶 |
-| BVH | ✅ | – | 🔶 | – | 🔶 | ⬜ |
-| UnityPackage | ✅ | 🔶 | – | – | 🔶 | ⬜ |
-| Blender（`.blend`，经导出） | – | – | – | – | – | – |
-| Gamepiaynmo CPM | ✅ | ✅ | 🔶 | ⬜ | ✅ | 🔶 |
-| Customizable Player Models | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| 格式 | 读取 | 几何/材质 | 动画/求值 | 物理 | 宿主渲染 | 网络/分发 | 实机验收 |
+|---|---|---|---|---|---|---|---|
+| YSM 基岩版（V1/V2/V3） | ✅ | ✅ | ✅ | – | ✅ | ✅ | 🔶 |
+| MMD 模型（PMX / PMD） | ✅ | ✅ | ✅ | ✅ | ✅ | 🔶 | 🔶 |
+| MMD 动作（VMD / VPD） | ✅ | – | ✅ | – | ✅ | 🔶 | 🔶 |
+| MMD 工程（PMM 1/2） | 🔶 | 🔶 | 🔶 | – | 🔶 | ⬜ | ⬜ |
+| glTF / GLB | ✅ | ✅ | ✅ | – | ✅ | 🔶 | 🔶 |
+| VRM 0 / 1 | ✅ | ✅ | ✅ | ✅ | ✅ | 🔶 | 🔶 |
+| VRMA | ✅ | – | ✅ | – | ✅ | 🔶 | 🔶 |
+| FBX（ASCII / binary） | ✅ | ✅ | ✅ | 🔶 | ✅ | 🔶 | 🔶 |
+| BVH | ✅ | – | 🔶 | – | 🔶 | ⬜ | ⬜ |
+| UnityPackage | ✅ | 🔶 | – | – | 🔶 | – | ⬜ |
+| Blender（`.blend`，经导出） | – | – | – | – | – | – | – |
+| Gamepiaynmo CPM | ✅ | ✅ | 🔶 | ⬜ | ✅ | ⬜ | 🔶 |
+| Customizable Player Models | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| 场景图片（PNG / JPEG / WebP / ZTX / BMP / TGA） | ✅ | – | – | – | ✅ | 🔶 | 🔶 |
 
 图例：✅ 已接入　🔶 部分接入 / 持续验收　⬜ 计划　– 不适用（`.blend` 请先用 Blender 导出 glTF/GLB 或 FBX，再按对应行处理）
 
-场景图片（PNG / JPEG / WebP / ZTX / BMP / TGA；主 Mod 图像管线另含 AVIF）不属于模型来源，单独受场景解码预算约束，DDS / KTX2 / HDR / EXR 尚未接入。
+「网络/分发」指源资产能否随模型分发给其他客户端；通用来源的附属模型自动分发尚未完成，因此通用格式多为 🔶。场景图片受解码预算约束，主 Mod 图像管线另含 AVIF，DDS / KTX2 / HDR / EXR 未接入。
 
 > 单元格只表示主链路接入程度，不等同于通过全部验收；各格式的边界、已知问题与回退行为见[通用网格支持状态](docs/status/general-mesh-backend.md)，平台、第三方 Mod、shader 与实机组合的验收状态以[当前支持状态](docs/status/support-and-verification.md)为准。
 
