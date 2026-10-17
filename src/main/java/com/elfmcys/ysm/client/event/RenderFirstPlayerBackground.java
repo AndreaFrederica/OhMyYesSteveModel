@@ -23,7 +23,7 @@ public class RenderFirstPlayerBackground {
 
     @SubscribeEvent
     public static void onRenderFrame(TickEvent.RenderTickEvent event) {
-        if (event.phase == TickEvent.Phase.START) ALREADY_RENDERED = false;
+        if (event.phase == TickEvent.Phase.START) {ALREADY_RENDERED = false;var renderer=RegisterEntityRenderersEvent.getFirstPersonArmRenderer();if(renderer!=null)renderer.beginFrame();}
     }
 
     private static long draws;
@@ -59,7 +59,8 @@ public class RenderFirstPlayerBackground {
             var poseStack = event.getPoseStack();
             poseStack.pushPose();
             try {
-                if (minecraft.options.bobView().get()) bobView(poseStack, event.getPartialTick(), player);
+                // General scenes inherit GameRenderer's hand bobbing; do not apply it twice.
+                if (!cap.isGeneralMesh()&&minecraft.options.bobView().get()) bobView(poseStack, event.getPartialTick(), player);
                 if (renderer.renderBackground(player, cap, poseStack, event.getMultiBufferSource(),
                         event.getPackedLight(), event.getPartialTick())) draws++;
                 status = renderer.backgroundStatus();

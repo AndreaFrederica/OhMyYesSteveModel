@@ -26,29 +26,39 @@ public class CustomPlayerItemInHandLayer extends GeoLayerRenderer<CustomPlayerEn
 
     @Override
     public void render(PoseStack poseStack, MultiBufferSource buffer, CustomPlayerEntity animatable, GeoRenderData renderData, int packedLight, int overlay) {
+        // Generic scene profiles render held items through SceneEntityRenderer, where
+        // map rules, per-hand sockets, renderer extensions and display scales are
+        // applied. Running this legacy layer as well duplicates weapons (especially
+        // SlashBlade blade + sheath) and makes them appear oversized.
+        if (animatable.isGeneralMesh()
+                && animatable.getGeneralMeshInstance() != null
+                && animatable.getGeneralMeshInstance().hasModelItemSockets()) return;
         var entityLivingBaseIn = animatable.getEntity();
+        var mainArm=entityLivingBaseIn.getMainArm();var offArm=mainArm.getOpposite();
+        var mainLocator=mainArm==HumanoidArm.LEFT?PlayerLocator.get().leftHand:PlayerLocator.get().rightHand;
+        var offLocator=offArm==HumanoidArm.LEFT?PlayerLocator.get().leftHand:PlayerLocator.get().rightHand;
         var mainHandItem = entityLivingBaseIn.getMainHandItem();
-        if (!mainHandItem.isEmpty() && renderData.modelState.locatorGroupSize(PlayerLocator.get().rightHand) > 0) {
+        if (!mainHandItem.isEmpty() && renderData.modelState.locatorGroupSize(mainLocator) > 0) {
             if (SlashBladeCompat.isSlashBladeItem(mainHandItem)) {
                 SlashBladeRender.renderMainhandSlashBlade(entityLivingBaseIn, renderData, poseStack, buffer, packedLight, mainHandItem);
             } else {
                 TACZCompat.openFlashShellRender(entityLivingBaseIn, mainHandItem);
-                this.renderArmWithItem(entityLivingBaseIn, mainHandItem, ItemDisplayContext.THIRD_PERSON_RIGHT_HAND,
-                                       HumanoidArm.RIGHT, renderData, poseStack, buffer, packedLight);
+                this.renderArmWithItem(entityLivingBaseIn, mainHandItem, mainArm==HumanoidArm.LEFT?ItemDisplayContext.THIRD_PERSON_LEFT_HAND:ItemDisplayContext.THIRD_PERSON_RIGHT_HAND,
+                                       mainArm, renderData, poseStack, buffer, packedLight);
                 TACZCompat.stopFlashShellRender(mainHandItem);
             }
         }
 
         var offhandItem = entityLivingBaseIn.getOffhandItem();
-        if (!offhandItem.isEmpty() && renderData.modelState.locatorGroupSize(PlayerLocator.get().leftHand) > 0) {
+        if (!offhandItem.isEmpty() && renderData.modelState.locatorGroupSize(offLocator) > 0) {
             if (SlashBladeCompat.isSlashBladeItem(offhandItem)) {
                 SlashBladeRender.renderOffhandSlashBlade(renderData, poseStack, buffer, packedLight, offhandItem);
             } else {
                 // 卓越前线副手枪械不用这个渲染
                 if (!SWarfareCompat.isGun(offhandItem)) {
                     this.renderArmWithItem(entityLivingBaseIn, offhandItem,
-                                           ItemDisplayContext.THIRD_PERSON_LEFT_HAND,
-                                           HumanoidArm.LEFT, renderData, poseStack, buffer, packedLight);
+                                           offArm==HumanoidArm.LEFT?ItemDisplayContext.THIRD_PERSON_LEFT_HAND:ItemDisplayContext.THIRD_PERSON_RIGHT_HAND,
+                                           offArm, renderData, poseStack, buffer, packedLight);
                 }
             }
             // TACZ 副手枪械渲染

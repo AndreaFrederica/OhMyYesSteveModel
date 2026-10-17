@@ -461,6 +461,7 @@
   "gui.yes_steve_model.catalog.tooltip.error": "加载错误：%s",
   "gui.yes_steve_model.catalog.tooltip.path": "路径：%s",
   "gui.yes_steve_model.catalog.tooltip.hash": "完整哈希：%s",
+  "gui.yes_steve_model.catalog.tooltip.model_type": "模型类型：%s",
   "gui.yes_steve_model.catalog.tooltip.source": "来源：%s",
   "gui.yes_steve_model.catalog.tooltip.source.builtin": "内置模型",
   "gui.yes_steve_model.catalog.tooltip.source.custom": "本地模型",
@@ -592,5 +593,9 @@
   "gui.yes_steve_model.editor.inertia": "移动惯性强度",
   "gui.yes_steve_model.editor.fluid_drag": "流体阻力",
   "gui.yes_steve_model.editor.buoyancy": "浮力系数",
-  "gui.yes_steve_model.editor.teleport_distance": "瞬移重置距离"
+  "gui.yes_steve_model.editor.teleport_distance": "瞬移重置距离",
+  "gui.yes_steve_model.editor.features": "表情与规则",
+  "gui.yes_steve_model.editor.expression_release": "释放表情",
+  "gui.yes_steve_model.editor.expression": "表情：%s",
+  "gui.yes_steve_model.editor.apply_features": "应用功能 JSON"
 }

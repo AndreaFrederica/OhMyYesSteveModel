@@ -18,6 +18,8 @@ public class CustomFirstPersonArmRenderer {
     private CustomFirstPersonArmEntity backgroundEntity = null;
     private String status = "not rendered";
     private String backgroundStatus = "not rendered";
+    private long generalDrawSequence=Long.MIN_VALUE;
+    public void beginFrame(){generalDrawSequence=Long.MIN_VALUE;replacedHeldItems.clear();}
 
     private final java.util.Set<HumanoidArm> replacedHeldItems=java.util.EnumSet.noneOf(HumanoidArm.class);
     public boolean replacesHeldItem(HumanoidArm arm){return replacedHeldItems.contains(arm);}
@@ -28,7 +30,7 @@ public class CustomFirstPersonArmRenderer {
     public void clear() {
         if (armEntity != null) armEntity.release();
         if (backgroundEntity != null) backgroundEntity.release();
-        replacedHeldItems.clear();
+        replacedHeldItems.clear();generalDrawSequence=Long.MIN_VALUE;
         armEntity = null;
         backgroundEntity = null;
         status = "not rendered";
@@ -67,14 +69,26 @@ public class CustomFirstPersonArmRenderer {
         }
         var entity = arm == null ? backgroundEntity : armEntity;
         entity.checkModelUpdate();
+        if (arm == null) entity.selectBackground();
+        else entity.selectArm(arm);
         if (entity.isGeneralMesh()) {
+            var sharedScene=entity.getGeneralMeshInstance();
+            long sequence=com.elfmcys.ysm.client.event.ClientTickEvent.renderSequence();
+            if(sharedScene!=null&&sharedScene.hasFirstPersonWorldSubmission(sequence)) {
+                int items=sharedScene.firstPersonWorldItems();
+                if((items&1)!=0)replacedHeldItems.add(HumanoidArm.LEFT);
+                if((items&2)!=0)replacedHeldItems.add(HumanoidArm.RIGHT);
+                generalDrawSequence=sequence;
+                status="general first-person body already submitted";
+                return true;
+            }
             // A general scene has no MC arm locator.  Its first-person frame is
             // the camera presentation and is submitted once by the background
             // pass; the two vanilla arm callbacks are consumed so they cannot
             // draw the complete scene three times.
             if (arm != null) {
                 status = arm.name() + " supplied by general first-person scene";
-                return true;
+                return generalDrawSequence==com.elfmcys.ysm.client.event.ClientTickEvent.renderSequence();
             }
             var scene = entity.updateGeneralMesh(partialTick);
             if (scene == null) {
@@ -88,10 +102,19 @@ public class CustomFirstPersonArmRenderer {
             }
             poseStack.pushPose();
             try {
+                var camera=net.minecraft.client.Minecraft.getInstance().gameRenderer.getMainCamera();
+                float bodyYaw=net.minecraft.util.Mth.rotLerp(partialTick,player.yBodyRotO,player.yBodyRot);
+                var bodyRotation=SceneViewPlacement.cameraBodyRotation(camera.getXRot(),camera.getYRot(),bodyYaw);
+                poseStack.mulPoseMatrix(bodyRotation);
+                poseStack.last().normal().mul(new org.joml.Matrix3f(bodyRotation));
+                var firstPerson=scene.profile().features().firstPerson();
+                var cameraOffset=SceneViewPlacement.cameraOffset(firstPerson,player.getEyeHeight());
+                poseStack.translate(cameraOffset.x,cameraOffset.y,cameraOffset.z);
                 if(!com.elfmcys.ysm.client.renderer.SceneEntityRenderer.render(
                         entity, scene, poseStack, bufferSource, packedLight, true)) {status="general scene draw skipped";return false;}
                 if((scene.renderedHeldItems()&1)!=0)replacedHeldItems.add(HumanoidArm.LEFT);
                 if((scene.renderedHeldItems()&2)!=0)replacedHeldItems.add(HumanoidArm.RIGHT);
+                generalDrawSequence=com.elfmcys.ysm.client.event.ClientTickEvent.renderSequence();
                 status = "general first-person scene";
                 return true;
             } finally {
@@ -106,8 +129,6 @@ public class CustomFirstPersonArmRenderer {
             status = model == null ? "model pending" : "no " + part + " locator";
             return false;
         }
-        if (arm == null) entity.selectBackground();
-        else entity.selectArm(arm);
         var data = entity.update(partialTick);
         if (data == null || !data.modelState.isValid()) {
             status = "state unavailable";

@@ -192,6 +192,7 @@ public class CodedAnimationController<T extends AnimatableEntity<?>> implements 
     public void indicateReload() {
         this.animationPlayer.indicateReload();
     }
+    public void startAt(float elapsedTicks){this.animationPlayer.startAt(elapsedTicks);}
 
     public void stop(float renderTicks) {
         this.animationPlayer.stop(renderTicks);

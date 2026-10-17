@@ -46,6 +46,7 @@ public final class PlayerAnimatableCapability extends CustomPlayerEntity {
     protected void onModelRenderTargetLoaded(ModelRenderTarget newModel) {
         super.onModelRenderTargetLoaded(newModel);
         roamingSession.modelLoaded(getModelRenderTarget().modelHash().roamingHash());
+        if(newModel.generalMeshResources()!=null)roamingSession.generalModelLoaded();
     }
 
     @Override
@@ -64,6 +65,7 @@ public final class PlayerAnimatableCapability extends CustomPlayerEntity {
     protected void resetGeoModel() {
         roamingSession.geoModelReset();
         super.resetGeoModel();
+        if(isGeneralMesh())roamingSession.generalModelLoaded();
     }
 
     @Override

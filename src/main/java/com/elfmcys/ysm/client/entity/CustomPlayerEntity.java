@@ -34,6 +34,9 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
     @Override protected boolean updateGeneralReference(com.elfmcys.ysm.client.renderer.GeneralMeshInstance scene) {
         prepareSkeletonDriver(scene);return skeletonDriver.reference(scene);
     }
+    @Override protected void updateGeneralControllerLayer(com.elfmcys.ysm.client.renderer.GeneralMeshInstance scene,float partialTicks){
+        scene.controllerPose(java.util.Map.of());if(skeletonDriverFailed)return;try{prepareSkeletonDriver(scene);skeletonDriver.drive(scene,partialTicks,false);}catch(RuntimeException failure){com.elfmcys.ysm.YesSteveModel.LOGGER.error("Cannot evaluate YSM interaction layer",failure);skeletonDriverFailed=true;}
+    }
     @Override protected boolean updateGeneralSkeleton(com.elfmcys.ysm.client.renderer.GeneralMeshInstance scene,float partialTicks) {
         if(skeletonDriverFailed)return false;
         try {
@@ -49,7 +52,7 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
             scene.skeletonPose(java.util.Map.of(),java.util.Map.of());return false;
         } catch(RuntimeException failure) {
             skeletonDriverFailed=true;
-            com.elfmcys.ysm.YesSteveModel.LOGGER.error("YSM to MMD skeleton binding failed model={}; source profile retained",getModelHash(),failure);
+            com.elfmcys.ysm.YesSteveModel.LOGGER.error("YSM skeleton binding failed model={}; source profile retained",getModelHash(),failure);
             scene.skeletonPose(java.util.Map.of(),java.util.Map.of());return false;
         }
     }
@@ -117,7 +120,7 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
                 if (generalAction == null) generalAction = com.elfmcys.ysm.client.animation.GeneralAnimationActions.resolve(getModelRenderTarget(), generalRequest);
                 var action = generalAction;
                 if (action != null) {
-                    if (Double.isNaN(generalActionStart)) generalActionStart = entity.tickCount / 20.0;
+                    if (Double.isNaN(generalActionStart)) generalActionStart = entity.tickCount / 20.0-generalActionElapsed(0);
                     double duration = action.animation().range().end() - action.animation().range().start();
                     isPlayingExtraAnimation = true;
                     extraAnimationName = generalRequest;
@@ -175,8 +178,8 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
             if (com.elfmcys.ysm.model.domain.SceneActionId.base(animationName).isEmpty()) {
                 var action = com.elfmcys.ysm.client.animation.GeneralAnimationActions.resolve(getModelRenderTarget(), animationName);
                 if (action == null) return;
-                animationName = com.elfmcys.ysm.model.domain.SceneActionId.request(
-                        com.elfmcys.ysm.model.domain.SceneActionId.of(action.animation(), action.loop()), System.nanoTime());
+                animationName = com.elfmcys.ysm.model.domain.SceneActionId.requestAt(
+                        com.elfmcys.ysm.model.domain.SceneActionId.of(action.animation(), action.loop()),entity.level().getGameTime(), System.nanoTime());
             }
             if (animationName.equals(lastGeneralRequest)) return;
             generalRequest = animationName;lastGeneralRequest = animationName;generalRequestModel = getModelHash();
@@ -208,6 +211,8 @@ public abstract class CustomPlayerEntity extends CustomHumanoidEntity<Player> im
     public String getExtraAnimationName() {
         return this.extraAnimationName;
     }
+    public double generalActionElapsed(float partial){var start=com.elfmcys.ysm.model.domain.SceneActionId.startTick(generalRequest);return start.isPresent()?Math.max(0,(entity.level().getGameTime()+partial-start.getAsLong())/20d):Double.isNaN(generalActionStart)?0:Math.max(0,entity.tickCount/20d-generalActionStart);}
+    public float extraAnimationInitialTicks(){return 0;}
 
     public void stopExtraAnimation() {
         generalRequest = "";generalActionStart = Double.NaN;generalAction = null;

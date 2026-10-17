@@ -460,6 +460,7 @@
   "gui.yes_steve_model.catalog.tooltip.error": "Load error: %s",
   "gui.yes_steve_model.catalog.tooltip.path": "Path: %s",
   "gui.yes_steve_model.catalog.tooltip.hash": "Hash: %s",
+  "gui.yes_steve_model.catalog.tooltip.model_type": "Model type: %s",
   "gui.yes_steve_model.catalog.tooltip.source": "Source: %s",
   "gui.yes_steve_model.catalog.tooltip.source.builtin": "Built-in",
   "gui.yes_steve_model.catalog.tooltip.source.custom": "Local",
@@ -591,5 +592,9 @@
   "gui.yes_steve_model.editor.inertia": "Movement inertia",
   "gui.yes_steve_model.editor.fluid_drag": "Fluid drag",
   "gui.yes_steve_model.editor.buoyancy": "Buoyancy factor",
-  "gui.yes_steve_model.editor.teleport_distance": "Teleport reset distance"
+  "gui.yes_steve_model.editor.teleport_distance": "Teleport reset distance",
+  "gui.yes_steve_model.editor.features": "Expressions & rules",
+  "gui.yes_steve_model.editor.expression_release": "Release expression",
+  "gui.yes_steve_model.editor.expression": "Expression: %s",
+  "gui.yes_steve_model.editor.apply_features": "Apply feature JSON"
 }

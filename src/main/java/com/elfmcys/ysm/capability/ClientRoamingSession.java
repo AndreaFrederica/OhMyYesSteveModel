@@ -38,6 +38,12 @@ final class ClientRoamingSession {
         currentHash = roamingHash;
     }
 
+    void generalModelLoaded() {
+        var remote=storage.computeIfAbsent(currentHash,ignored->new RemoteStorage());
+        if(remote.variables==null){remote.variables=new Int2FloatOpenHashMap();remote.mergePendingChanges();}
+        geoModelLoaded();
+    }
+
     void modelReset() {
         currentHash = 0;
     }

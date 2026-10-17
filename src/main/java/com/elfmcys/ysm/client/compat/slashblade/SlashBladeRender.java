@@ -42,6 +42,17 @@ public class SlashBladeRender {
         });
     }
 
+    /** Scene socket offsets and scale are fully authored by the map. */
+    public static boolean renderSceneItem(ItemStack stack,String renderer,PoseStack pose,MultiBufferSource buffer,int light) {
+        var state=stack.getCapability(CapabilitySlashBlade.BLADESTATE).resolve().orElse(null);if(state==null)return false;
+        pose.pushPose();try{pose.scale(.01f,.01f,.01f);
+            ResourceLocation texture=state.getTexture().orElse(RESOURCE_DEFAULT_TEXTURE);
+            WavefrontObject obj=BladeModelManager.getInstance().getModel(state.getModel().orElse(RESOURCE_DEFAULT_MODEL));
+            String blade=state.isBroken()?"blade_damaged":"blade";
+            if(!renderer.equals("slashblade:sheath")){BladeRenderState.renderOverrided(stack,obj,blade,texture,pose,buffer,light);BladeRenderState.renderOverridedLuminous(stack,obj,blade+"_luminous",texture,pose,buffer,light);}
+            if(!renderer.equals("slashblade:blade")){BladeRenderState.renderOverrided(stack,obj,"sheath",texture,pose,buffer,light);BladeRenderState.renderOverridedLuminous(stack,obj,"sheath_luminous",texture,pose,buffer,light);}
+        }finally{pose.popPose();}return true;
+    }
     public static void renderMainhandSlashBlade(LivingEntity livingEntity, GeoRenderData data, PoseStack matrixStack,
                                                 MultiBufferSource bufferIn, int lightIn, ItemStack stack) {
         if (SlashBladeCompat.isSlashBladeItem(stack)) {

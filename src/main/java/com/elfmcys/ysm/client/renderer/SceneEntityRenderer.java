@@ -21,7 +21,7 @@ public final class SceneEntityRenderer {
     public static boolean render(CustomEntity<?> entity,GeneralMeshInstance instance,PoseStack pose,
                               MultiBufferSource buffers,int packedLight) {
         return render(entity, instance, pose, buffers, packedLight,
-                RenderUtil.extractRenderContext().firstPersonMod());
+                SceneViewPlacement.worldFirstPerson(RenderUtil.extractRenderContext()),false);
     }
 
     /**
@@ -32,6 +32,10 @@ public final class SceneEntityRenderer {
      */
     public static boolean render(CustomEntity<?> entity,GeneralMeshInstance instance,PoseStack pose,
                               MultiBufferSource buffers,int packedLight, boolean firstPerson) {
+        return render(entity,instance,pose,buffers,packedLight,firstPerson,true);
+    }
+    private static boolean render(CustomEntity<?> entity,GeneralMeshInstance instance,PoseStack pose,
+                                  MultiBufferSource buffers,int packedLight,boolean firstPerson,boolean cameraRelative) {
         var context=RenderUtil.extractRenderContext();
         if (context.firstPersonMod() != firstPerson) {
             context = new RenderContext(context.level(), context.irisShadow(), firstPerson,
@@ -41,7 +45,8 @@ public final class SceneEntityRenderer {
         var modelView=new Matrix4f(RenderSystem.getModelViewMatrix()).mul(pose.last().pose())
                 .scale(entity.getWidthScale(),entity.getHeightScale(),entity.getWidthScale());
         // EntityRenderer's canonical front is -Z; glTF's canonical avatar front after handedness conversion is +Z.
-        modelView.rotateY((float)Math.PI).mul(instance.placement()).mul(sourceToMeters(frame.coordinates()));
+        var placement=instance.viewPlacement(firstPerson,cameraRelative);
+        modelView.rotateY((float)Math.PI).mul(placement).mul(sourceToMeters(frame.coordinates()));
         var projection=RenderSystem.getProjectionMatrix();
         var lightmap = SceneLightmap.NONE;
         if (!context.inventory() && !context.paperDoll() && !context.offScreen()) {
@@ -56,7 +61,10 @@ public final class SceneEntityRenderer {
         instance.renderedHeldItems=0;
         if(!ClientModelService.instance().sceneRenderer().render(instance,entity.getEntity(),entity.renderTargetKind(),
                 context,firstPerson,view,buffers))return false;
-        instance.renderedHeldItems=renderHeldItems(entity,instance,pose,buffers,packedLight,firstPerson);
+        instance.renderedHeldItems=instance.hasModelItemSockets()
+                ? renderHeldItems(entity,instance,pose,buffers,packedLight,firstPerson,placement) : 0;
+        if(firstPerson&&!cameraRelative&&entity.getEntity()==net.minecraft.client.Minecraft.getInstance().getCameraEntity())
+            instance.submittedFirstPersonWorld(com.elfmcys.ysm.client.event.ClientTickEvent.renderSequence(),instance.renderedHeldItems);
         if(instance.debugSkeleton) {
             var skeleton=SceneSkeleton.of(instance.assets());var points=new java.util.ArrayList<GeneralMeshInstance.BonePoint>();
             var details=instance.frame().details();var window=net.minecraft.client.Minecraft.getInstance().getWindow();
@@ -78,7 +86,7 @@ public final class SceneEntityRenderer {
         entity.countRender();return true;
     }
 
-    private static int renderHeldItems(CustomEntity<?> entity,GeneralMeshInstance instance,PoseStack pose,MultiBufferSource buffers,int light,boolean firstPerson) {
+    private static int renderHeldItems(CustomEntity<?> entity,GeneralMeshInstance instance,PoseStack pose,MultiBufferSource buffers,int light,boolean firstPerson,Matrix4f placement) {
         if(!(entity.getEntity() instanceof net.minecraft.world.entity.LivingEntity living))return 0;
         var held=instance.profile().heldItems();
         if(!held.enabled())return 0;
@@ -88,21 +96,31 @@ public final class SceneEntityRenderer {
         for(boolean left:new boolean[]{false,true}) {
             boolean main=left==(living.getMainArm()==net.minecraft.world.entity.HumanoidArm.LEFT);
             var item=main?living.getMainHandItem():living.getOffhandItem();
-            pose.pushPose();
+            var itemContext=com.elfmcys.ysm.client.animation.GeneralItemContext.of(living,left,firstPerson);
+            var attachment=instance.profile().features().attachment(instance.profile(),itemContext);
+            var parts=new java.util.ArrayList<SceneModelFeatures.ItemPart>();parts.add(new SceneModelFeatures.ItemPart(attachment.socket(),attachment.display(),attachment.renderer()));parts.addAll(attachment.parts());
+            for(var part:parts){pose.pushPose();
             try {
-                var socket=SceneHandSockets.resolve(instance.frame(),instance.profile(),left);if(socket.isEmpty())continue;
-                if(item.isEmpty()){rendered|=left?1:2;continue;}
+                var socket=instance.handSocket(part.socket());if(socket.isEmpty())continue;
+                if(item.isEmpty()||part.display()==SceneModelFeatures.Display.NONE){rendered|=left?1:2;continue;}
                 pose.scale(entity.getWidthScale(),entity.getHeightScale(),entity.getWidthScale());
                 pose.mulPose(com.mojang.math.Axis.YP.rotation((float)Math.PI));
-                // mulPoseMatrix does not update normals. Install the full inverse-transpose explicitly.
-                var transform=new Matrix4f(instance.placement()).mul(new Matrix4f().set(socket.get().copy()));
-                pose.mulPoseMatrix(transform);
-                pose.last().normal().mul(new org.joml.Matrix3f(transform).invert().transpose());
-                var display=left?net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_LEFT_HAND:net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
-                net.minecraft.client.Minecraft.getInstance().getEntityRenderDispatcher().getItemInHandRenderer()
-                    .renderItem(living,item,display,left,pose,buffers,light);
+                var transform=new Matrix4f(placement).mul(new Matrix4f().set(socket.get().copy()));
+                pose.mulPoseMatrix(transform);pose.last().normal().mul(new org.joml.Matrix3f(transform).invert().transpose());
+                var extension=new com.elfmcys.ysm.api.rendering.v0.event.RenderSceneItemEvent(living,item,itemContext,part.renderer(),pose,buffers,light);
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(extension);
+                if(extension.result()!=com.elfmcys.ysm.api.rendering.v0.event.RenderSceneItemEvent.Result.PASS){rendered|=left?1:2;continue;}
+                var display=switch(part.display()) {
+                    case FIXED -> net.minecraft.world.item.ItemDisplayContext.FIXED;
+                    case FIRST_PERSON -> left?net.minecraft.world.item.ItemDisplayContext.FIRST_PERSON_LEFT_HAND:net.minecraft.world.item.ItemDisplayContext.FIRST_PERSON_RIGHT_HAND;
+                    case INHERIT -> firstPerson?(left?net.minecraft.world.item.ItemDisplayContext.FIRST_PERSON_LEFT_HAND:net.minecraft.world.item.ItemDisplayContext.FIRST_PERSON_RIGHT_HAND):(left?net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_LEFT_HAND:net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND);
+                    default -> left?net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_LEFT_HAND:net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
+                };
+                com.elfmcys.ysm.client.compat.tacz.TACZCompat.openFlashShellRender(living,item);
+                try {net.minecraft.client.Minecraft.getInstance().getEntityRenderDispatcher().getItemInHandRenderer().renderItem(living,item,display,left,pose,buffers,light);}
+                finally {com.elfmcys.ysm.client.compat.tacz.TACZCompat.stopFlashShellRender(item);}
                 rendered|=left?1:2;
-            } catch(RuntimeException failure){instance.itemFailure(failure);} finally {pose.popPose();}
+            } catch(RuntimeException failure){instance.itemFailure(failure);} finally {pose.popPose();}}
         }
         return rendered;
     }

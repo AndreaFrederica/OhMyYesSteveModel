@@ -25,7 +25,7 @@ public final class GeneralModelEditorScreen extends Screen {
     private final Hash256 hash;
     private final ModelRenderTarget model;
     private final List<SceneSkeleton.Bone> bones;
-    private final List<SceneAnimation> clips;
+    private List<SceneAnimation> clips;
     private final CustomGuiPlayerEntity preview=new CustomGuiPlayerEntity();
     private final Deque<SceneModelProfile> undo=new ArrayDeque<>(),redo=new ArrayDeque<>();
     private final Map<String,EditBox> fields=new LinkedHashMap<>();
@@ -75,7 +75,7 @@ public final class GeneralModelEditorScreen extends Screen {
         clearWidgets();fields.clear();captions.clear();pendingFields=false;
         panel=Math.max(200,width-240);viewRight=panel-8;viewBottom=height-100;rows=Math.max(1,(height-235)/22);
         preview.updateModelAndTexture(hash,RenderTargetIds.GENERAL_MESH_VARIANT);
-        int y=36;for(String name:List.of("placement","bones","actions","transitions","materials","held_items","host_physics","diagnostics")) {
+        int y=36;for(String name:List.of("placement","bones","actions","transitions","materials","held_items","host_physics","features","diagnostics")) {
             String key=name;button(8,y,76,t(name),()->{commitFields();tab=key;page=fieldPage=0;init();});y+=24;
         }
         button(8,height-80,76,t("undo"),this::undo);
@@ -99,8 +99,26 @@ public final class GeneralModelEditorScreen extends Screen {
         else if(tab.equals("bone_correction")) correctionPage();
         else if(tab.equals("held_items")) socketPage();
         else if(tab.equals("host_physics")) hostPhysicsPage();
+        else if(tab.equals("features")) featuresPage();
         uncommitted.forEach((key,value)->{var box=fields.get(key);if(box!=null)box.setValue(value);});
     }
+    private List<SceneAnimation> clipsFor(SceneModelProfile profile) {
+        var result=new ArrayList<SceneAnimation>();for(var clip:model.generalMeshResources().animations())if(!clip.selection().sourceId().startsWith("@ysm/profile/"))result.add(clip);
+        result.addAll(SceneFeatureBindings.animations(profile));return List.copyOf(result);
+    }
+    private void featuresPage() {
+        var json=com.google.gson.JsonParser.parseString(new String(YsmRuntime.scenes().writeModelProfile(draft).copy(),java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+        String text=json.get("features").toString();var box=field("features_json","JSON",text,38);box.setMaxLength(1024*1024);box.setValue(text);box.setResponder(v->pendingFields=true);
+        button(panel,62,width-panel-8,t("apply_features"),()->{commitFeatureJson();pendingFields=false;init();});
+        numeric("expression_weight",1,88);
+        var names=draft.features().expressions().keySet().stream().sorted().toList();int count=Math.max(1,(height-235)/22);page=Math.min(page,Math.max(0,(names.size()-1)/count));
+        for(int i=0;i<count&&page*count+i<names.size();i++){String name=names.get(page*count+i);button(panel,114+i*22,width-panel-8,Component.literal(name),()->{
+            var scene=preview.getGeneralMeshInstance();if(scene!=null)scene.expressions(Map.of(name,(float)value("expression_weight",1)));
+        });}
+        button(panel,height-108,60,Component.literal("<"),()->{page=Math.max(0,page-1);init();});button(panel+64,height-108,60,Component.literal(">"),()->{page++;init();});
+        button(panel,height-82,width-panel-8,t("expression_release"),()->{var scene=preview.getGeneralMeshInstance();if(scene!=null)scene.expressions(Map.of());});
+    }
+    private void commitFeatureJson(){var root=com.google.gson.JsonParser.parseString(new String(YsmRuntime.scenes().writeModelProfile(draft).copy(),java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();root.add("features",com.google.gson.JsonParser.parseString(fields.get("features_json").getValue()));change(YsmRuntime.scenes().readModelProfile(new ByteData(root.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8))));}
     private void placement() {
         var p=draft.placement();
         button(panel,36,width-panel-8,t(p.sizeMode()==SceneModelProfile.SizeMode.SCALE?"scale_mode":"height_mode"),()->{
@@ -129,6 +147,7 @@ public final class GeneralModelEditorScreen extends Screen {
         else if(tab.equals("materials"))change(draft.withPresentation(new SceneModelProfile.Presentation(draft.presentation().outlines(),value("outline_scale",1))));
         else if(tab.equals("held_items"))commitSocket();
         else if(tab.equals("host_physics"))commitHostPhysics();
+        else if(tab.equals("features"))commitFeatureJson();
         else if(tab.equals("bone_correction")) {
             commitBoneBinding();
         }
@@ -145,7 +164,7 @@ public final class GeneralModelEditorScreen extends Screen {
         value("inertia",p.inertia()),value("fluid_drag",p.fluidDrag()),value("buoyancy",p.buoyancy()),value("teleport_distance",p.teleportDistance()))));pendingFields=false;}
     private void bonePage() {
         var asset=model.generalMeshResources().assets().model();
-        boolean canTest=asset instanceof ScenePackageAssets.Pmx || asset instanceof ScenePackageAssets.Pmd;
+        boolean canTest=asset instanceof ScenePackageAssets.Pmx || asset instanceof ScenePackageAssets.Pmd || asset instanceof ScenePackageAssets.Vrm;
         button(panel,36,28,Component.literal("<"),()->cycleRole(-1));
         var key=new EditBox(font,panel+32,36,width-panel-100,18,t("binding_key"));key.setMaxLength(128);key.setValue(role);addRenderableWidget(key);
         button(width-66,36,28,Component.literal("✓"),()->{SceneModelProfile.checkBindingKey(key.getValue());role=key.getValue();selectedBone=-1;page=0;init();});
@@ -153,7 +172,7 @@ public final class GeneralModelEditorScreen extends Screen {
         var search=field("search",t("search").getString(),filter,62);
         search.setResponder(v->filter=v);
         button(panel,86,76,t("search"),()->{page=0;init();});
-        button(panel+80,86,68,t("suggest"),()->{var next=new LinkedHashMap<>(SceneSkeleton.suggest(bones));next.putAll(draft.bones());change(draft.withBones(next));init();});
+        button(panel+80,86,68,t("suggest"),()->{var next=new LinkedHashMap<>(SceneSkeleton.suggest(model.generalMeshResources().assets()));next.putAll(draft.bones());change(draft.withBones(next));init();});
         button(panel+152,86,Math.max(65,width-panel-160),t("unbind"),()->{
             var next=new LinkedHashMap<>(draft.bones());next.put(role,new SceneModelProfile.BoneBinding(-1,"","",0,0,0,1));change(draft.withBones(next));init();});
         var selected=draft.bones().get(role);boolean ik=role.endsWith("Ik");
@@ -300,11 +319,11 @@ public final class GeneralModelEditorScreen extends Screen {
         button(panel,94,width-panel-8,t("update"),()->change(draft.withPresentation(new SceneModelProfile.Presentation(draft.presentation().outlines(),value("outline_scale",1)))));
     }
     private void change(SceneModelProfile next) {
-        if(next.equals(draft))return;SceneSkeleton.validate(bones,next.bones());next.validateAnimations(model.generalMeshResources().assets().source(),clips);
-        preview.configureEditorPreview(next,physics);undo.push(draft);if(undo.size()>64)undo.removeLast();redo.clear();draft=next;
+        if(next.equals(draft))return;SceneSkeleton.validate(bones,next.bones());SceneFeatureBindings.validate(model.generalMeshResources().assets(),next);var nextClips=clipsFor(next);next.validateAnimations(model.generalMeshResources().assets().source(),nextClips);
+        preview.configureEditorPreview(next,physics);undo.push(draft);if(undo.size()>64)undo.removeLast();redo.clear();draft=next;clips=nextClips;
     }
-    private void undo() { commitFields();if(undo.isEmpty())return;var next=undo.peek();preview.configureEditorPreview(next,physics);redo.push(draft);draft=undo.pop();init(); }
-    private void redo() { if(pendingFields)commitFields();if(redo.isEmpty())return;var next=redo.peek();preview.configureEditorPreview(next,physics);undo.push(draft);draft=redo.pop();init(); }
+    private void undo() { commitFields();if(undo.isEmpty())return;var next=undo.peek();preview.configureEditorPreview(next,physics);redo.push(draft);draft=undo.pop();clips=clipsFor(draft);init(); }
+    private void redo() { if(pendingFields)commitFields();if(redo.isEmpty())return;var next=redo.peek();preview.configureEditorPreview(next,physics);undo.push(draft);draft=redo.pop();clips=clipsFor(draft);init(); }
     private void play() {
         preview.previewReferencePose(false);
         var s=preview.getGeneralMeshInstance();if(s==null)return;
@@ -385,15 +404,39 @@ public final class GeneralModelEditorScreen extends Screen {
         finally {g.disableScissor();}
         for(var entry:fields.entrySet())g.drawString(font,font.plainSubstrByWidth(captions.get(entry.getKey()),90),panel,entry.getValue().getY()+5,0xcccccc);
         if(tab.equals("diagnostics")) {
-            int y=40;for(String line:List.of(t("physics_off_hint").getString(),"Bones: "+bones.size(),"Mapped: "+draft.bones().values().stream().filter(b->b.index()>=0).count(),
-                "Actions: "+draft.actions().size(),"Height: "+String.format(Locale.ROOT,"%.3f m",draft.placement().actualHeight()),
-                "Format: "+model.generalMeshResources().assets().source().model().format(),t("source_preserved").getString())) {g.drawString(font,font.plainSubstrByWidth(line,width-panel-8),panel,y,0xdddddd);y+=18;}
+            int y=40;for(String line:diagnosticLines()) {
+                g.drawString(font,font.plainSubstrByWidth(line,width-panel-8),panel,y,0xdddddd);y+=18;
+            }
         }
         var scene=preview.getGeneralMeshInstance();
         if(scene!=null)g.drawString(font,String.format(Locale.ROOT,"%.2f s | %.3f m",scene.timeline().state().seconds(),draft.placement().actualHeight()),viewLeft,height-42,0xeeeeaa);
         g.drawString(font,font.plainSubstrByWidth(status,width-110),90,height-14,0xffd898);
         super.render(g,mx,my,partial);
         if(!status.isBlank()&&my>=height-22)g.renderTooltip(font,Component.literal(status),mx,my);
+    }
+
+    private List<String> diagnosticLines() {
+        var lines=new ArrayList<String>();
+        var assets=model.generalMeshResources().assets();
+        CompatibilityReport report=null;
+        if(assets.model() instanceof ScenePackageAssets.Gltf value) report=value.value().scene().compatibility();
+        else if(assets.model() instanceof ScenePackageAssets.Vrm value) report=value.value().scene().compatibility();
+        else if(assets.model() instanceof ScenePackageAssets.Fbx value) report=value.value().compatibility();
+        if(report!=null) {
+            lines.add("Compatibility: "+(report.canEvaluateRequiredFeatures()?"required features evaluable":"partial / see diagnostics"));
+            for(var diagnostic:report.diagnostics()) {
+                lines.add(diagnostic.severity()+" "+diagnostic.location()+": "+diagnostic.message());
+                if(lines.size()>=8) { lines.add("... more diagnostics in log"); break; }
+            }
+        }
+        lines.add(t("physics_off_hint").getString());
+        lines.add("Bones: "+bones.size());
+        lines.add("Mapped: "+draft.bones().values().stream().filter(b->b.index()>=0).count());
+        lines.add("Actions: "+draft.actions().size());
+        lines.add("Height: "+String.format(Locale.ROOT,"%.3f m",draft.placement().actualHeight()));
+        lines.add("Format: "+assets.source().model().format());
+        lines.add(t("source_preserved").getString());
+        return lines;
     }
     private boolean inView(double x,double y){return x>=viewLeft&&x<viewRight&&y>=viewTop&&y<viewBottom;}
     @Override public boolean mouseDragged(double x,double y,int button,double dx,double dy){if(inView(x,y)){if(button==0){yaw+=dx*1.5;pitch=Math.max(-80,Math.min(80,pitch-(float)dy));}else if(button==1){panX+=dx;panY+=dy;}return true;}return super.mouseDragged(x,y,button,dx,dy);}

@@ -3,6 +3,11 @@ import cc.sirrus.ysmlib.scene.*;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 class SceneActionIdTest {
+    @Test void timestampedNonceRestoresWorldTimeWithoutChangingAuthorizedIdentity(){
+        var id=SceneActionId.of(clip("motion","dance.vmd"),true);long tick=0x123456789aL;var request=SceneActionId.requestAt(id,tick,9);
+        assertEquals(id,SceneActionId.base(request));assertEquals(tick,SceneActionId.startTick(request).orElseThrow());assertNotEquals(request,SceneActionId.requestAt(id,tick,10));
+        assertTrue(SceneActionId.startTick(SceneActionId.request(id,1)).isEmpty());assertThrows(IllegalArgumentException.class,()->SceneActionId.requestAt(id,-1,0));
+    }
     private SceneAnimation clip(String id,String path) {
         return new SceneAnimation(new ScenePackagePlayback.Selection(id,0),"same-name",path,new AnimationPreview.Range(0,2,30),30);
     }

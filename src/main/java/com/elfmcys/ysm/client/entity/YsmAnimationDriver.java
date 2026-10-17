@@ -21,6 +21,8 @@ final class YsmAnimationDriver extends CustomPlayerEntity implements AutoCloseab
     private boolean installed,closed;
     private long sequence=Long.MIN_VALUE;
     private Map<Integer,Pose> lastPose;
+    private String sourceActionRequest="";
+    @Override public float extraAnimationInitialTicks(){return (float)(owner.generalActionElapsed(0)*20);}
 
     YsmAnimationDriver(CustomPlayerEntity owner,String sourceModel) {
         // Local-player authority remains with owner; the driver must not emit stop/sync requests.
@@ -32,6 +34,9 @@ final class YsmAnimationDriver extends CustomPlayerEntity implements AutoCloseab
     }
     String sourceModel(){return sourceModel;}
     boolean drive(GeneralMeshInstance target,float partialTicks) {
+        return drive(target,partialTicks,true);
+    }
+    boolean drive(GeneralMeshInstance target,float partialTicks,boolean body) {
         if(closed)throw new IllegalStateException("YSM animation driver is closed");
         if(!ready())return false;
         var model=getLoadedGeoModel();
@@ -43,10 +48,19 @@ final class YsmAnimationDriver extends CustomPlayerEntity implements AutoCloseab
         if(sequence!=next) {
             if(owner.getStateTracker() instanceof com.elfmcys.ysm.capability.PlayerStateTracker synced)
                 ((com.elfmcys.ysm.capability.PlayerStateTracker)getStateTracker()).copyProtocolStateFrom(synced);
+            var requested=owner.isPlayingExtraAnimation()?com.elfmcys.ysm.client.animation.GeneralAnimationActions.resolve(owner.getModelRenderTarget(),owner.getExtraAnimationName()):null;
+            String request=requested!=null&&requested.animation().selection().sourceId().startsWith("@ysm/source/")?owner.getExtraAnimationName():"";
+            if(!request.equals(sourceActionRequest)) {
+                if(request.isEmpty())stopExtraAnimation();
+                else {String key=requested.animation().selection().sourceId().substring(12);var action=target.profile().features().sourceAnimations().get(key);
+                    if(action==null||getAnimation(action.animation())==null)throw new IllegalArgumentException("Missing source YSM action: "+key);
+                    super.playExtraAnimation(action.animation());}
+                sourceActionRequest=request;
+            }
             tickAnimation(createAnimationEvent(partialTicks,RenderContext.levelImmutable()));
             lastPose=binding.evaluate(model.getBoneAttributes());sequence=next;
         }
-        target.skeletonPose(lastPose,binding.ikOverrides());return true;
+        if(body)target.skeletonPose(lastPose,binding.ikOverrides());else target.controllerPose(lastPose);return true;
     }
     private boolean ready() {
         if(!installed) {

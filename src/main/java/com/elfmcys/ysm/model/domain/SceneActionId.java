@@ -10,7 +10,7 @@ import java.util.HexFormat;
 public final class SceneActionId {
     private SceneActionId() {}
     public static String of(SceneAnimation animation, boolean loop) {
-        String source = animation.selection().sourceId().startsWith("@ysm/generated/")
+        String source = animation.selection().sourceId().startsWith("@ysm/")
                 ? animation.selection().sourceId() : animation.sourcePath();
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(
@@ -29,4 +29,7 @@ public final class SceneActionId {
         if (base.isEmpty()) throw new IllegalArgumentException("Invalid scene action ID");
         return base + "~" + String.format(java.util.Locale.ROOT, "%016x", serial);
     }
+    /** Tagged nonce: world start tick (40 bits) and per-click serial (16 bits), still the same authorized base ID. */
+    public static String requestAt(String id,long tick,long serial){if(tick<0||tick>0xffffffffffL)throw new IllegalArgumentException("Scene start tick out of range");return request(id,0x5900000000000000L|(tick<<16)|(serial&65535));}
+    public static java.util.OptionalLong startTick(String id){if(base(id).isEmpty()||!id.contains("~"))return java.util.OptionalLong.empty();long nonce=Long.parseUnsignedLong(id.substring(id.indexOf('~')+1),16);return (nonce>>>56)==0x59?java.util.OptionalLong.of((nonce>>>16)&0xffffffffffL):java.util.OptionalLong.empty();}
 }

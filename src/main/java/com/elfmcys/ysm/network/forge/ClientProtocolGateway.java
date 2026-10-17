@@ -82,10 +82,18 @@ public final class ClientProtocolGateway {
         if (player != null) {
             var cap = player.getCapability(com.elfmcys.ysm.capability.PlayerAnimatableCapabilityProvider.CAP).resolve().orElse(null);
             if (cap != null && cap.isGeneralMesh()) {
+                if(animationId.startsWith("face/")) {
+                    if(animationId.equals("face/release"))com.elfmcys.ysm.client.animation.GeneralExpressions.clear(cap);
+                    else {String id=animationId;for(String name:cap.getModelRenderTarget().generalMeshResources().profile().features().expressions().keySet())if(id.equals("face/"+com.elfmcys.ysm.client.animation.GeneralExpressions.variable(name))){com.elfmcys.ysm.client.animation.GeneralExpressions.clear(cap);com.elfmcys.ysm.client.animation.GeneralExpressions.set(cap,name,1f);break;}}
+                    return;
+                }
                 var action = com.elfmcys.ysm.client.animation.GeneralAnimationActions.resolve(cap.getModelRenderTarget(), animationId);
                 if (action == null) return;
-                animationId = com.elfmcys.ysm.model.domain.SceneActionId.request(
-                        com.elfmcys.ysm.model.domain.SceneActionId.of(action.animation(), action.loop()), System.nanoTime());
+                if(com.elfmcys.ysm.client.animation.GeneralExpressions.faceOnly(cap.getModelRenderTarget().generalMeshResources().profile(),action.animation().selection().sourceId())){
+                    com.elfmcys.ysm.client.animation.GeneralExpressions.clear(cap);com.elfmcys.ysm.client.animation.GeneralExpressions.play(cap,action.animation().selection().sourceId(),action.loop());return;
+                }
+                animationId = com.elfmcys.ysm.model.domain.SceneActionId.requestAt(
+                        com.elfmcys.ysm.model.domain.SceneActionId.of(action.animation(), action.loop()),player.level().getGameTime(), System.nanoTime());
                 if (!NetworkHandler.isRemoteChannelPresent()) { cap.playExtraAnimation(animationId);return; }
             }
         }

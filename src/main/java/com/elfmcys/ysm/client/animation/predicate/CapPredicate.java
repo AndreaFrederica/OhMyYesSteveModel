@@ -24,6 +24,7 @@ public class CapPredicate implements IAnimationPredicate<CustomPlayerEntity> {
             if (animatable.shouldResetExtraAnimation()) {
                 animatable.clearExtraAnimationDirty();
                 event.getCodedController().indicateReload();
+                event.getCodedController().startAt(animatable.extraAnimationInitialTicks());
             }
             return playAnimation(event, animatable.getExtraAnimationName());
         }

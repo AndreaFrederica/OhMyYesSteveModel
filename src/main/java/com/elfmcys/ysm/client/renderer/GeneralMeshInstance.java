@@ -3,6 +3,7 @@ package com.elfmcys.ysm.client.renderer;
 import cc.sirrus.ysmlib.YsmRuntime;
 import cc.sirrus.ysmlib.scene.*;
 import cc.sirrus.ysmlib.scene.io.AssetFormatException;
+import com.elfmcys.ysm.YesSteveModel;
 import com.elfmcys.ysm.model.resource.client.GeneralMeshModelResources;
 import com.mojang.blaze3d.systems.RenderSystem;
 import java.util.Objects;
@@ -13,15 +14,44 @@ public final class GeneralMeshInstance implements AutoCloseable {
     private ScenePackagePlayback.Settings settings;
     private SceneModelProfile profile;
     private final GltfMeshRenderer gltf;
+    private final FbxMeshRenderer fbx;
     private final VrmMeshRenderer vrm;
     private final MmdMeshRenderer mmd;
     private final boolean live;
     private ScenePackagePlayback player;
     private AnimationPreview<ScenePackagePlayback.Frame> timeline;
     private ScenePackagePlayback.Frame liveFrame;
+    private String sampleFailure;
     private PreviewBounds cachedBounds;
+    private boolean cachedBoundsFirstPerson;
     private long lastSequence;
     private boolean hasSequence;
+    private long firstPersonWorldSequence=Long.MIN_VALUE;
+    private ScenePackagePlayback.Frame firstPersonWorldFrame;
+    private int firstPersonWorldItems;
+    void submittedFirstPersonWorld(long sequence,int items) {
+        firstPersonWorldSequence=sequence;firstPersonWorldFrame=frame();firstPersonWorldItems=items;
+    }
+    boolean hasFirstPersonWorldSubmission(long sequence) {
+        return firstPersonWorldSequence==sequence&&firstPersonWorldFrame==frame();
+    }
+    int firstPersonWorldItems(){return firstPersonWorldItems;}
+    private final com.elfmcys.ysm.client.animation.GeneralInteractionController interactions=new com.elfmcys.ysm.client.animation.GeneralInteractionController();
+    private java.util.Map<String,Float> face=java.util.Map.of();
+    private boolean controllerLayerRequested;
+    public boolean controllerLayerRequested(){return controllerLayerRequested;}
+    public void controllerPose(java.util.Map<Integer,Pose> poses){requireOpen();player.sourcePoses(poses);}
+    public void expressions(java.util.Map<String,Float> weights){requireOpen();face=java.util.Map.copyOf(weights);player.expressions(face);hasSequence=false;if(!live)timeline.seek(timeline.state().seconds());}
+    public void interactionInputs(net.minecraft.world.entity.LivingEntity living,com.elfmcys.ysm.molang.runtime.Struct roaming,double seconds,boolean retargeted) {
+        requireOpen();player.expressions(com.elfmcys.ysm.client.animation.GeneralExpressions.read(profile,roaming));
+        var faceClip=com.elfmcys.ysm.client.animation.GeneralExpressions.animation(profile,roaming,living.level().getGameTime()+net.minecraft.client.Minecraft.getInstance().getFrameTime());
+        player.expressionAnimation(faceClip==null?null:faceClip.name(),faceClip==null?0:faceClip.seconds());
+        boolean first=living==net.minecraft.client.Minecraft.getInstance().getCameraEntity()&&net.minecraft.client.Minecraft.getInstance().options.getCameraType().isFirstPerson();
+        var layers=interactions.update(profile,assets().source(),target.animations(),java.util.List.of(
+            com.elfmcys.ysm.client.animation.GeneralItemContext.of(living,false,first),com.elfmcys.ysm.client.animation.GeneralItemContext.of(living,true,first)),seconds,retargeted);
+        controllerLayerRequested=layers.stream().anyMatch(l->l.selection().sourceId().equals("@ysm/controller")&&l.weight()>0);player.layers(layers);
+        player.gaze(net.minecraft.util.Mth.wrapDegrees(living.getYHeadRot()-living.yBodyRot),living.getXRot());
+    }
     private boolean closed;
     private long preparationGeneration;
     private boolean preparing;
@@ -33,6 +63,9 @@ public final class GeneralMeshInstance implements AutoCloseable {
     public MmdMeshRenderer.UploadStatistics mmdUploadStatistics(){return mmd==null?null:mmd.uploadStatistics();}
     public long mmdGpuDispatches(){return mmd==null?0:mmd.gpuDispatches();}
     public long mmdGpuUploadedBytes(){return mmd==null?0:mmd.gpuUploadedBytes();}
+    public long vrmGpuDispatches(){return vrm==null?0:vrm.gpuDispatches();}
+    public long vrmGpuUploadedBytes(){return vrm==null?0:vrm.gpuUploadedBytes();}
+    public SceneMeshBuffer.UploadStatistics vrmUploadStatistics(){return vrm==null?new SceneMeshBuffer.UploadStatistics(0,0,0,0):vrm.uploadStatistics();}
     public boolean preparing() { return preparing; }
     public String preparationError() { return preparationError; }
     public int debugBone=-1;
@@ -74,7 +107,10 @@ public final class GeneralMeshInstance implements AutoCloseable {
         this.settings=this.settings.withModelProfile(profile).withDeferredMmdDeformation(false);
         target.requirePublished();
         gltf=target.gltf()!=null?new GltfMeshRenderer(target.gltfPrograms(),target.limits()):null;
+        fbx=target.assets().model() instanceof ScenePackageAssets.Fbx && target.gltf()!=null
+                ?new FbxMeshRenderer(target.gltfPrograms(),target.limits()):null;
         vrm=target.vrm()!=null?new VrmMeshRenderer(target.vrmPrograms(),target.limits()):null;
+        this.settings=this.settings.withDeferredVrmDeformation(vrm!=null&&VrmMeshRenderer.gpuAvailable());
         mmd=target.mmd()!=null?new MmdMeshRenderer(target.mmdPrograms(),target.limits()):null;
         try {
         if(mmd!=null) {
@@ -91,16 +127,20 @@ public final class GeneralMeshInstance implements AutoCloseable {
     /** A failed selection leaves the current clip, pose and physics world usable. */
     public void select(ScenePackagePlayback.Selection selection,AnimationPreview.Range range) throws AssetFormatException {
         requireOpen();if(live) throw new IllegalStateException("Live scene has no preview transport");
-        if(settings.mmd().physicsEnabled()) replaceAsync(selection,Objects.requireNonNull(range));
+        if(scenePhysicsEnabled()) replaceAsync(selection,Objects.requireNonNull(range));
         else replace(selection,Objects.requireNonNull(range));
     }
-    public void selectLive(ScenePackagePlayback.Selection selection, AnimationPreview.Range range, boolean loop) throws AssetFormatException {
-        requireOpen();if(!live) throw new IllegalStateException("Preview scene requires an explicit animation range");
-        replace(selection,range,loop);
+    private boolean scenePhysicsEnabled(){return mmd!=null?settings.mmd().physicsEnabled():vrm!=null&&settings.vrm().physicsEnabled();}
+    public boolean selectLive(ScenePackagePlayback.Selection selection, AnimationPreview.Range range, boolean loop) throws AssetFormatException {
+        return selectLive(selection,range,loop,0);
     }
-    public void selectLive(ScenePackagePlayback.Selection selection) throws AssetFormatException {
+    public boolean selectLive(ScenePackagePlayback.Selection selection, AnimationPreview.Range range, boolean loop,double elapsed) throws AssetFormatException {
         requireOpen();if(!live) throw new IllegalStateException("Preview scene requires an explicit animation range");
-        replace(selection,null);
+        if(player.select(selection,range==null?null:new AnimationPlaybackRange(range.start(),range.end(),loop),elapsed)){hasSequence=false;cachedBounds=null;return true;}
+        replace(selection,range,loop);return false;
+    }
+    public boolean selectLive(ScenePackagePlayback.Selection selection) throws AssetFormatException {
+        return selectLive(selection,null,false);
     }
     private void replace(ScenePackagePlayback.Selection selection,AnimationPreview.Range range) throws AssetFormatException {
         replace(selection,range,false);
@@ -138,6 +178,16 @@ public final class GeneralMeshInstance implements AutoCloseable {
         }));
     }
     public ScenePackagePlayback.Selection selection() { requireOpen();return player.selection(); }
+    private java.util.List<Rotation> socketRestAxes;
+    public java.util.Optional<Matrix4> handSocket(SceneModelProfile.HandSocket socket) {
+        var binding=profile.bones().get(socket.binding());
+        if(binding==null||binding.index()<0)return java.util.Optional.empty();
+        if(assets().model() instanceof ScenePackageAssets.Vrm avatar){
+            if(socketRestAxes==null)socketRestAxes=SceneHandSockets.restAxes(avatar.value().scene());
+            return SceneHandSockets.resolve(frame(),profile,socket,socketRestAxes.get(binding.index()));
+        }
+        return SceneHandSockets.resolve(frame(),profile,socket);
+    }
     int renderedHeldItems;
     private String lastItemFailure="";
     public int renderedHeldItems(){return renderedHeldItems;}
@@ -146,12 +196,16 @@ public final class GeneralMeshInstance implements AutoCloseable {
         com.elfmcys.ysm.YesSteveModel.LOGGER.error("Cannot render generic held item source={}",assets().source().model().path(),failure);
     }
     public SceneModelProfile profile() { return profile; }
+    public boolean hasAuthoredProfile() { return target.hasAuthoredProfile(); }
+    /** Native VRM humanBones provide validated sockets even before an author saves a sidecar. */
+    public boolean hasModelItemSockets() { return hasAuthoredProfile()||target.assets().model() instanceof ScenePackageAssets.Vrm; }
     public void configurePreview(SceneModelProfile value,boolean physics) throws AssetFormatException {
         requireOpen();if(live) throw new IllegalStateException("Editor configuration requires an independent preview");
         SceneSkeleton.validate(SceneSkeleton.of(target.assets()),value.bones());
-        boolean rebuild=!profile.bones().equals(value.bones()) || settings.mmd().physicsEnabled()!=physics;
+        SceneFeatureBindings.validate(target.assets(),value);
+        boolean rebuild=!profile.bones().equals(value.bones()) || !profile.features().equals(value.features()) || settings.mmd().physicsEnabled()!=physics;
         var previous=settings;var previousProfile=profile;settings=settings.withPhysics(physics).withModelProfile(value);profile=value;
-        try { if(rebuild) {if(physics)replaceAsync(selection(),timeline.range());else replace(selection(),timeline.range());}cachedBounds=null; }
+        try { if(rebuild) {if(scenePhysicsEnabled())replaceAsync(selection(),timeline.range());else replace(selection(),timeline.range());interactions.reset();face=java.util.Map.of();}cachedBounds=null; }
         catch(RuntimeException|AssetFormatException failure) { settings=previous;profile=previousProfile;throw failure; }
     }
     public void boneRotations(java.util.Map<Integer,Rotation> rotations) {
@@ -167,8 +221,20 @@ public final class GeneralMeshInstance implements AutoCloseable {
         return new org.joml.Matrix4f().translation((float)p.x(),(float)p.y(),(float)p.z()).rotateY((float)Math.toRadians(p.yaw()))
             .scale(s).translate(0,(float)(-p.footY()*target.assets().source().settings().metersPerUnit()),0);
     }
+    public org.joml.Matrix4f viewPlacement(boolean firstPerson) {
+        return viewPlacement(firstPerson,true);
+    }
+    public org.joml.Matrix4f viewPlacement(boolean firstPerson,boolean cameraRelative) {
+        var placement=placement();var fp=profile.features().firstPerson();
+        org.joml.Vector3f origin=null;
+        if(firstPerson&&cameraRelative&&!fp.originBinding().isEmpty()) {
+            var point=SceneHandSockets.resolveBonePoint(frame(),profile,fp.originBinding(),new Vec3((float)fp.originX(),(float)fp.originY(),(float)fp.originZ()));
+            if(point.isPresent()){var p=point.get();origin=new org.joml.Vector3f(p.x(),p.y(),p.z());}
+        }
+        return SceneViewPlacement.apply(placement,fp,origin,firstPerson,cameraRelative);
+    }
     public ScenePackageAssets assets() { requireOpen();return target.assets(); }
-    public boolean linearOutput() { requireOpen();return gltf!=null || vrm!=null; }
+    public boolean linearOutput() { requireOpen();return gltf!=null || fbx!=null || vrm!=null; }
     public boolean live() { return live; }
     public AnimationPreview<ScenePackagePlayback.Frame> timeline() {
         requireOpen();if(live) throw new IllegalStateException("Live scene has no preview transport");return timeline;
@@ -187,7 +253,10 @@ public final class GeneralMeshInstance implements AutoCloseable {
         // AABB over every deformed MMD vertex on every animation frame costs
         // nearly as much as the deformation itself and causes Alt+Y stalls.
         // Keep the first valid frame's bounds until the clip is replaced.
-        if (cachedBounds != null) return cachedBounds;
+        if (cachedBounds != null && cachedBoundsFirstPerson == firstPerson) return cachedBounds;
+        var vrmPose=frame().details() instanceof ScenePackagePlayback.Vrm details?details.value().pose():null;
+        var vrmEvaluation=vrmPose==null?null:YsmRuntime.scenes().evaluator(((ScenePackageAssets.Vrm)assets().model()).value().scene());
+        var palettes=new java.util.HashMap<Integer,java.util.List<Matrix4>>();
         if(mmd!=null && frame().details() instanceof ScenePackagePlayback.Mmd details && !details.value().deformed()) {
             var attributes=mmd.resolvedAttributes(details.value());
             var model=target.assets().model();var source=model instanceof ScenePackageAssets.Pmx pmx?pmx.mesh():((ScenePackageAssets.Pmd)model).mesh();
@@ -202,7 +271,12 @@ public final class GeneralMeshInstance implements AutoCloseable {
             try {
                 var positions = draw.geometry().primitives();
                 for (var primitive : positions) {
-                    var attribute = primitive.attributes().get("POSITION");
+                    var attributes=primitive.attributes();
+                    if(primitive.skinning()!=null && vrmEvaluation!=null) {
+                        var palette=palettes.computeIfAbsent(draw.node(),node->vrmEvaluation.skinPalette(vrmPose,node));
+                        attributes=YsmRuntime.scenes().compileDeformation(primitive).deform(palette,primitive.morphs().isEmpty()?FloatData.EMPTY:vrmPose.morphWeights().get(draw.node()));
+                    }
+                    var attribute = attributes.get("POSITION");
                     if (attribute == null || attribute.components() < 3) continue;
                     var values = attribute.values();
                     var indices = primitive.indices();
@@ -230,7 +304,7 @@ public final class GeneralMeshInstance implements AutoCloseable {
                 // preview simply falls back to the remaining valid geometry.
             }
         }
-        cachedBounds = bounds;
+        cachedBounds = bounds;cachedBoundsFirstPerson=firstPerson;
         return bounds;
     }
 
@@ -250,25 +324,50 @@ public final class GeneralMeshInstance implements AutoCloseable {
                     "Scene requires an explicit source-axis adapter: " + coordinates.upAxis());
         };
     }
-    public ScenePackagePlayback.Frame advance(long sequence,double elapsedSeconds) { return timeline().advance(sequence,elapsedSeconds); }
+    public ScenePackagePlayback.Frame advance(long sequence,double elapsedSeconds) {
+        try { return timeline().advance(sequence,elapsedSeconds); }
+        catch (RuntimeException failure) {
+            logSampleFailure(failure);
+            return timeline().current();
+        }
+    }
     /** Absolute instance time supplied once by the host owner, not by individual render passes. */
     public ScenePackagePlayback.Frame sampleLive(long sequence,double seconds) {
         requireOpen();if(!live) throw new IllegalStateException("Preview scene uses its transport controls");
         if(!Double.isFinite(seconds)||seconds<0) throw new IllegalArgumentException("Invalid live scene time");
         if(hasSequence && sequence<lastSequence) throw new IllegalArgumentException("Live scene sequence moved backwards");
         if(hasSequence && sequence==lastSequence) return liveFrame;
-        var next=player.seek(seconds);liveFrame=next;lastSequence=sequence;hasSequence=true;return next;
+        if(!face.isEmpty())player.expressions(face);
+        try {
+            var next=player.seek(seconds);liveFrame=next;lastSequence=sequence;hasSequence=true;return next;
+        } catch (RuntimeException failure) {
+            // A malformed optional animation sample must not escape the player
+            // render event. Keep the last immutable frame and let the playback
+            // adapter's native rest-pose retry recover on the next seek.
+            logSampleFailure(failure);
+            hasSequence=true;lastSequence=sequence;
+            return liveFrame;
+        }
+    }
+
+    private void logSampleFailure(RuntimeException failure) {
+        String reason=failure.toString();
+        if (reason.equals(sampleFailure)) return;
+        sampleFailure=reason;
+        YesSteveModel.LOGGER.error("Generic scene animation sample failed; retaining last valid frame source={}",
+                target.assets().source().model().path(),failure);
     }
 
     /** View maps source scene coordinates into camera space, including the host's explicit units/basis conversion. */
     public void render(boolean firstPerson,GltfSurfaceProgram.View view) {
         var frame=frame();var geometry=firstPerson?frame.firstPerson():frame.thirdPerson();
-        if(gltf!=null) gltf.render(geometry,target.gltf().materials(),view,target::textureId);
+        if(fbx!=null) fbx.render(geometry,target.gltf().materials(),view,target::textureId);
+        else if(gltf!=null) gltf.render(geometry,target.gltf().materials(),view,target::textureId);
         else if(vrm!=null) {
             if(!(frame.details() instanceof ScenePackagePlayback.Vrm details)) throw new IllegalArgumentException("VRM instance received another source frame");
             var materials=details.materials();
             var vrmView=new VrmSurfaceProgram.View(view.modelView(),view.projection(),view.toLight(),view.lightRadiance(),view.diffuseIrradiance(),view.tint(),view.orthographic(),view.lightmap());
-            vrm.render(geometry,materials,vrmView,target::textureId);
+            vrm.render(geometry,materials,vrmView,target::textureId,profile.presentation(),((ScenePackagePlayback.Vrm)frame.details()).value().pose());
         } else {
             if(!(frame.details() instanceof ScenePackagePlayback.Mmd details)) throw new IllegalArgumentException("MMD instance received another source frame");
             var materials=target.mmd().evaluate(details.value().pose().morphs().materials());
@@ -287,7 +386,7 @@ public final class GeneralMeshInstance implements AutoCloseable {
     @Override public void close() {
         RenderSystem.assertOnRenderThread();if(closed) return;closed=true;preparationGeneration++;
         RuntimeException failure=null;
-        for(AutoCloseable resource:new AutoCloseable[]{player,mmd,vrm,gltf}) if(resource!=null) {
+        for(AutoCloseable resource:new AutoCloseable[]{player,mmd,vrm,fbx,gltf}) if(resource!=null) {
             try { resource.close(); } catch(Exception error) {
                 if(failure==null) failure=new IllegalStateException("Cannot close scene instance",error);else failure.addSuppressed(error);
             }

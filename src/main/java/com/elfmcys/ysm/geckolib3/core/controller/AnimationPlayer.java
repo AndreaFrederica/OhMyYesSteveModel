@@ -62,6 +62,8 @@ public class AnimationPlayer {
 
     private AnimationState state = AnimationState.IDLE;
     private float animTickOffset;
+    private float initialElapsed;
+    public void startAt(float elapsedTicks){if(!Float.isFinite(elapsedTicks)||elapsedTicks<0)throw new IllegalArgumentException("Invalid animation elapsed time");initialElapsed=elapsedTicks;}
     private IBlendTransition beginningTransition;
     private float endingTransitionSrcTick;
 
@@ -176,6 +178,7 @@ public class AnimationPlayer {
 
             this.animTickOffset = renderTicks;
             animTicks = 0;
+            if(initialElapsed>0){animTicks=initialElapsed+this.beginningTransition.length();this.animTickOffset=renderTicks-animTicks;initialElapsed=0;}
 
             if (this.beginningTransition.length() > 0) {
                 this.state = AnimationState.BEGINNING_TRANSITION;

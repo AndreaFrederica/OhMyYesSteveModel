@@ -67,6 +67,8 @@ public final class GeneralAnimationActions {
             rows.add(pair(SceneActionId.of(animation, false), name));
             rows.add(pair(SceneActionId.of(animation, true), name + " ↻"));
         }
+        rows.add(pair("face/release",net.minecraft.network.chat.Component.translatable("gui.yes_steve_model.editor.expression_release").getString()));
+        model.generalMeshResources().profile().features().expressions().keySet().stream().sorted().forEach(name->rows.add(pair("face/"+GeneralExpressions.variable(name),net.minecraft.network.chat.Component.translatable("gui.yes_steve_model.editor.expression",name).getString())));
         rows.add(0, pair("#return", net.minecraft.network.chat.Component.translatable("gui.yes_steve_model.roulette.stop").getString()));
         return rows;
     }
