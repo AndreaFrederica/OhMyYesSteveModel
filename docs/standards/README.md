@@ -8,6 +8,8 @@
 - [Model Schema](model-schema/README.md)
 - [场景包与通用网格 Schema](scene-package.md)
 - [通用模型配置](scene-model-profile.md)
+- [FBX 映射配置](fbx-mapping-profile.md) / [FBX 资源映射](fbx-resource-mapping.md)
+- [表情与交互配置](scene-model-features.md) / [交互状态同步](scene-interaction-sync.md)
 - [一致性要求](conformance.md)
 
 标准正文、规范性 Proto 快照和标准 fixture 按 [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) 发布，不属于 YSM 项目代码的 Apache License 2.0。Java reader、writer、validator、测试和其他产品实现仍走其所在项目的代码许可证，除非文件另有声明。

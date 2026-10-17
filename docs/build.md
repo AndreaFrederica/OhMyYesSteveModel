@@ -125,6 +125,8 @@ python docs/tools/check_docs.py
 
 真实 Forge 自动宿主目前验证的是 Windows 桌面环境，会启动独立测试世界、服务器和两个客户端。它不使用玩家存档；需有可用显示与音频设备。该检查不要与本体编译任务同时执行，以免运行中替换共享 class 输出。普通 JVM 单元测试不要求图形环境。
 
+第一人称通用模型回归可指定 `-Pysm.mockSceneModel=<完整 PMX 或 VRM 路径>`，同时启用 `-Pysm.mockFirstPerson=true`。此模式默认启动独立服务器和客户端 A，把模型所在目录复制到服务器的测试资源目录，通过正常远端选择加载模型；原始目录不写入。检查真实身体 pass、当前帧重复绘制、头骨到相机距离、禁用 FirstPerson 后的相机空间回退和第三人称恢复，并验证 YSM 控制器驱动和实际持物提交，保存身体、相机回退、第三人称持物与空手截图。它不运行默认基岩模型验收，不代表所有武器角度或联机表情已验收。可加 `-Pysm.mockScenePeers=true` 启动客户端 B，让两端各自选择远端模型并观察对方的实际骨架驱动绘制，保存双向截图。
+
 通用网格 GPU 检查使用隐藏的 OpenGL 上下文，调用生产纹理上传、网格缓冲及 MMD/glTF 材质程序并读回结果。检查包含原 Saba shader 的明确子集和固定 Khronos BRDF 对照、描边/点线/UV、深度/透明排序/颜色空间，以及实际 Lib 播放、target 发布回滚与独立实例关闭。它独立于普通单元测试，也不替代完整 Forge 角色、全部材质和预览验收：
 
 ```powershell
@@ -133,7 +135,7 @@ python docs/tools/check_docs.py
 
 仅检查材质、光照和光栅状态可运行 `sceneMaterialGpuVerification`。该任务包含 MMD/glTF/MToon 的游戏光照贴图回归：同一天空光等级下更新昼夜 texel、独立方块光、自发光/unlit、描边、透明度和绑定恢复，不需要启动 Minecraft 世界。
 
-该任务使用 Minecraft 同版本的 LWJGL 图形依赖，不启用 YSM native 加速；需要可用的 OpenGL 3.2 驱动。缺少图形上下文时明确失败，不把跳过检查写成通过。
+场景纹理使用 RGBA16F 存储，与每像素八字节的 GPU 预算一致；上传检查允许最多一个 binary16 步长的量化误差，精确可表示的 mipmap 与光栅断言仍保持原精度。该任务使用 Minecraft 同版本的 LWJGL 图形依赖，不启用 YSM native 加速；需要可用的 OpenGL 3.2 驱动。缺少图形上下文时明确失败，不把跳过检查写成通过。
 
 ## 独立模型配置工具
 
@@ -145,3 +147,18 @@ java -Xmx1g '-Dysm.runtime.javaOnly=true' -jar runtime/scene-tools/build/libs/ys
 ```
 
 以 `help` 替换 `gui` 查看 inspect、init、bind、source-bind、calibrate-arms、set、action、validate、render、pack 命令。默认写模型旁的 `.omysm.json`；另存和 pack 拒绝覆盖已有输出。GUI 使用生产来源动作求值与独立诊断绘制，当前完整 YSM 原生曲线和游戏材质显示的缺口见[独立工具架构](architecture/scene-authoring-tools.md)。
+
+## VRM 交互与性能验证
+
+使用 Java 17。普通回归由 runtime 的 scene-api、java-scene、java-vrm、core 测试覆盖；主项目的 VRM 默认绑定与导入测试覆盖实际源 rig、元数据和大缩略图。
+
+```powershell
+.\gradlew.bat -p runtime :ysm-runtime-core:test :ysm-runtime-java-vrm:test :ysm-runtime-java-scene:test :ysm-runtime-scene-api:test
+.\gradlew.bat test --tests '*VrmPlayerDefaultsTest*' --tests '*GenericMeshModelImporterTest*'
+.\gradlew.bat vrmMaterialGpuVerification sceneTextureGpuVerification
+.\gradlew.bat vrmOptimizationGpuVerification '-PvrmVerificationModels=C:/models/Avatar1.vrm~@~C:/models/Avatar0.vrm' '-PvrmBenchmark=true'
+```
+
+最后一项需要 OpenGL 4.3；使用隐藏窗口检查 MMD/VRM 计算数值、真实模型双视图像素、同帧上传复用、预算及故障回退。可选基准记录一/四实例、CPU/GPU 的 p50/p95、线程分配与上传字节；输出位于 build/reports/vrm-optimization。它包含绘制等待但不等于 Minecraft FPS。模型须由调用方提供并遵循各自许可。
+
+真实 Forge 端到端检查可运行 `modelManagementMockForge -Pysm.fast_run=true -Pysm.mockFirstPerson=true -Pysm.mockSceneModel=C:/models/Avatar.vrm --no-configuration-cache`。它使用隔离服务端/客户端，验证远端导入、选择发布、FirstPerson 身体、相机回退、控制器、持物与空手第三人称恢复，保存画面、骨骼位置与事件证据；可加 `-Pysm.mockScenePeers=true` 验证双客户端互相绘制。输入模型应放在独立目录，场景依赖会一起复制；该检查不覆盖所有第三方武器和 shader-pack。

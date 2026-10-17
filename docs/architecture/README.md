@@ -10,6 +10,8 @@ Minecraft / Forge 保有游戏事实、连接与 GPU 提交环境。
 
 文档归约、唯一落点与引用闭环见[架构文档维护规则](maintenance.md)。
 
+CPM 两代格式的独立语义、适配边界和离线验收见：[格式语义](cpm-format-semantics.md)、[渲染语义](cpm-rendering-semantics.md)、[适配器边界](cpm-adapter-boundaries.md) 和 [验证契约](cpm-verification-contract.md)。
+
 ## 按问题选择入口
 
 下表中的 Java 包名以 `com.elfmcys.ysm` 为前缀；ysmlib 使用 `cc.sirrus.ysmlib`。符号用于定位职责边界，内部方法不因此成为公开 API。
@@ -24,6 +26,9 @@ Minecraft / Forge 保有游戏事实、连接与 GPU 提交环境。
 | 动画状态、Molang、骨骼输出为何变化 | [动画](animation/README.md) | `AnimatableEntity`、`IAnimationController`、`AnimationProcessor` |
 | 几何烘焙、帧调度、顶点或透明排序 | [渲染](rendering/README.md) | `BakeProvider`、`Renderer`、`ModelState`（ysmlib） |
 | 前置接入、加速选择、JVM 基线边界 | [独立前置与迁移](native-runtime/portable-runtime.md) | `YsmRuntime`、`cc.sirrus.ysmlib.*` |
+| CPM Legacy/Modern 来源定义、坐标和骨骼绑定 | [CPM 格式语义对照](cpm-format-semantics.md) | `CpmDocument`、`CpmGeometry`、`CpmSceneCompiler`、`CpmYsmModelAdapter` |
+| CPM 原始 Mod 从包载入到最终顶点提交的完整渲染顺序 | [CPM 原始渲染语义总览](cpm-rendering-semantics.md) | `RenderPlayerHandler`、`CustomJsonModel`、`ModelLoader`、`ModelBase`、`ModelInstance` |
+| CPM 转换的源码不变量、阶段快照和验收门槛 | [CPM 文档驱动验证契约](cpm-verification-contract.md) | source oracle、compiled IR、pose、world corners、UV |
 | 模型卡、预览、翻页、选择与页面资源 | [客户端展示](client-presentation/README.md) | `client.gui`、`ClientAssetBatch`、`EntityModelBinding` |
 | Forge 接入、第三方扩展、locator 与 render hook | [游戏与扩展接入](integration/README.md) | `api`、`client.compat`、`GeoReplacedEntityRenderer` |
 
@@ -60,3 +65,5 @@ flowchart TB
 - CPU renderer 不是独立游戏后端，也不提交 GPU draw。能力存在不等于对应模型功能已接通；支持结论只看[当前支持状态](../status/support-and-verification.md)。
 
 图中相邻模块不意味着可以共同写入同一份 mutable state。
+
+模型创作入口另见 [Blockbench 导出](blockbench-export.md)。
