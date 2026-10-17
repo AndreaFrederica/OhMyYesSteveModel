@@ -28,6 +28,7 @@ public final class MmdMeshRenderer implements AutoCloseable {
     private boolean gpuReported;
     private DeformationProvider.Session cpuFallback;
     private List<MeshAsset.Primitive> gpuGeometry;
+    private java.util.List<cc.sirrus.ysmlib.scene.IntData> gpuIndices;
     private MmdPlayback.Frame fallbackFrame;
     private Map<String,MeshAsset.Attribute> fallbackAttributes;
     private MmdPlayback.Frame fallbackGeometryFrame;
@@ -86,9 +87,10 @@ public final class MmdMeshRenderer implements AutoCloseable {
             }
             evaluated=fallbackEvaluated;
         }
-        var geometry = gpuReady&&gpuGeometry!=null?gpuGeometry:evaluated == lastEvaluated && lastGeometry != null
+        var indices=evaluated.stream().map(MeshAsset.Primitive::indices).toList();
+        var geometry = gpuReady&&gpuGeometry!=null&&indices.equals(gpuIndices)?gpuGeometry:evaluated == lastEvaluated && lastGeometry != null
                 ? lastGeometry : project(evaluated);
-        if(gpuReady)gpuGeometry=geometry;
+        if(gpuReady){gpuGeometry=geometry;gpuIndices=indices;}
         long bytes = 0;
         // Validate the entire frame before issuing a draw; each instance has one cumulative buffer budget.
         for (int index = 0; index < evaluated.size(); index++) {
@@ -114,14 +116,14 @@ public final class MmdMeshRenderer implements AutoCloseable {
             // Source material order and depth writes are significant for the legacy MMD renderer.
             for (int i = 0; i < geometry.size(); i++) {
                 var material = frame.materials().get(i); var definition = material.definition();
-                if (material.values().diffuse().get(3) <= 0 || definition.points() && material.values().edgeSize() <= 0) continue;
+                if (geometry.get(i).indices().size()==0 || material.values().diffuse().get(3) <= 0 || definition.points() && material.values().edgeSize() <= 0) continue;
                 SceneRasterState.enabled(GL11C.GL_CULL_FACE, !definition.doubleSided()); GL11C.glCullFace(GL11C.GL_BACK);
                 try (var binding = program(definition).bind(material, textures.materials().get(i), textureIds, view)) { buffer.draw(i); }
             }
             GL11C.glEnable(GL11C.GL_CULL_FACE); GL11C.glCullFace(GL11C.GL_FRONT);
             for (int i = 0; i < geometry.size(); i++) {
                 var material = frame.materials().get(i); var definition = material.definition();
-                if (!presentation.outlines() || presentation.outlineScale()==0 || !definition.edge() || definition.points() || definition.lines() || material.values().diffuse().get(3) <= 0
+                if (geometry.get(i).indices().size()==0 || !presentation.outlines() || presentation.outlineScale()==0 || !definition.edge() || definition.points() || definition.lines() || material.values().diffuse().get(3) <= 0
                         || material.values().edgeColor().get(3) <= 0 || material.values().edgeSize() <= 0) continue;
                 try (var binding = program(definition).bindEdge(material, view,(float)presentation.outlineScale())) { buffer.draw(i); }
             }

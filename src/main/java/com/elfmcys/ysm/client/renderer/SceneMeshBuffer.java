@@ -20,8 +20,35 @@ public final class SceneMeshBuffer implements AutoCloseable {
     private int count;
     private int mode;
     private boolean closed;
+    private FloatBuffer vertexStaging;
+    private IntBuffer indexStaging;
+    private long vertexCapacity,indexCapacity,uploadedVertexBytes,uploadedIndexBytes;
+    private cc.sirrus.ysmlib.scene.IntData uploadedIndices;
+    private Map<String,MeshAsset.Attribute> uploadedAttributes=Map.of();
+    private record IndexBuffer(int id,long bytes) {}
+    private final boolean retainIndexVariants;
+    private final IdentityHashMap<cc.sirrus.ysmlib.scene.IntData,IndexBuffer> indexVariants=new IdentityHashMap<>();
+    public record UploadStatistics(long vertexBytes,long indexBytes,long vertexCapacity,long indexCapacity) {}
+    public UploadStatistics uploadStatistics(){return new UploadStatistics(uploadedVertexBytes,uploadedIndexBytes,vertexCapacity,indexCapacity);}
+    /** GPU capacities plus retained direct upload staging. */
+    public long retainedBytes(){return vertexCapacity+indexCapacity+(vertexStaging==null?0:4L*vertexStaging.capacity())+(indexStaging==null?0:4L*indexStaging.capacity());}
+    private long projectedBytes(long verticesBytes,cc.sirrus.ysmlib.scene.IntData nextIndices){
+        long next=4L*nextIndices.size(),indicesBytes=indexCapacity;
+        if(retainIndexVariants){if(!indexVariants.containsKey(nextIndices))indicesBytes=(indexVariants.size()>=2?0:indexCapacity)+next;}
+        else indicesBytes=Math.max(indexCapacity,next);
+        return Math.max(vertexCapacity,verticesBytes)+indicesBytes+Math.max(vertexStaging==null?0:4L*vertexStaging.capacity(),verticesBytes)+Math.max(indexStaging==null?0:4L*indexStaging.capacity(),next);
+    }
+    private boolean sameAttributes(MeshAsset.Primitive geometry,Map<String,Integer> attributes){
+        if(!layout.equals(attributes))return false;
+        for(String name:attributes.keySet()){var before=uploadedAttributes.get(name);var after=geometry.attributes().get(name);if(before==null||after==null||before.components()!=after.components()||before.values()!=after.values())return false;}return true;
+    }
 
     public SceneMeshBuffer() {
+        this(false);
+    }
+    /** Retain the two immutable first/third-person index variants while sharing one vertex buffer. */
+    public SceneMeshBuffer(boolean retainIndexVariants) {
+        this.retainIndexVariants=retainIndexVariants;
         RenderSystem.assertOnRenderThread();
         int previousError = GL11C.glGetError();
         if (previousError != GL11C.GL_NO_ERROR) throw new IllegalStateException("Host GL error before mesh allocation: " + previousError);
@@ -65,7 +92,7 @@ public final class SceneMeshBuffer implements AutoCloseable {
         if (!attributes.containsKey("POSITION")) throw new IllegalArgumentException("Scene shader requires POSITION");
         long vertexScalars = (long) geometry.vertexCount() * stride;
         long bytes = (vertexScalars + geometry.indices().size()) * Integer.BYTES;
-        if (bytes > limits.maxBytes() || vertexScalars > Integer.MAX_VALUE
+        if (bytes > limits.maxBytes() || projectedBytes(vertexScalars*4,geometry.indices())>limits.maxBytes() || vertexScalars > Integer.MAX_VALUE
                 || geometry.vertexCount() > limits.maxElements() || geometry.indices().size() > limits.maxElements()) {
             throw new IllegalArgumentException("Scene geometry upload budget exceeded");
         }
@@ -73,26 +100,37 @@ public final class SceneMeshBuffer implements AutoCloseable {
         if (previousError != GL11C.GL_NO_ERROR) throw new IllegalStateException("Host GL error before mesh upload: " + previousError);
         int previousVao = GL11C.glGetInteger(GL30C.GL_VERTEX_ARRAY_BINDING);
         int previousBuffer = GL11C.glGetInteger(GL15C.GL_ARRAY_BUFFER_BINDING);
+        boolean vertexChanged=!sameAttributes(geometry,attributes),indexChanged=uploadedIndices!=geometry.indices();
+        var retained=retainIndexVariants?indexVariants.get(geometry.indices()):null;
+        if(retained!=null)indexChanged=false;
+        int indexBuffer=retained==null?indices:retained.id();boolean newIndexBuffer=false;
         FloatBuffer vertexData = null;
         IntBuffer indexData = null;
         uploaded = null;
         try {
-            vertexData = MemoryUtil.memAllocFloat((int) vertexScalars);
-            indexData = MemoryUtil.memAllocInt(geometry.indices().size());
-            for (int vertex = 0; vertex < geometry.vertexCount(); vertex++) {
-                for (var binding : bindings) {
-                    var attribute = geometry.attributes().get(binding.getKey());
-                    for (int component = 0; component < attribute.components(); component++) {
-                        vertexData.put(attribute.values().get(vertex * attribute.components() + component));
-                    }
-                }
+            if(retainIndexVariants&&retained==null){
+                if(indexVariants.size()>=2){for(var variant:indexVariants.values())if(variant.id()!=indices)GL15C.glDeleteBuffers(variant.id());indexVariants.clear();indexCapacity=0;GL30C.glBindVertexArray(vao);GL15C.glBindBuffer(GL15C.GL_ELEMENT_ARRAY_BUFFER,indices);GL15C.glBufferData(GL15C.GL_ELEMENT_ARRAY_BUFFER,0L,GL15C.GL_STATIC_DRAW);}
+                if(!indexVariants.isEmpty()){indexBuffer=GL15C.glGenBuffers();newIndexBuffer=true;if(indexBuffer==0)throw new IllegalStateException("Cannot allocate view indices");}
             }
-            vertexData.flip(); indexData.put(geometry.indices().view()).flip();
             GL30C.glBindVertexArray(vao);
             GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, vertices);
-            GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER, vertexData, GL15C.GL_STREAM_DRAW);
-            GL15C.glBindBuffer(GL15C.GL_ELEMENT_ARRAY_BUFFER, indices);
-            GL15C.glBufferData(GL15C.GL_ELEMENT_ARRAY_BUFFER, indexData, GL15C.GL_STREAM_DRAW);
+            if(vertexChanged&&vertexScalars>0) {
+                if(vertexStaging==null||vertexStaging.capacity()<vertexScalars)vertexStaging=MemoryUtil.memRealloc(vertexStaging,(int)vertexScalars);
+                vertexData=vertexStaging;vertexData.clear();
+                for (int vertex = 0; vertex < geometry.vertexCount(); vertex++) for (var binding : bindings) {
+                    var attribute=geometry.attributes().get(binding.getKey());for(int component=0;component<attribute.components();component++)vertexData.put(attribute.values().get(vertex*attribute.components()+component));
+                }
+                vertexData.flip();long size=vertexScalars*Float.BYTES;
+                if(vertexCapacity<size){GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER,size,GL15C.GL_STREAM_DRAW);vertexCapacity=size;}
+                GL15C.glBufferSubData(GL15C.GL_ARRAY_BUFFER,0L,vertexData);uploadedVertexBytes+=size;
+            }
+            GL15C.glBindBuffer(GL15C.GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+            if(indexChanged&&geometry.indices().size()>0) {
+                int scalars=geometry.indices().size();if(indexStaging==null||indexStaging.capacity()<scalars)indexStaging=MemoryUtil.memRealloc(indexStaging,scalars);
+                indexData=indexStaging;indexData.clear();indexData.put(geometry.indices().view()).flip();long size=(long)scalars*Integer.BYTES;
+                if(retainIndexVariants||indexCapacity<size){GL15C.glBufferData(GL15C.GL_ELEMENT_ARRAY_BUFFER,size,GL15C.GL_STATIC_DRAW);if(retainIndexVariants)indexCapacity+=size;else indexCapacity=size;}
+                GL15C.glBufferSubData(GL15C.GL_ELEMENT_ARRAY_BUFFER,0L,indexData);uploadedIndexBytes+=size;
+            }
             for (int location : enabled) if (!locations.contains(location)) GL20C.glDisableVertexAttribArray(location);
             long offset = 0;
             for (var binding : bindings) {
@@ -115,16 +153,34 @@ public final class SceneMeshBuffer implements AutoCloseable {
                 case TRIANGLE_FAN -> GL11C.GL_TRIANGLE_FAN;
             };
             layout = Map.copyOf(attributes);
-            uploaded = geometry;
+            uploaded = geometry;uploadedIndices=geometry.indices();uploadedAttributes=geometry.attributes();
+            if(retainIndexVariants&&retained==null)indexVariants.put(geometry.indices(),new IndexBuffer(indexBuffer,(long)geometry.indices().size()*4));
+        } catch(RuntimeException|Error failure) {
+            uploadedAttributes=Map.of();uploadedIndices=null;vertexCapacity=0;
+            if(newIndexBuffer)GL15C.glDeleteBuffers(indexBuffer);
+            for(var variant:indexVariants.values())if(variant.id()!=indices)GL15C.glDeleteBuffers(variant.id());indexVariants.clear();indexCapacity=0;
+            GL30C.glBindVertexArray(vao);
+            GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER,vertices);GL15C.glBufferData(GL15C.GL_ARRAY_BUFFER,0L,GL15C.GL_STREAM_DRAW);
+            GL15C.glBindBuffer(GL15C.GL_ELEMENT_ARRAY_BUFFER,indices);GL15C.glBufferData(GL15C.GL_ELEMENT_ARRAY_BUFFER,0L,GL15C.GL_STATIC_DRAW);
+            throw failure;
         } finally {
-            if (vertexData != null) MemoryUtil.memFree(vertexData);
-            if (indexData != null) MemoryUtil.memFree(indexData);
+
             GL30C.glBindVertexArray(previousVao);
             GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER, previousBuffer);
         }
     }
 
     /** Caller owns shader, uniforms, material raster state, projection and target framebuffer. */
+    public void gpuStreams(int buffer) {
+        requireOpen();if(uploaded==null)throw new IllegalStateException("Missing GPU draw layout");
+        int oldVao=GL11C.glGetInteger(GL30C.GL_VERTEX_ARRAY_BINDING),oldBuffer=GL11C.glGetInteger(GL15C.GL_ARRAY_BUFFER_BINDING);
+        try{GL30C.glBindVertexArray(vao);GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER,buffer);
+            for(var entry:Map.of("POSITION",0,"NORMAL",3,"TANGENT",6,"TEXCOORD_0",10).entrySet())if(layout.containsKey(entry.getKey())){
+                var attribute=uploaded.attributes().get(entry.getKey());GL20C.glVertexAttribPointer(layout.get(entry.getKey()),attribute.components(),GL11C.GL_FLOAT,false,17*4,(long)entry.getValue()*4);
+            }
+            int error=GL11C.glGetError();if(error!=GL11C.GL_NO_ERROR)throw new IllegalStateException("GPU scene binding failed: "+error);
+        }finally{GL30C.glBindVertexArray(oldVao);GL15C.glBindBuffer(GL15C.GL_ARRAY_BUFFER,oldBuffer);}
+    }
     public void draw() {
         requireOpen();
         if (uploaded == null) throw new IllegalStateException("Scene mesh has no complete uploaded frame");
@@ -155,7 +211,10 @@ public final class SceneMeshBuffer implements AutoCloseable {
     @Override public void close() {
         RenderSystem.assertOnRenderThread();
         if (closed) return;
-        closed = true; uploaded = null;
+        closed = true; uploaded = null;uploadedIndices=null;uploadedAttributes=Map.of();
+        if(vertexStaging!=null){MemoryUtil.memFree(vertexStaging);vertexStaging=null;}
+        if(indexStaging!=null){MemoryUtil.memFree(indexStaging);indexStaging=null;}
+        for(var variant:indexVariants.values())if(variant.id()!=indices)GL15C.glDeleteBuffers(variant.id());indexVariants.clear();
         GL30C.glDeleteVertexArrays(vao);
         GL15C.glDeleteBuffers(vertices);
         GL15C.glDeleteBuffers(indices);

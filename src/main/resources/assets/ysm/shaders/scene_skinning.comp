@@ -1,0 +1,30 @@
+#version 430 core
+layout(local_size_x=256) in;
+layout(std430,binding=0) readonly buffer Source { float source[]; };
+layout(std430,binding=1) readonly buffer Structure { int structure[]; };
+layout(std430,binding=2) readonly buffer Influences { float weights[]; };
+layout(std430,binding=3) readonly buffer Frame { float frame[]; };
+layout(std430,binding=4) writeonly buffer Output { float outputData[]; };
+layout(std430,binding=5) buffer Status { uint invalid; uint bounds[6]; };
+uniform int VertexCount,BoneCount,JointsStart,ModesStart,MorphRangesStart,MorphEntriesStart;
+shared vec3 minima[256];shared vec3 maxima[256];
+vec3 unit(vec3 v){float n=length(v);return n<1e-30?vec3(0):v/n;}
+uint ordered(float f){uint bits=floatBitsToUint(f);return (bits&0x80000000u)!=0u?~bits:bits^0x80000000u;}
+mat4 bone(int id){int p=id*16;return mat4(vec4(frame[p],frame[p+1],frame[p+2],frame[p+3]),vec4(frame[p+4],frame[p+5],frame[p+6],frame[p+7]),vec4(frame[p+8],frame[p+9],frame[p+10],frame[p+11]),vec4(frame[p+12],frame[p+13],frame[p+14],frame[p+15]));}
+void main(){
+  int v=int(gl_GlobalInvocationID.x),lane=int(gl_LocalInvocationID.x);vec3 lo=vec3(3.402823466e38),hi=-lo;
+  if(v<VertexCount){
+    float data[17];for(int k=0;k<17;k++)data[k]=source[v*26+k];
+    for(int i=structure[MorphRangesStart+v];i<structure[MorphRangesStart+v+1];i++){int p=MorphEntriesStart+i*3;data[structure[p+1]]+=frame[BoneCount*16+structure[p]]*intBitsToFloat(structure[p+2]);}
+    mat4 m=mat4(0);for(int i=structure[v];i<structure[v+1];i++)if(weights[i]!=0)m+=bone(structure[JointsStart+i])*weights[i];m[3][3]=1;
+    vec3 p=(m*vec4(data[0],data[1],data[2],1)).xyz;mat3 a=mat3(m);float det=determinant(a);
+    vec3 n=unit((cross(a[1],a[2])*data[3]+cross(a[2],a[0])*data[4]+cross(a[0],a[1])*data[5])*(det<0?-1:1));
+    vec3 t=a*vec3(data[6],data[7],data[8]);t=unit(t-n*dot(n,t));
+    data[0]=p.x;data[1]=p.y;data[2]=p.z;data[3]=n.x;data[4]=n.y;data[5]=n.z;data[6]=t.x;data[7]=t.y;data[8]=t.z;if(det<0)data[9]=-data[9];
+    bool valid=true;for(int k=0;k<17;k++){valid=valid&&!isnan(data[k])&&!isinf(data[k]);outputData[v*17+k]=data[k];}
+    if(valid){lo=p;hi=p;}else atomicOr(invalid,1u);
+  }
+  minima[lane]=lo;maxima[lane]=hi;barrier();
+  for(int width=128;width>0;width/=2){if(lane<width){minima[lane]=min(minima[lane],minima[lane+width]);maxima[lane]=max(maxima[lane],maxima[lane+width]);}barrier();}
+  if(lane==0)for(int k=0;k<3;k++){atomicMin(bounds[k],ordered(minima[0][k]));atomicMax(bounds[k+3],ordered(maxima[0][k]));}
+}
