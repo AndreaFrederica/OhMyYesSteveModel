@@ -37,34 +37,38 @@ Oh My YSM Lib 允许您组合一个其他的*3D模型格式和oysm映射json文�
 
 Oh My YSM 在原有 YSM 基岩版模型之外，通过 Oh My YSM Lib 接入通用 3D 来源。下表只给出格式层面的结论；实测范围、未验收项和故障回退以[通用网格支持状态](docs/status/general-mesh-backend.md)与[当前支持状态](docs/status/support-and-verification.md)为准。
 
-### 已支持
+### 格式 × 阶段
 
-| 格式 | 扩展名 / 来源 | 施工状态 | 当前状态 |
-|---|---|---|---|
-| YSM 基岩版模型 | `ysm.json` + Bedrock 几何/动画（V1/V2 原始归档、V3 编译格式） | 已接入 | 导入、动画、网络同步与游戏渲染；V3/V3D 按内容哈希复用，避免重复导入 |
-| MMD 模型 | `.pmx` / `.pmd` | 已接入（持续验收） | 几何、材质、骨骼、Morph、IK 与物理；native Bullet 优先、WASM 回退，可选 GPU compute 变形 |
-| MMD 动作与姿态 | `.vmd` / `.vpd` | 已接入 | 骨骼、表情、姿态与 IK 开关；VMD 的镜头/灯光轨道仅保留读取 |
-| MMD 工程 | `.pmm`（1/2） | 部分接入 | 工程结构、路径重定位、内嵌动画与物理开关；完整多模型项目播放尚未完成 |
-| glTF / GLB | `.gltf` / `.glb` | 已接入（部分扩展） | 节点、skin、morph、动画与核心 PBR/unlit；部分扩展未实现 |
-| VRM | `.vrm`（VRM 0.x / 1.0） | 已接入（持续验收） | 人形绑定与重定向、MToon 0/1 材质与描边、表情、视线、约束、SpringBone 及扩展、第一人称；CPU LBS 与可选 OpenGL 4.3 GPU 变形 |
-| VRMA | `.vrma` | 已接入 | 多动画人形重定向、髋部尺度、表情与视线 |
-| FBX | `.fbx`（ASCII / binary） | 已接入（持续验收） | 层级、pivot、单位、角点属性、skin、morph、动画层/曲线与贴图依赖；native ufbx 优先、WASM 回退，可选 `_omysm/fbx-mapping.json` 与 `fbx-physics.json` |
-| BVH | `.bvh` | 部分接入 | 有界骨架读取与 Euler 通道采样；跨骨架重定向未接入 |
-| UnityPackage | `.unitypackage` | 部分接入 | 包内 FBX 与图片提取、`.mat` 标准贴图槽映射到核心 PBR；不还原 Prefab/Avatar、Animator、PhysBone 等 Unity 语义 |
-| Blender 工程 | `.blend` | 不适用（经导出） | 不直接读取；需先用 Blender 导出 glTF/GLB 或 FBX |
-| Gamepiaynmo CPM | `model.json` 等（CustomModel Legacy / CustomPlayerModel Modern） | 进行中 | 来源解析、YSM 转换与导入渲染已接入；物理、粒子与物品事件、catalog/实体自动接入、网络同步及完整实机验收待完成。见 [CPM 来源解析](docs/architecture/cpm-source-parsing.md) |
-| 场景图片 | PNG / JPEG / WebP / ZTX / BMP / TGA；主 Mod 图像管线另含 AVIF | 已接入（部分格式） | 场景解码受预算约束；DDS、KTX2、HDR/EXR 未接入 |
+| 格式 | 读取 | 几何/材质 | 动画/求值 | 物理 | 宿主渲染 | 实机验收 |
+|---|---|---|---|---|---|---|
+| YSM 基岩版（V1/V2/V3） | ✅ | ✅ | ✅ | – | ✅ | 🔶 |
+| MMD 模型（PMX / PMD） | ✅ | ✅ | ✅ | ✅ | ✅ | 🔶 |
+| MMD 动作（VMD / VPD） | ✅ | – | ✅ | – | ✅ | 🔶 |
+| MMD 工程（PMM 1/2） | 🔶 | 🔶 | 🔶 | – | 🔶 | ⬜ |
+| glTF / GLB | ✅ | ✅ | ✅ | – | ✅ | 🔶 |
+| VRM 0 / 1 | ✅ | ✅ | ✅ | ✅ | ✅ | 🔶 |
+| VRMA | ✅ | – | ✅ | – | ✅ | 🔶 |
+| FBX（ASCII / binary） | ✅ | ✅ | ✅ | 🔶 | ✅ | 🔶 |
+| BVH | ✅ | – | 🔶 | – | 🔶 | ⬜ |
+| UnityPackage | ✅ | 🔶 | – | – | 🔶 | ⬜ |
+| Blender（`.blend`，经导出） | – | – | – | – | – | – |
+| Gamepiaynmo CPM | ✅ | ✅ | 🔶 | ⬜ | ✅ | 🔶 |
+| Customizable Player Models | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
-### 计划中
+图例：✅ 已接入　🔶 部分接入 / 持续验收　⬜ 计划　– 不适用（`.blend` 请先用 Blender 导出 glTF/GLB 或 FBX，再按对应行处理）
 
-| 格式 | 施工状态 | 计划与待办 |
+场景图片（PNG / JPEG / WebP / ZTX / BMP / TGA；主 Mod 图像管线另含 AVIF）不属于模型来源，单独受场景解码预算约束，DDS / KTX2 / HDR / EXR 尚未接入。
+
+> 单元格只表示主链路接入程度，不等同于通过全部验收；各格式的边界、已知问题与回退行为见[通用网格支持状态](docs/status/general-mesh-backend.md)，平台、第三方 Mod、shader 与实机组合的验收状态以[当前支持状态](docs/status/support-and-verification.md)为准。
+
+### 计划与待办
+
+| 项目 | 施工状态 | 计划与待办 |
 |---|---|---|
 | Customizable Player Models（tom5454，`.cpmmodel`） | 未开工（Plan） | 读取模型文件与皮肤内嵌导出；解析编辑器动画、脚本与动态贴图；接入通用网格管线 |
 | 完整 Unity Avatar 导入 | 未开工（Plan） | Prefab/Avatar 候选选择、GUID 依赖闭包、Animator、材质、PhysBone、Contact 与 AvatarDescriptor |
 | PMM 完整多模型项目 | 进行中（WIP） | 工程结构、路径与物理开关已读取；待多模型/配件播放与媒体运行 |
 | 更多场景图片与材质格式 | 未开工（Plan） | DDS、KTX2、HDR/EXR 与 AVIF 场景解码 |
-
-> 上表只说明格式层面的可用性；平台、第三方 Mod、shader 与实机组合的验收状态请以支持状态页为准。
 
 ---
 ai sloop分割线
