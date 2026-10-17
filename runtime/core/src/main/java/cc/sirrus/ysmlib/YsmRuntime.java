@@ -13,6 +13,9 @@ import cc.sirrus.ysmlib.render.natives.NativeRenderProvider;
 
 /** Portable service entry point shared by the Forge prerequisite and headless tools. */
 public final class YsmRuntime {
+  private static final cc.sirrus.ysmlib.cpm.CpmProvider CPM = new cc.sirrus.ysmlib.cpm.java.JavaCpmProvider();
+  /** Reads and compiles CPM source structures; behavior is evaluated only by pose sessions. */
+  public static cc.sirrus.ysmlib.cpm.CpmProvider cpm() { return CPM; }
   private static final cc.sirrus.ysmlib.scene.SceneProvider SCENES = new SceneServices();
 
   /** Portable general mesh imports and CPU animation/deformation, independent of the MC backend. */
@@ -41,6 +44,15 @@ public final class YsmRuntime {
   private static final JavaImageProvider IMAGES = new JavaImageProvider();
   private static final cc.sirrus.ysmlib.legacy.LegacyImportProvider LEGACY =
       new cc.sirrus.ysmlib.legacy.java.JavaLegacyImportProvider(V3, IMAGES);
+
+  private static final cc.sirrus.ysmlib.legacy.BlockbenchExportProvider BLOCKBENCH =
+      new cc.sirrus.ysmlib.legacy.java.JavaBlockbenchExportProvider(
+          new cc.sirrus.ysmlib.legacy.java.JavaV3EnvelopeProvider(), IMAGES);
+
+  /** Exports historical YSM models as editable Blockbench {@code .bbmodel} JSON. */
+  public static cc.sirrus.ysmlib.legacy.BlockbenchExportProvider blockbench() {
+    return BLOCKBENCH;
+  }
 
   public static cc.sirrus.ysmlib.legacy.LegacyImportProvider legacy() {
     return LEGACY;
@@ -158,6 +170,7 @@ public final class YsmRuntime {
         new ModuleStatus("Scene", SCENES.profile()),
         new ModuleStatus("V3 envelope", V3.getClass().getSimpleName()),
         new ModuleStatus("V3 import", LEGACY.getClass().getSimpleName()),
+        new ModuleStatus("Blockbench export", BLOCKBENCH.getClass().getSimpleName()),
         new ModuleStatus("Decoded", DECODED.getClass().getSimpleName()),
         new ModuleStatus("V3D", V3D.getClass().getSimpleName() + " (JVM)"),
         new ModuleStatus("Bake", BAKE.getClass().getSimpleName()),

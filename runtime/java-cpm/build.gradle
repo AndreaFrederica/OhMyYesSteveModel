@@ -1,0 +1,21 @@
+dependencies {
+    api project(':ysm-runtime-scene-api')
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.graalvm.polyglot:polyglot:24.1.2'
+    implementation 'org.graalvm.polyglot:js-community:24.1.2'
+}
+
+tasks.register('upstreamExamples', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cc.sirrus.ysmlib.cpm.java.CpmUpstreamVerification'
+    args providers.gradleProperty('cpm.upstreamRoot').map { [it] }.getOrElse([])
+}
+
+tasks.register('offlineSnapshot', JavaExec) {
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'cc.sirrus.ysmlib.cpm.java.CpmOfflineSnapshot'
+    if (project.hasProperty('cpm.snapshotDir')) args project.property('cpm.snapshotDir')
+    if (project.hasProperty('cpm.snapshotOut')) args project.property('cpm.snapshotOut')
+}

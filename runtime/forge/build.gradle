@@ -86,6 +86,15 @@ tasks.register('distributionTest', JavaExec) {
 }
 check.dependsOn tasks.named('distributionTest')
 
+tasks.register('cpmDistributionTest', JavaExec) {
+    dependsOn shadowJar, tasks.named('distributionTestClasses')
+    classpath = files(sourceSets.distributionTest.output, tasks.shadowJar.archiveFile,
+            configurations.distributionHostMath)
+    mainClass = 'CpmDistributionSmoke'
+    systemProperty 'ysm.runtime.javaOnly', 'true'
+}
+check.dependsOn tasks.named('cpmDistributionTest')
+
 def physicsSmoke = { String name, boolean nativeExpected, String reason ->
     tasks.register(name, JavaExec) {
         dependsOn shadowJar, tasks.named('distributionTestClasses')

@@ -38,6 +38,7 @@ Java 包名、Maven group 与内嵌依赖命名空间统一使用 `cc.sirrus.ysm
 | `ysm-runtime-java-render` | Java 状态提取、CPU 顶点与 Vanilla/Iris 布局基线 |
 | `ysm-runtime-native-render` | 可选 C++ 整次 draw packed-buffer renderer，Java state 与 renderer 皆可回退 |
 | `ysm-runtime-scene-api` | 独立场景、动画和物理数据契约 |
+| `ysm-runtime-java-cpm` | Gamepiaynmo 两代 CPM 的有界来源解析与 Bedrock 几何读取；不执行表达式/脚本或进行绘制 |
 | `ysm-runtime-native-physics` | 可选 Bullet C ABI/JNI 加速与正式 packed MMD 播放；启动优先可用 native，失败回退 WASM，使用方法见 [native-physics](native-physics/README.md) |
 | `ysm-runtime-native-scene` | 可选 BDEF/SDEF/QDEF packed JNI 与有界并行蒙皮，独立回退 Java；使用与验证见 [native-scene](native-scene/README.md) |
 | `ysm-runtime-wasm-physics` | Bullet 刚体、关节与软体，Chicory JVM/WASM，无 JNI |
@@ -55,6 +56,8 @@ V1/V2 返回原始文件；V3 是 compiled wire，不进入同一个 archive API
 默认优先使用可用的自建 native；缺失或 ABI / 自检 / 链接失败时，各能力独立回退 JVM。启动时自动查找工作目录下 `ysmlib/natives/<平台>-<架构>/` 的 `ysmlib_codec`、`ysmlib_render` 、`ysmlib_physics` 和 `ysmlib_skinning`，例如 `windows-x64/ysmlib_codec.dll`。可用 `-Dysm.runtime.nativeDir=<目录>` 更改根目录，或用 `ysm.runtime.codecLibrary` / `ysm.runtime.renderLibrary` / `ysm.runtime.physicsLibrary` / `ysm.runtime.skinningLibrary` 指定单库文件。`-Dysm.runtime.javaOnly=true` 跳过全部 native 发现和加载（仍允许 JVM 内 AVIF / Bullet WASM）。F3 显示实际选择的 provider；Hash、Compression、packed Render、Skinning 与 Physics 已有自建 native，State 仍是 Java；Physics 与 Skinning 同时显示缓存的启动回退原因。
 
 ## 构建与安装
+
+两代 Gamepiaynmo CPM 来源可独立调用 `YsmRuntime.cpm().detect(mainJson, limits)` / `read(files, limits)`；`files` 是调用者冻结的目录或归档条目。当前返回结构与资源引用，保留表达式/脚本文本，不执行模型程序，也尚未接入本体选择或场景播放。接口与边界见 [CPM 来源解析](../docs/architecture/cpm-source-parsing.md)。
 
 通用模型通过 `YsmRuntime.scenes()` 使用：`readPackage`/`writePackage` 读写封闭场景包，`loadPackage` 取得类型化来源及依赖，`playback` 创建独占动画/物理状态的会话。`preview` 包装同一会话的 seek 方法，提供暂停、逐帧和多视图更新去重；`GeometryFrame` 默认输出已经变形的共享几何；宿主显式选择 MMD compute 时，依据帧的未变形标记解析 palette/morph，并在 GPU 失败时从同一姿态求 CPU 几何。原格式读取与求值接口仍可独立调用。宿主 GPU、网络与 UI 不属于 Lib，当前接入范围见[通用网格支持状态](../docs/status/general-mesh-backend.md)。
 

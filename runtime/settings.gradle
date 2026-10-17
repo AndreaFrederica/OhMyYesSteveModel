@@ -1,4 +1,6 @@
 rootProject.name = 'ysm-runtime'
+include 'ysm-runtime-java-cpm'
+project(':ysm-runtime-java-cpm').projectDir = file('java-cpm')
 include 'ysm-runtime-scene-tools'
 project(':ysm-runtime-scene-tools').projectDir = file('scene-tools')
 include 'ysm-runtime-wasm-mesh'

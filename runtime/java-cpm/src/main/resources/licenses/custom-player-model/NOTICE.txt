@@ -1,0 +1,13 @@
+CPM Bedrock source parsing is adapted from Gamepiaynmo/CustomPlayerModel:
+https://github.com/Gamepiaynmo/CustomPlayerModel
+Revision: c40b0ab28b6a223888f04156a0b827b18b5cf36d
+Original files: shared/java/com/gpiay/cpm/model/element/BedrockModelParser.java
+                shared/java/com/gpiay/cpm/model/element/ElementParser.java
+Copyright (c) 2020 Gamepiaynmo. MIT License; see LICENSE.txt in this directory.
+
+The adaptation emits immutable source records instead of Minecraft ModelRenderer
+objects, bounds parsing, preserves unknown fields, and validates references.
+No original Minecraft rendering implementation, model textures or example assets
+are included. The legacy CustomModel source reader is an independent implementation
+of the documented format; this notice does not substitute for that repository's
+own copyright notice when copying its code in future work.

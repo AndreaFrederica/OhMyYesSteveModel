@@ -11,3 +11,9 @@ and run the ordinary runtime build. Runtime source and Gradle scripts are suppli
 for relinking. Source archives are also included as unchanged ZIP bytes with a
 `.zip` extension in the prerequisite JAR under
 `third-party-sources/`; downstream redistributors must retain them and the notices.
+
+The CPM Bedrock source reader adapts the parsing structure from
+Gamepiaynmo/CustomPlayerModel revision c40b0ab28b6a223888f04156a0b827b18b5cf36d
+(Copyright (c) 2020 Gamepiaynmo, MIT). The complete license and adaptation notice
+are supplied by java-cpm under `licenses/custom-player-model/` and included in
+the prerequisite distribution. No upstream model art is distributed.
