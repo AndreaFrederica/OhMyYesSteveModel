@@ -48,7 +48,7 @@ public record MeshAsset(String name,List<Primitive> primitives,FloatData default
       if(positions==null || positions.components()!=3) throw new IllegalArgumentException("Mesh requires VEC3 positions");
       int count=positions.count();
       for(var a:attributes.values()) if(a.count()!=count) throw new IllegalArgumentException("Vertex attribute count mismatch");
-      for(int i=0;i<indices.size();i++) if(indices.get(i)<0 || indices.get(i)>=count) throw new IllegalArgumentException("Mesh index out of bounds");
+      if(!indices.within(count))throw new IllegalArgumentException("Mesh index out of bounds");
       if(material< -1) throw new IllegalArgumentException("Invalid material index");
       if(skinning!=null && skinning.deforms().size()!=count) throw new IllegalArgumentException("Skin vertex count mismatch");
       if(topology==Topology.TRIANGLES && indices.size()%3!=0 || topology==Topology.LINES && indices.size()%2!=0)

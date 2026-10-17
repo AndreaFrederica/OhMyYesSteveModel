@@ -26,6 +26,6 @@ public final class DirectoryAssetResolver implements AssetResolver {
     if(!target.startsWith(root)) throw new AssetFormatException("Dependency escapes asset root");
     target=target.toRealPath();if(!target.startsWith(root)) throw new AssetFormatException("Dependency symlink escapes asset root");
     if(!Files.isRegularFile(target) || Files.size(target)>maxBytes) throw new AssetFormatException("Invalid dependency size/type");
-    try(var input=Files.newInputStream(target)) { byte[] data=input.readNBytes(maxBytes);if(input.read()!=-1) throw new AssetFormatException("Dependency exceeds limit");return new ByteData(data); }
+    try(var input=Files.newInputStream(target)) { byte[] data=input.readNBytes(maxBytes);if(input.read()!=-1) throw new AssetFormatException("Dependency exceeds limit");return ByteData.owned(data); }
   }
 }

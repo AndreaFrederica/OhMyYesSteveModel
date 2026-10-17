@@ -57,5 +57,7 @@ public interface MmdPlayback extends AutoCloseable {
   default void morphWeights(Map<Integer,Float> weights) { throw new UnsupportedOperationException("Expression overlays unavailable"); }
   /** Explicit IK switches after animated switches; an empty map restores animation ownership. */
   default void ikOverrides(Map<Integer,Boolean> switches) { throw new UnsupportedOperationException("IK overlays unavailable"); }
+  /** A host changed a time-pure source program; keep the existing live physics world. */
+  default void animationChanged() {}
   @Override void close();
 }

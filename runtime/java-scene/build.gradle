@@ -4,3 +4,10 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.apache.commons:commons-compress:1.27.1'
 }
+
+tasks.register('deformationBenchmark', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'cc.sirrus.ysmlib.scene.java.SceneDeformationBenchmark'
+    maxHeapSize = '1g'
+}
