@@ -1,6 +1,7 @@
 name: CI (1.12.2)
 
 # 只服务 1.12.2 迁移分支（dev/1.12）；dev/1.20 与其它分支不触发。
+# 先并行构建 Linux x86_64 与 Android arm64 的 libysm，再组装带 native 的 JAR。
 on:
   push:
     branches:
@@ -30,9 +31,11 @@ env:
   CMAKE_VERSION: '4.4.2'
   NINJA_VERSION: '1.13.2'
   NASM_VERSION: '3.02'
+  ANDROID_API_LEVEL: '28'
+  ANDROID_NDK_VERSION: '29.0.14206865'
 
 jobs:
-  native:
+  native-linux:
     name: Build native (Linux x86_64)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -225,9 +228,226 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  native-android:
+    name: Build native (Android arm64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout native source
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.NATIVE_REPO }}
+          ref: ${{ env.NATIVE_SHA }}
+          path: .native
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v4
+
+      # 与 native 仓库 build-native-android.yml 一致：LLVM 22 负责宿主工具，
+      # 目标编译器和 sysroot 全部来自 NDK r29。
+      - name: Install build tools
+        working-directory: .native
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential ca-certificates curl unzip xz-utils
+
+          curl --fail --silent --show-error --location \
+            https://apt.llvm.org/llvm.sh --output "$RUNNER_TEMP/llvm.sh"
+          chmod +x "$RUNNER_TEMP/llvm.sh"
+          sudo "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
+          sudo apt-get install --no-install-recommends -y clang-22 lld-22 llvm-22
+
+          llvm_linker_bin="$RUNNER_TEMP/llvm-22-bin"
+          mkdir -p "$llvm_linker_bin"
+          ln -s "$(command -v ld.lld-22)" "$llvm_linker_bin/ld.lld"
+          export PATH="$llvm_linker_bin:$PATH"
+          echo "$llvm_linker_bin" >> "$GITHUB_PATH"
+
+          export CC=clang-22
+          export CXX=clang++-22
+          export LDFLAGS=-fuse-ld=lld
+          echo "CC=clang-22" >> "$GITHUB_ENV"
+          echo "CXX=clang++-22" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-fuse-ld=lld" >> "$GITHUB_ENV"
+
+          python -m pip install --upgrade pip
+          python -m pip install "conan==${CONAN_VERSION}"
+
+          cmake_archive="$RUNNER_TEMP/cmake-${CMAKE_VERSION}.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" \
+            --output "$cmake_archive"
+          tar -xzf "$cmake_archive" -C "$RUNNER_TEMP"
+          cmake_bin="$RUNNER_TEMP/cmake-${CMAKE_VERSION}-linux-x86_64/bin"
+
+          ninja_archive="$RUNNER_TEMP/ninja-${NINJA_VERSION}.zip"
+          curl --fail --silent --show-error --location \
+            "https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/ninja-linux.zip" \
+            --output "$ninja_archive"
+          mkdir -p "$RUNNER_TEMP/ninja-${NINJA_VERSION}"
+          unzip -q "$ninja_archive" -d "$RUNNER_TEMP/ninja-${NINJA_VERSION}"
+          ninja_bin="$RUNNER_TEMP/ninja-${NINJA_VERSION}"
+          chmod +x "$ninja_bin/ninja"
+
+          export PATH="$cmake_bin:$ninja_bin:$PATH"
+          echo "$cmake_bin" >> "$GITHUB_PATH"
+          echo "$ninja_bin" >> "$GITHUB_PATH"
+
+          nasm_archive="$RUNNER_TEMP/nasm-${NASM_VERSION}.tar.xz"
+          curl --fail --silent --show-error --location \
+            "https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}/nasm-${NASM_VERSION}.tar.xz" \
+            --output "$nasm_archive"
+          tar -xJf "$nasm_archive" -C "$RUNNER_TEMP"
+          nasm_prefix="$RUNNER_TEMP/nasm-${NASM_VERSION}-install"
+          (
+            cd "$RUNNER_TEMP/nasm-${NASM_VERSION}"
+            ./configure --prefix="$nasm_prefix"
+            make -j"$(nproc)"
+            make install
+          )
+          nasm_bin="$nasm_prefix/bin"
+          export PATH="$nasm_bin:$PATH"
+          echo "$nasm_bin" >> "$GITHUB_PATH"
+
+          if command -v yasm >/dev/null 2>&1; then
+            echo "Yasm must not be available on PATH."
+            exit 1
+          fi
+
+          cmake --version
+          ninja --version
+          clang-22 --version
+          clang++-22 --version
+          ld.lld --version
+          conan --version
+          nasm -version
+
+      - name: Install Android NDK
+        working-directory: .native
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-${ANDROID_API_LEVEL}" "ndk;${ANDROID_NDK_VERSION}"
+
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:?ANDROID_SDK_ROOT and ANDROID_HOME are unset}}"
+          ndk_root="$sdk_root/ndk/${ANDROID_NDK_VERSION}"
+          test -x "$ndk_root/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android${ANDROID_API_LEVEL}-clang"
+
+          echo "ANDROID_NDK_ROOT=$ndk_root" >> "$GITHUB_ENV"
+
+      - name: Cache Conan packages
+        uses: actions/cache@v6
+        with:
+          path: .native/conan/cache
+          key: conan-android-arm64-${{ env.BUILD_TYPE }}-llvm${{ env.LLVM_MAJOR }}-ndk${{ env.ANDROID_NDK_VERSION }}-conan${{ env.CONAN_VERSION }}-cmake${{ env.CMAKE_VERSION }}-ninja${{ env.NINJA_VERSION }}-${{ env.NATIVE_SHA }}
+          restore-keys: |
+            conan-android-arm64-${{ env.BUILD_TYPE }}-llvm${{ env.LLVM_MAJOR }}-
+
+      - name: Create Android Conan toolchain
+        working-directory: .native
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolchain="$RUNNER_TEMP/ysm-android-toolchain"
+          mkdir -p "$toolchain/conan" \
+            "$toolchain/tool/conan/bin" \
+            "$toolchain/tool/cmake/bin" \
+            "$toolchain/tool/ninja/bin"
+
+          ln -s "$(command -v conan)" "$toolchain/tool/conan/bin/conan"
+          ln -s "$(command -v cmake)" "$toolchain/tool/cmake/bin/cmake"
+          ln -s "$(command -v ninja)" "$toolchain/tool/ninja/bin/ninja"
+
+          build_home="$RUNNER_TEMP/conan-build-profile-home"
+          mkdir -p "$build_home"
+          CONAN_HOME="$build_home" conan profile detect --force --name build
+          cp "$build_home/profiles/build" "$toolchain/conan/linux-x64"
+
+          compiler_version="$(clang++-22 --version | sed -n 's/.*clang version \([0-9][0-9]*\).*/\1/p' | head -n 1)"
+          test "$compiler_version" = "$LLVM_MAJOR"
+          ndk_compiler="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android${ANDROID_API_LEVEL}-clang"
+          test -x "$ndk_compiler"
+          ndk_resource_dir="$("$ndk_compiler" -print-resource-dir)"
+          ndk_sysroot_lib_dir="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/${ANDROID_API_LEVEL}"
+          ndk_runtime_lib_dir="$ndk_resource_dir/lib/linux/aarch64"
+          test -d "$ndk_resource_dir"
+          test -d "$ndk_sysroot_lib_dir"
+          test -d "$ndk_runtime_lib_dir"
+          "$ndk_compiler" --version
+
+          cat > "$toolchain/conan/android-arm64" <<EOF
+          [settings]
+          os=Android
+          os.api_level=${ANDROID_API_LEVEL}
+          arch=armv8
+          compiler=clang
+          compiler.version=${compiler_version}
+          compiler.libcxx=c++_static
+          compiler.cppstd=23
+
+          [conf]
+          tools.android:ndk_path=${ANDROID_NDK_ROOT}
+          tools.android:cmake_legacy_toolchain=False
+          tools.graph:skip_test=True
+          tools.build:skip_test=True
+          tools.build:compiler_executables={"c":"clang-22","cpp":"clang++-22"}
+          tools.build:exelinkflags=["-rtlib=compiler-rt","-unwindlib=libunwind","-resource-dir=${ndk_resource_dir}","-L${ndk_sysroot_lib_dir}","-L${ndk_runtime_lib_dir}"]
+          tools.build:sharedlinkflags=["-rtlib=compiler-rt","-unwindlib=libunwind","-resource-dir=${ndk_resource_dir}","-L${ndk_sysroot_lib_dir}","-L${ndk_runtime_lib_dir}"]
+          tools.cmake.cmaketoolchain:generator=Ninja
+          EOF
+
+          echo "YSM_TOOLCHAIN_PATH=$toolchain" >> "$GITHUB_ENV"
+
+      - name: Index dependency recipes
+        working-directory: .native
+        shell: bash
+        run: bash ./bootstrap.sh setup --toolchain "$YSM_TOOLCHAIN_PATH"
+
+      - name: Build libysm (Android arm64)
+        working-directory: .native
+        shell: bash
+        run: bash ./bootstrap.sh build android-arm64 --toolchain "$YSM_TOOLCHAIN_PATH"
+
+      - name: Collect native library
+        working-directory: .native
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t libraries < <(find build -type f -name 'libysm.so' -print)
+          if (( ${#libraries[@]} != 1 )); then
+            echo "Expected exactly one libysm.so, found ${#libraries[@]}."
+            find build -type f -print
+            exit 1
+          fi
+
+          mkdir -p artifact
+          cp "${libraries[0]}" artifact/libysm-android.so
+          sha256sum artifact/libysm-android.so | tee artifact/SHA256SUMS.txt
+          ls -lh artifact
+
+      - name: Upload native library
+        uses: actions/upload-artifact@v7
+        with:
+          name: ysm-native-android-arm64
+          path: |
+            .native/artifact/libysm-android.so
+            .native/artifact/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
   build:
     name: Build 1.12.2 JAR
-    needs: native
+    needs: [native-linux, native-android]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -243,20 +463,36 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Download native library
+      - name: Download Linux native library
         uses: actions/download-artifact@v7
         with:
           name: ysm-native-linux-x86_64
-          path: native
+          path: native-linux
+
+      - name: Download Android native library
+        uses: actions/download-artifact@v7
+        with:
+          name: ysm-native-android-arm64
+          path: native-android
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      # 按 docs/build.md 的打包约定把已构建的平台库放进 JAR：
+      # Linux 用于本机构建校验与桌面运行，Android arm64 供手机端加载。
+      # Windows/macOS 尚未在 CI 构建，产物不包含对应 native。
+      - name: Stage native libraries
+        run: |
+          mkdir -p src/main/resources/META-INF/native
+          cp native-linux/libysm.so src/main/resources/META-INF/native/libysm.so
+          cp native-android/libysm-android.so src/main/resources/META-INF/native/libysm-android.so
+          ls -lh src/main/resources/META-INF/native
 
       # shadowJar 依赖 reobfJar 与 builtin 索引校验，输出 build/libs/ysm-<version>.jar。
       # verifyMockHostPackaging 防止 mock/验证专用类泄漏进发布产物。
       - name: Build shaded JAR
         env:
-          YSM_NATIVE_PATH: ${{ github.workspace }}/native/libysm.so
+          YSM_NATIVE_PATH: ${{ github.workspace }}/native-linux/libysm.so
         run: ./gradlew --stacktrace shadowJar verifyMockHostPackaging
 
       - name: Summarize artifact
@@ -264,7 +500,6 @@ jobs:
           ls -lh build/libs
           sha256sum build/libs/*.jar | tee build/libs/SHA256SUMS.txt
 
-      # 先把产物上传，测试失败时仍可取到用于排查的 JAR。
       - name: Upload JAR
         uses: actions/upload-artifact@v7
         with:
